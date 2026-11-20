@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Late For Class - Movement Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .console-output {
+            background-color: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Late For Class - Movement Tests</h1>
+        <p>Testing movement functionality in the game.</p>
+        
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearConsole()">Clear Console</button>
+        
+        <div class="test-results">
+            <h2>Test Results:</h2>
+            <div id="results"></div>
+        </div>
+        
+        <div class="console-output" id="consoleOutput">
+            Console output will appear here...
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="../../assets/gameConfig.js"></script>
+    <script src="../../js/main.js"></script>
+    <script src="./test-movement.js"></script>
+    
+    <script>
+        // Override console.log to display in the HTML
+        const originalLog = console.log;
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        console.log = function(message) {
+            originalLog.apply(console, arguments);
+            consoleOutput.innerHTML += message + '\n';
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+        
+        function clearConsole() {
+            consoleOutput.innerHTML = '';
+        }
+        
+        function runAllTests() {
+            const results = runAllTests();
+            const resultsDiv = document.getElementById('results');
+            
+            let html = '<ul>';
+            if (results[0]) html += '<li style="color: green;">✓ Forward movement test passed</li>';
+            else html += '<li style="color: red;">✗ Forward movement test failed</li>';
+            
+            if (results[1]) html += '<li style="color: green;">✓ Backward movement test passed</li>';
+            else html += '<li style="color: red;">✗ Backward movement test failed</li>';
+            
+            if (results[2]) html += '<li style="color: green;">✓ Left movement test passed</li>';
+            else html += '<li style="color: red;">✗ Left movement test failed</li>';
+            
+            if (results[3]) html += '<li style="color: green;">✓ Right movement test passed</li>';
+            else html += '<li style="color: red;">✗ Right movement test failed</li>';
+            
+            html += '</ul>';
+            
+            const passed = results.filter(r => r).length;
+            const total = results.length;
+            html += `<p><strong>Total: ${passed}/${total} tests passed</strong></p>`;
+            
+            if (passed === total) {
+                html += '<p style="color: green; font-weight: bold;">🎉 All tests PASSED!</p>';
+            } else {
+                html += '<p style="color: red; font-weight: bold;">❌ Some tests FAILED!</p>';
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
