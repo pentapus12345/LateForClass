@@ -17,3 +17,7 @@ The playground regressions check the level selector, gap jumping, stair ascent a
 The classroom regressions cover door range, blocked movement while closed, opening and traversal from both sides, and reset with R. Open `/?level=3` to try the door in the game.
 
 The two-floor route tests check grounded ascent and descent across all twelve treads at two frame rates, head clearance, and collision with the landing boundaries.
+
+The classroom objective tests check the marked area's footprint and floor height, the match between the target room and its identifier, the visible label, and arrival with E. Restart coverage checks that the door and objective reset and that the previous sign texture is disposed.
+
+Visual foundation tests verify that the solid surfaces and debug outlines match the colliders, that V preserves camera position, and that the debug outline follows the door as it opens. Both views use the same physics.

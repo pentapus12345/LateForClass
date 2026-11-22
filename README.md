@@ -33,7 +33,9 @@ Open <http://localhost:8090/?level=2> to load the development level. The blue de
 
 ## Corridor and Classroom
 
-Open <http://localhost:8090/?level=3> to explore the connected rooms. Walk up to the amber door, press **E**, and head straight through the classroom to reach the stairs. Walk up to the upper landing and back down with **WASD**. Press **R** to return to spawn and close the door.
+Open <http://localhost:8090/?level=3> and find **Room 101**. Open the amber door with **E**, then stand inside the green marker and press **E** to confirm arrival. You can also use the stairs at the back of the classroom to explore the upper landing. Press **R** to reset arrival and close the door.
+
+Corridor and Classroom opens in solid view. Press **V** to switch between solid surfaces and wireframe collision outlines. You can also use the view button on the start and pause screens. The selected view stays active when you restart.
 
 ## Player physics
 

@@ -1,5 +1,6 @@
 const PILLAR_RADIAL_SEGMENTS = 16;
 const CONTACT_TOLERANCE = 1e-9;
+const DEFAULT_SURFACE_COLOR = 0xb6c0c9;
 
 class Level {
     constructor(definition, config) {
@@ -9,6 +10,8 @@ class Level {
         this.playerLookAt = definition.playerLookAt;
         this.solids = [];
         this.objects = [];
+        this.renderPairs = [];
+        this.debugView = false;
         this.door = null;
     }
 
@@ -21,7 +24,7 @@ class Level {
         for (const platform of this.definition.platforms ?? []) {
             const solid = new Wall(platform);
             this.solids.push(solid);
-            this.addWireframeBox(scene, solid, platform.color, platform.name);
+            this.addPlatformVisuals(scene, solid, platform);
         }
 
         if (this.definition.pillars) {
@@ -29,6 +32,12 @@ class Level {
         }
         if (this.definition.door) {
             this.addDoor(scene, this.definition.door);
+        }
+        if (this.definition.classroom?.zone) {
+            this.addClassroomMarker(scene, this.definition.classroom.zone);
+        }
+        if (this.definition.classroom?.sign) {
+            this.addClassroomSign(scene, this.definition.classroom);
         }
     }
 
@@ -40,10 +49,14 @@ class Level {
     clear(scene) {
         const geometries = new Set();
         const materials = new Set();
+        const textures = new Set();
         for (const object of this.objects) {
             scene.remove(object);
             geometries.add(object.geometry);
             materials.add(object.material);
+            if (object.material.map) {
+                textures.add(object.material.map);
+            }
         }
         for (const geometry of geometries) {
             geometry.dispose();
@@ -51,8 +64,12 @@ class Level {
         for (const material of materials) {
             material.dispose();
         }
+        for (const texture of textures) {
+            texture.dispose();
+        }
         this.objects = [];
         this.solids = [];
+        this.renderPairs = [];
         this.door = null;
     }
 
@@ -80,6 +97,43 @@ class Level {
         const frame = new THREE.LineSegments(geometry, material);
         frame.name = name;
         this.addObject(scene, frame);
+        return frame;
+    }
+
+    addPlatformVisuals(scene, bounds, { color, name, surfaceColor = DEFAULT_SURFACE_COLOR }) {
+        if (!this.definition.solidRendering) {
+            this.addWireframeBox(scene, bounds, color, name);
+            return;
+        }
+
+        const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
+        const geometry = new THREE.BoxGeometry(maxX - minX, maxY - minY, maxZ - minZ);
+        const material = new THREE.MeshLambertMaterial({ color: surfaceColor });
+        const surface = new THREE.Mesh(geometry, material);
+        surface.name = name;
+        surface.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+        this.addObject(scene, surface);
+        const wireframe = this.addWireframeBox(scene, bounds, color, `${name} collision`);
+        this.addRenderPair(surface, wireframe);
+    }
+
+    addRenderPair(surface, wireframe) {
+        surface.visible = !this.debugView;
+        wireframe.visible = this.debugView;
+        this.renderPairs.push({ surface, wireframe });
+    }
+
+    toggleDebugView() {
+        if (!this.definition.solidRendering) {
+            return false;
+        }
+
+        this.debugView = !this.debugView;
+        for (const { surface, wireframe } of this.renderPairs) {
+            surface.visible = !this.debugView;
+            wireframe.visible = this.debugView;
+        }
+        return true;
     }
 
     createHallwayColliders() {
@@ -109,18 +163,69 @@ class Level {
         if (!classroom) {
             return false;
         }
+        if (classroom.zone) {
+            const { x, y, z, width, depth } = classroom.zone;
+            return classroom.id === this.definition.destinationRoomId &&
+                Math.abs(position.y - y) <= CONTACT_TOLERANCE &&
+                Math.abs(position.x - x) <= width / 2 &&
+                Math.abs(position.z - z) <= depth / 2;
+        }
         const distance = Math.hypot(position.x - classroom.x, position.z - classroom.z);
         return distance <= classroom.interactionRadius;
+    }
+
+    addClassroomMarker(scene, { x, y, z, width, depth, color }) {
+        // Offset the outline slightly above the floor. It has no collider.
+        const minY = y + 0.02;
+        this.addWireframeBox(scene, {
+            minX: x - width / 2, maxX: x + width / 2,
+            minY, maxY: minY + 0.04,
+            minZ: z - depth / 2, maxZ: z + depth / 2
+        }, color, 'Classroom destination');
+    }
+
+    addClassroomSign(scene, { id, sign }) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 192;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#82d8ac';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#15202b';
+        context.font = 'bold 76px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        const label = `Room ${id}`;
+        context.fillText(label, canvas.width / 2, canvas.height / 2, canvas.width - 32);
+
+        const geometry = new THREE.PlaneGeometry(0.88, 0.33);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({ map: texture });
+        const plaque = new THREE.Mesh(geometry, material);
+        plaque.name = label;
+        plaque.position.set(sign.x, sign.y, sign.z);
+        // Plane geometry faces +Z by default. The corridor is on the -Z side.
+        plaque.rotation.y = Math.PI;
+        this.addObject(scene, plaque);
     }
 
     addDoor(scene, definition) {
         const { x, y, z, width, height, depth, color, name } = definition;
         const geometry = new THREE.BoxGeometry(width, height, depth);
-        const material = new THREE.MeshBasicMaterial({ color, opacity: 0.65, transparent: true });
+        const material = this.definition.solidRendering
+            ? new THREE.MeshLambertMaterial({ color })
+            : new THREE.MeshBasicMaterial({ color, opacity: 0.65, transparent: true });
         const panel = new THREE.Mesh(geometry, material);
         panel.name = name;
         panel.position.set(x, y + height / 2, z);
-        this.door = { panel, solidIndex: this.solids.length, isOpen: false };
+        let wireframe = null;
+        if (this.definition.solidRendering) {
+            wireframe = this.addWireframeBox(scene, new Wall({ x: 0, y: -height / 2, z: 0, width, height, depth }),
+                color, `${name} collision`);
+            wireframe.position.set(x, y + height / 2, z);
+            this.addRenderPair(panel, wireframe);
+        }
+        this.door = { panel, wireframe, solidIndex: this.solids.length, isOpen: false };
         this.solids.push(new Wall(definition));
         this.addObject(scene, panel);
     }
@@ -144,6 +249,10 @@ class Level {
         const openZ = z + swing * width / 2;
         this.door.panel.position.set(openX, y + height / 2, openZ);
         this.door.panel.rotation.y = -swing * Math.PI / 2;
+        if (this.door.wireframe) {
+            this.door.wireframe.position.set(openX, y + height / 2, openZ);
+            this.door.wireframe.rotation.y = this.door.panel.rotation.y;
+        }
         this.solids[this.door.solidIndex] = new Wall({
             x: openX, y, z: openZ, width: depth, height, depth: width
         });

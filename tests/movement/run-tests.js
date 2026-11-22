@@ -141,6 +141,23 @@ class Material extends Resource {
     }
 }
 
+class CanvasTexture extends Resource {
+    constructor(image) {
+        super();
+        this.image = image;
+    }
+}
+
+function createCanvas() {
+    const canvas = {
+        getContext: () => ({
+            fillRect() {},
+            fillText(text) { canvas.text = text; }
+        })
+    };
+    return canvas;
+}
+
 class Mesh {
     constructor(geometry, material) {
         this.geometry = geometry;
@@ -162,6 +179,8 @@ const THREE = {
     BufferGeometry,
     CylinderGeometry,
     BoxGeometry,
+    PlaneGeometry: Resource,
+    CanvasTexture,
     MeshBasicMaterial: Material,
     MeshLambertMaterial: Material,
     LineBasicMaterial: Material,
@@ -170,6 +189,7 @@ const THREE = {
 };
 const context = vm.createContext({
     THREE,
+    document: { createElement: createCanvas },
     test,
     levels
 });
@@ -265,6 +285,7 @@ async function loadGame(response, search = '') {
     let hasFocus = true;
     const document = Object.assign(new EventTarget(), {
         getElementById: id => elements.get(id) ?? null,
+        createElement: createCanvas,
         hasFocus: () => hasFocus,
         pointerLockElement: null,
         exitPointerLock() {
@@ -281,6 +302,7 @@ async function loadGame(response, search = '') {
 
     class Renderer {
         domElement = new Element();
+        renderCount = 0;
 
         constructor() {
             renderers.push(this);
@@ -295,6 +317,7 @@ async function loadGame(response, search = '') {
         }
 
         render(scene, camera) {
+            this.renderCount++;
             this.scene = scene;
             this.camera = camera;
         }
@@ -338,6 +361,7 @@ test('the page boots one game and routes start, movement, resize, pause, and res
     const screen = elements.get('start-screen');
     assert.equal(startButton.disabled, false);
     assert.equal(screen.hidden, false);
+    assert.equal(elements.get('view-toggle').hidden, true);
     assert.equal(frames.length, 1);
     assert.equal(camera.aspect, 800 / 600);
     assert.equal(camera.position.z, levels[0].playerStart.z);
@@ -459,19 +483,24 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     const { document, elements, frames, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
     const [{ camera, scene }] = renderers;
-    const { playerStart, platforms, door } = levels.find(level => level.id === 3);
+    const { playerStart, platforms, door, destinationRoomId } = levels.find(level => level.id === 3);
     const startingPosition = camera.position.clone();
     const startingDirection = camera.getWorldDirection(new Vector3());
     const dispatch = (type, properties) => document.dispatchEvent(Object.assign(new Event(type), properties));
     assert.equal(elements.get('screen-title').textContent, 'Corridor and Classroom');
     assert.equal(camera.position.z, playerStart.z);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 2);
     const initialPanel = scene.children.find(object => object.name === door.name);
     assert.equal(initialPanel.rotation.y, 0);
+    const sign = scene.children.find(object => object.name === `Room ${destinationRoomId}`);
+    assert.equal(sign.material.map.image.text, `Room ${destinationRoomId}`);
+    let textureDisposed = false;
+    sign.material.map.addEventListener('dispose', () => { textureDisposed = true; });
 
     elements.get('start-button').dispatchEvent(new Event('click'));
     const objective = elements.get('objective');
-    assert.equal(objective.hidden, true);
+    assert.equal(objective.hidden, false);
+    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
     dispatch('keydown', { code: 'KeyE' });
     assert.equal(initialPanel.rotation.y, 0);
     dispatch('keydown', { code: 'KeyW' });
@@ -482,7 +511,7 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     assert.equal(objective.hidden, false);
     assert.equal(objective.textContent, 'Press E to open the door');
     dispatch('keydown', { code: 'KeyE' });
-    assert.equal(objective.hidden, true);
+    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
     assert.equal(initialPanel.rotation.y, -Math.PI / 2);
     for (let frame = 0; frame < 5; frame++) {
         frames.shift()();
@@ -494,11 +523,103 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     frames.shift()();
     assert.deepEqual(camera.position, startingPosition);
     assert.deepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 2);
     const resetPanel = scene.children.find(object => object.name === door.name);
     assert.notEqual(resetPanel, initialPanel);
     assert.equal(scene.children.includes(initialPanel), false);
     assert.equal(resetPanel.rotation.y, 0);
+    assert.equal(textureDisposed, true);
+    assert.equal(scene.children.filter(object => object.name === `Room ${destinationRoomId}`).length, 1);
+});
+
+test('classroom views switch before start, during play, and while paused', async () => {
+    const { document, elements, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const [renderer] = renderers;
+    const { camera, scene } = renderer;
+    const floor = scene.children.find(object => object.name === 'Corridor floor');
+    const outline = scene.children.find(object => object.name === 'Corridor floor collision');
+    const initialPosition = camera.position.clone();
+    const initialDirection = camera.getWorldDirection(new Vector3());
+    const viewStatus = elements.get('view-status');
+    const viewToggle = elements.get('view-toggle');
+    const press = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
+    const renderCount = renderer.renderCount;
+    assert.equal(viewStatus.hidden, true);
+    assert.equal(viewToggle.hidden, false);
+    assert.equal(viewToggle.textContent, 'Show collision outlines');
+    assert.equal(floor.visible, true);
+    assert.equal(outline.visible, false);
+    press('KeyV');
+    assert.equal(floor.visible, false);
+    assert.equal(outline.visible, true);
+    assert.equal(viewToggle.textContent, 'Return to solid view');
+    assert.equal(renderer.renderCount, renderCount + 1);
+    viewToggle.dispatchEvent(new Event('click'));
+    assert.equal(floor.visible, true);
+    assert.equal(outline.visible, false);
+    assert.equal(renderer.renderCount, renderCount + 2);
+
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    assert.equal(viewStatus.hidden, false);
+    assert.match(viewStatus.textContent, /Show collision outlines/);
+    press('KeyV');
+    assert.equal(floor.visible, false);
+    assert.equal(outline.visible, true);
+    assert.match(viewStatus.textContent, /Return to solid view/);
+
+    press('Escape');
+    assert.equal(viewStatus.hidden, true);
+    assert.equal(viewToggle.textContent, 'Return to solid view');
+    const pausedRenderCount = renderer.renderCount;
+    viewToggle.dispatchEvent(new Event('click'));
+    assert.equal(floor.visible, true);
+    assert.equal(outline.visible, false);
+    press('KeyV');
+    assert.equal(floor.visible, false);
+    assert.equal(outline.visible, true);
+    assert.equal(renderer.renderCount, pausedRenderCount + 2);
+    assert.deepEqual(camera.position, initialPosition);
+    assert.deepEqual(camera.getWorldDirection(new Vector3()), initialDirection);
+    assert.equal(scene.children.find(object => object.name === 'Classroom door').rotation.y, 0);
+});
+
+test('E completes the connected scene only inside the marker and R resets the run', async () => {
+    const { document, elements, frames, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const [{ camera, scene }] = renderers;
+    const { destinationRoomId, door, playerStart } = levels.find(level => level.id === 3);
+    const startButton = elements.get('start-button');
+    const objective = elements.get('objective');
+    const input = (type, code) => document.dispatchEvent(Object.assign(new Event(type), { code }));
+    const advanceFrames = count => {
+        for (let frame = 0; frame < count; frame++) {
+            frames.shift()();
+        }
+    };
+    startButton.dispatchEvent(new Event('click'));
+    input('keydown', 'KeyW');
+    advanceFrames(12);
+    input('keydown', 'KeyE');
+    advanceFrames(4);
+    input('keydown', 'KeyE');
+    assert.equal(elements.get('start-screen').hidden, true);
+    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
+
+    advanceFrames(5);
+    input('keyup', 'KeyW');
+    assert.equal(objective.textContent, `Press E to confirm arrival at Room ${destinationRoomId}`);
+    input('keydown', 'KeyE');
+    assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${destinationRoomId}.`);
+    assert.equal(startButton.textContent, 'Play Again');
+    assert.equal(document.pointerLockElement, null);
+
+    input('keydown', 'KeyR');
+    assert.equal(camera.position.z, playerStart.z);
+    assert.equal(scene.children.find(object => object.name === door.name).rotation.y, 0);
+    startButton.dispatchEvent(new Event('click'));
+    assert.equal(elements.get('start-screen').hidden, true);
+    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {

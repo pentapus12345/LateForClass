@@ -750,6 +750,87 @@ function registerMovementTests(test, levels) {
         near(player.position.z, level.playerStart.z);
     });
 
+    test('the marked destination is walkable and only accepts the configured floor and footprint', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const { x, y, z, width, depth } = classroomData.classroom.zone;
+        const center = { x, y, z };
+        equal(scene.children.some(object => object.name === 'Classroom destination'), true);
+        equal(level.canEnterClassroom(center), true);
+        equal(level.canEnterClassroom({ x: x + width / 2, y, z: z - depth / 2 }), true);
+        equal(level.canEnterClassroom({ ...center, x: x + width / 2 + 0.01 }), false);
+        equal(level.canEnterClassroom({ ...center, z: z + depth / 2 + 0.01 }), false);
+        equal(level.canEnterClassroom({ ...center, y: y + 3 }), false);
+        equal(level.canEnterClassroom({ x: 0, y: 3, z: 17.5 }), false);
+        equal(level.isBlocked(center, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+    });
+
+    test('classroom surfaces and debug outlines match their colliders without replacing them', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const colliders = [...level.solids];
+        const pairs = level.renderPairs;
+        const sign = scene.children.find(object => object.name === 'Room 101');
+        equal(pairs.length, colliders.length);
+        for (const [index, { surface, wireframe }] of pairs.entries()) {
+            const collider = colliders[index];
+            const { width, height, depth } = surface.geometry.parameters;
+            const positions = wireframe.geometry.getAttribute('position');
+            for (const [axis, size] of [['X', width], ['Y', height], ['Z', depth]]) {
+                const coordinate = axis.toLowerCase();
+                near(surface.position[coordinate] - size / 2, collider[`min${axis}`]);
+                near(surface.position[coordinate] + size / 2, collider[`max${axis}`]);
+                const values = Array.from({ length: positions.count }, (_, vertex) =>
+                    positions[`get${axis}`](vertex) + wireframe.position[coordinate]
+                );
+                near(Math.min(...values), collider[`min${axis}`], 1e-6);
+                near(Math.max(...values), collider[`max${axis}`], 1e-6);
+            }
+            equal(surface.visible, true);
+            equal(surface.material.transparent === true, false);
+            equal(wireframe.visible, false);
+        }
+        const signVisibility = sign.visible;
+        equal(level.toggleDebugView(), true);
+        equal(pairs.every(({ surface, wireframe }) => !surface.visible && wireframe.visible), true);
+        equal(level.solids.every((collider, index) => collider === colliders[index]), true);
+        equal(sign.visible, signVisibility);
+        equal(level.toggleDebugView(), true);
+        equal(pairs.every(({ surface, wireframe }) => surface.visible && !wireframe.visible), true);
+        equal(setup().level.toggleDebugView(), false);
+        equal(setup({ definition: playgroundData }).level.toggleDebugView(), false);
+    });
+
+    test('the debug door follows its open panel and the selected view survives restart', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        equal(level.toggleDebugView(), true);
+        equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
+        const { panel, wireframe, solidIndex } = level.door;
+        nearVector(wireframe.position, panel.position);
+        near(wireframe.rotation.y, panel.rotation.y);
+        near(level.solids[solidIndex].minZ, 0);
+        equal(wireframe.visible, true);
+        equal(panel.visible, false);
+        level.build(scene);
+        equal(level.debugView, true);
+        equal(level.door.isOpen, false);
+        equal(level.door.wireframe.visible, true);
+        equal(scene.children.includes(wireframe), false);
+        equal(scene.children.includes(panel), false);
+    });
+
+    test('arrival requires the room identifier to match the selected destination', () => {
+        const { x, y, z } = classroomData.classroom.zone;
+        const position = { x, y, z };
+        const { id } = classroomData.classroom;
+        equal(id, classroomData.destinationRoomId);
+        const otherDestination = setup({ definition: { ...classroomData, destinationRoomId: 'other' } });
+        equal(otherDestination.level.canEnterClassroom(position), false);
+        const renamed = setup({ definition: {
+            ...classroomData, destinationRoomId: 'A1', classroom: { ...classroomData.classroom, id: 'A1' }
+        } });
+        equal(renamed.level.canEnterClassroom(position), true);
+        equal(renamed.scene.children.some(object => object.name === 'Room A1'), true);
+    });
+
     test('classroom interaction is out of range at spawn and reachable inside the far wall', () => {
         const { player, level } = setup();
         const { x, z, interactionRadius } = levelData.classroom;

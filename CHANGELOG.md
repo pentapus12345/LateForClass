@@ -8,6 +8,27 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-22 — Fix the view toggle before start and while paused
+
+- V previously required pointer lock. It now switches views in Corridor and Classroom before starting, during play, and while paused. The start and pause screens also have a button that switches views and redraws immediately.
+- All 57 Node tests and 46 Chrome regression tests passed. A Chrome playthrough verified the shortcut and button on the start and pause screens and the shortcut during play.
+
+### 2026-11-22 — Add solid rendering and collision debug view
+
+- Corridor and Classroom now starts with opaque surfaces and basic lighting. The door, sign, stairs, and green arrival marker stand out in solid view.
+- V switches between solid surfaces and wireframe collision outlines built from the same bounds. The view persists on restart. The Hallway and Physics Playground retain their wireframes.
+- All 57 Node tests and 46 Chrome regression tests passed. A Chrome playthrough checked matching bounds in both views, the door, staircase ascent in solid view and descent in debug view, a jump on the landing, arrival, and reset.
+
+### 2026-11-22 — Identify the classroom and record arrival
+
+- Added prototype identifier Room 101 and a matching destination to Corridor and Classroom in `assets/levels.json`. `js/Level.js` renders the doorway label and checks room identity, horizontal bounds, and floor height. `js/Game.js` displays the named objective and records arrival with E.
+- Updated the README, test documentation, and roadmap. All 54 Node tests and 44 Chrome regression tests passed. A Chrome playthrough verified the Room 101 objective, door interaction, arrival, and reset. Tests cover a mismatched room identifier and sign texture cleanup.
+
+### 2026-11-22 — Complete one classroom objective
+
+- Added a floor-level destination to Corridor and Classroom in `assets/levels.json`. `Level` draws a green marker and checks its footprint and floor height. `Game` displays the objective, keeps the door interaction available, and completes the run when E is pressed inside the marker.
+- Updated the README, test documentation, and roadmap. All 53 Node tests and 43 Chrome regression tests passed. A Chrome playthrough verified opening the door, rejecting E outside the marker and on the upper landing, completing inside the marker, and resetting the objective and door with R.
+
 ### 2026-11-22 — Connect two floors by stairs
 
 - Extended Corridor and Classroom in `assets/levels.json` with twelve treads, a stairwell, and an enclosed upper landing three world units above the classroom floor. The route uses the existing rendering and collision system.

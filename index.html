@@ -48,6 +48,16 @@
             background-color: #141d29e8;
             text-align: center;
         }
+        #view-status {
+            position: absolute;
+            right: 1rem;
+            bottom: 1rem;
+            margin: 0;
+            padding: 0.45rem 0.65rem;
+            border-radius: 0.3rem;
+            background: #15202beb;
+            pointer-events: none;
+        }
         #start-screen h1 {
             margin: 0;
         }
@@ -72,7 +82,18 @@
             opacity: 0.5;
             cursor: default;
         }
-        #start-button:focus-visible {
+        #view-toggle {
+            margin-top: 0.75rem;
+            padding: 0.5rem 0.85rem;
+            font: inherit;
+            color: white;
+            background: transparent;
+            border: 1px solid #d2dbe7;
+            border-radius: 0.3rem;
+            cursor: pointer;
+        }
+        #start-button:focus-visible,
+        #view-toggle:focus-visible {
             outline: 2px solid white;
             outline-offset: 3px;
         }
@@ -85,11 +106,13 @@
 <body>
     <main id="game-container">
         <p id="objective" role="status" hidden></p>
+        <p id="view-status" role="status" hidden></p>
         <section id="start-screen" aria-labelledby="screen-title">
             <h1 id="screen-title">Late For Class</h1>
             <p id="screen-message" role="status">Loading the hallway…</p>
             <p id="instructions">WASD to move · Mouse to look · E when prompted<br>Escape to pause · R to restart</p>
             <button id="start-button" type="button" disabled>Start Game</button>
+            <button id="view-toggle" type="button" hidden></button>
             <a class="level-picker-link" href="levels/">Choose a level</a>
         </section>
     </main>

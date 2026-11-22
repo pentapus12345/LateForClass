@@ -9,6 +9,7 @@ class Game {
         this.clock = new THREE.Clock();
         this.started = false;
         this.completed = false;
+        this.arrivedRoomId = null;
         this.pointerLockFailed = false;
     }
 
@@ -18,6 +19,8 @@ class Game {
         this.screenMessage = document.getElementById('screen-message');
         this.startButton = document.getElementById('start-button');
         this.objective = document.getElementById('objective');
+        this.viewStatus = document.getElementById('view-status');
+        this.viewToggle = document.getElementById('view-toggle');
         const container = document.getElementById('game-container');
 
         const response = await fetch(LEVELS_URL);
@@ -45,10 +48,11 @@ class Game {
         this.scene.add(directionalLight);
 
         this.level = new Level(levelDefinition, this.config);
-        if (!levelDefinition.classroom) {
-            const interaction = levelDefinition.door ? ' · E to open the door' : '';
+        if (levelDefinition.id !== STARTING_LEVEL_ID) {
+            const interaction = levelDefinition.door || levelDefinition.classroom ? ' · E to interact' : '';
+            const viewControl = levelDefinition.solidRendering ? ' · V to switch views' : '';
             document.getElementById('instructions').textContent =
-                `WASD to move · Mouse to look · Space to jump${interaction} · Escape to pause · R to restart`;
+                `WASD to move · Mouse to look · Space to jump${interaction}${viewControl} · Escape to pause · R to restart`;
         }
         this.player = new Player(this.config);
         this.resizeRenderer();
@@ -56,6 +60,7 @@ class Game {
         container.appendChild(this.renderer.domElement);
 
         this.startButton.addEventListener('click', () => this.start());
+        this.viewToggle.addEventListener('click', () => this.toggleView());
         document.addEventListener('keydown', event => this.onKeyDown(event));
         document.addEventListener('keyup', event => this.player.onKeyUp(event));
         document.addEventListener('mousemove', event => {
@@ -107,6 +112,7 @@ class Game {
         this.level.build(this.scene);
         this.player.resetPosition(this.level.playerStart, this.level.playerLookAt, this.level);
         this.completed = false;
+        this.arrivedRoomId = null;
         this.pointerLockFailed = false;
         this.updateInterface();
         this.render();
@@ -119,6 +125,10 @@ class Game {
 
         if (event.code === 'KeyR' && this.started) {
             this.restart();
+            return;
+        }
+        if (event.code === 'KeyV') {
+            this.toggleView();
             return;
         }
         if (!this.isPlaying()) {
@@ -136,6 +146,7 @@ class Game {
             }
             if (this.level.canEnterClassroom(this.player.position)) {
                 this.completed = true;
+                this.arrivedRoomId = this.level.definition.destinationRoomId ?? null;
                 this.player.clearInput();
                 this.updateInterface();
                 document.exitPointerLock();
@@ -152,6 +163,7 @@ class Game {
     updateInterface() {
         const isPlaying = this.isPlaying();
         this.startScreen.hidden = isPlaying;
+        this.updateViewStatus();
 
         if (isPlaying) {
             this.updateObjective();
@@ -161,7 +173,9 @@ class Game {
 
         if (this.completed) {
             this.screenTitle.textContent = 'You made it to class!';
-            this.screenMessage.textContent = 'Level complete.';
+            this.screenMessage.textContent = this.arrivedRoomId
+                ? `You arrived at Room ${this.arrivedRoomId}.`
+                : 'Level complete.';
             this.startButton.textContent = 'Play Again';
         } else if (this.started) {
             this.screenTitle.textContent = 'Paused';
@@ -170,22 +184,47 @@ class Game {
                 : 'Click Resume to regain mouse control.';
             this.startButton.textContent = 'Resume';
         } else {
-            const { classroom, name, instructions } = this.level.definition;
-            this.screenTitle.textContent = classroom ? 'Late For Class' : name;
+            const { id, name, instructions } = this.level.definition;
+            this.screenTitle.textContent = id === STARTING_LEVEL_ID ? 'Late For Class' : name;
             this.screenMessage.textContent = instructions ?? `${HALLWAY_OBJECTIVE}.`;
             this.startButton.textContent = 'Start Game';
         }
     }
 
+    toggleView() {
+        if (this.level.toggleDebugView()) {
+            this.updateViewStatus();
+            this.render();
+        }
+    }
+
+    updateViewStatus() {
+        const supportsViewToggle = this.level.definition.solidRendering;
+        this.viewStatus.hidden = !supportsViewToggle || !this.isPlaying();
+        this.viewToggle.hidden = !supportsViewToggle;
+        if (supportsViewToggle) {
+            const label = this.level.debugView ? 'Return to solid view' : 'Show collision outlines';
+            this.viewStatus.textContent = `V · ${label}`;
+            this.viewToggle.textContent = label;
+        }
+    }
+
     updateObjective() {
         const { position } = this.player;
+        const { classroom, destinationRoomId } = this.level.definition;
         let instruction = '';
         if (this.level.canOpenDoor(position)) {
             instruction = 'Press E to open the door';
-        } else if (this.level.definition.classroom) {
-            instruction = this.level.canEnterClassroom(position)
-                ? 'Press E to enter the classroom'
-                : HALLWAY_OBJECTIVE;
+        } else if (classroom) {
+            if (destinationRoomId) {
+                instruction = this.level.canEnterClassroom(position)
+                    ? `Press E to confirm arrival at Room ${destinationRoomId}`
+                    : `Find Room ${destinationRoomId}`;
+            } else {
+                instruction = this.level.canEnterClassroom(position)
+                    ? 'Press E to enter the classroom'
+                    : HALLWAY_OBJECTIVE;
+            }
         }
         this.objective.hidden = !instruction;
         if (this.objective.textContent !== instruction) {
