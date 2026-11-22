@@ -2,51 +2,16 @@
   "levels": [
     {
       "id": 1,
-      "name": "Basic Level",
-      "playerStart": {
-        "x": 0,
-        "y": 0,
-        "z": -4
-      },
-      "playerLookAt": {
-        "x": 0,
-        "y": 0,
-        "z": -1
-      },
+      "name": "Hallway",
+      "playerStart": { "x": 0, "y": 0, "z": -12 },
+      "playerLookAt": { "x": 0, "y": 1.6, "z": 14.4 },
       "walls": [
-        {
-          "x": -5,
-          "y": 0,
-          "z": -5,
-          "width": 10,
-          "height": 2,
-          "depth": 1
-        },
-        {
-          "x": 5,
-          "y": 0,
-          "z": -5,
-          "width": 1,
-          "height": 2,
-          "depth": 10
-        },
-        {
-          "x": 5,
-          "y": 0,
-          "z": 5,
-          "width": 10,
-          "height": 2,
-          "depth": 1
-        },
-        {
-          "x": -5,
-          "y": 0,
-          "z": 5,
-          "width": 1,
-          "height": 2,
-          "depth": 10
-        }
-      ]
+        { "x": -5, "y": 0, "z": 0, "width": 1, "height": 5, "depth": 30 },
+        { "x": 5, "y": 0, "z": 0, "width": 1, "height": 5, "depth": 30 },
+        { "x": 0, "y": 0, "z": -15, "width": 10, "height": 5, "depth": 1 },
+        { "x": 0, "y": 0, "z": 15, "width": 10, "height": 5, "depth": 1 }
+      ],
+      "classroom": { "x": 0, "z": 14.38, "interactionRadius": 2 }
     }
   ]
 }

@@ -1,43 +1,39 @@
-# Late for Class — Campus Puzzles v5
+# Late For Class
 
-Play in a browser. This is a lightweight, dependency-free first-person ray-casting game.
+A first-person browser game built with Three.js. Walk down the hallway and enter the classroom to complete the level.
 
-## Run
+## Run locally
 
-From the `game` directory:
+From the repository root:
 
 ```bash
 python3 -m http.server 8090
 ```
 
-Open http://localhost:8090. If port 8090 is in use, select another port.
+Open <http://localhost:8090> in a desktop browser with WebGL and Pointer Lock support. The page loads Three.js from a CDN.
 
 ## Controls
 
-- WASD or arrow keys: move
-- Mouse: look around (click the game to capture pointer; Escape releases it)
-- Shift: sprint
-- E: enter a classroom / use a staircase
-- R: restart level
-- L: open level selector
+| Input | Action |
+| --- | --- |
+| WASD | Move |
+| Mouse | Look around |
+| E | Enter the classroom when the prompt appears |
+| Escape | Pause and release the mouse. Click Resume to continue. |
+| R | Restart the level |
 
-## Levels and progressive logic
+## Project layout
 
-1. wireframe box
-
-## Architecture
-
-- `assets/levels.json`: floor and stair geometry, room numbers, timer start, level name, etc.
-- `src/building.js`: building objects, walls, stairs, doorways etc
-- `src/game.js`: gameplay, floor transitions, level selection
-- `tests/`: structural, numbering, path-reachability and logic checks
+- `js/main.js` starts the game.
+- `js/Game.js` handles rendering, input, and the start, pause, and completion screens.
+- `js/player.js` handles movement, collision response, and the camera.
+- `js/Level.js` and `js/wall.js` build and clear the level and check collisions.
+- `assets/levels.json` defines the spawn point, walls, and classroom location.
 
 ## Tests
 
 ```bash
-node --test tests/*.test.js
+node test/movement/run-tests.js
 ```
 
-## Known limitations
-
-
+With the local server running, open <http://localhost:8090/test/movement/> to run the gameplay tests with Three.js in the browser.

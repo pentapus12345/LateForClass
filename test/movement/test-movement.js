@@ -1,298 +1,171 @@
-// Test file for movement functionality in Late For Class game
-
-// Mock Three.js Vector3 class for testing
-class MockVector3 {
-    constructor(x = 0, y = 0, z = 0) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-    
-    add(vector) {
-        this.x += vector.x;
-        this.y += vector.y;
-        this.z += vector.z;
-        return this;
-    }
-    
-    set(x, y, z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        return this;
-    }
-    
-    copy(vector) {
-        this.x = vector.x;
-        this.y = vector.y;
-        this.z = vector.z;
-        return this;
-    }
-}
-
-// Export for Node.js compatibility
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        MockVector3,
-        mockConfig,
-        mockCamera,
-        mockOnKeyDown,
-        mockOnKeyUp,
-        mockMove
-    };
-}
-
-// Mock game configuration
-const mockConfig = {
-    moveSpeed: 5.0,
-    friction: 0.9,
-    gravity: 9.8,
-    cameraHeight: 1.6,
-    hallwayWidth: 10,
-    hallwayDepth: 30,
-    wallHeight: 5,
-    floorSize: 50,
-    pillarCount: 10,
-    pillarSpacing: 1,
-    wireframeColor: 0x808080,
-    backgroundColor: 0x87CEEB,
-    fogNear: 20,
-    fogFar: 100
-};
-
-// Mock camera object
-const mockCamera = {
-    position: new MockVector3(0, 1.6, 0),
-    quaternion: { x: 0, y: 0, z: 0, w: 1 }
-};
-
-// Mock game state variables
-let moveForward = false;
-let moveBackward = false;
-let moveLeft = false;
-let moveRight = false;
-let velocity = new MockVector3();
-let prevTime = performance.now();
-
-// Mock functions to test movement logic
-function mockOnKeyDown(event) {
-    switch (event.code) {
-        case 'KeyW':
-            moveForward = true;
-            break;
-        case 'KeyS':
-            moveBackward = true;
-            break;
-        case 'KeyA':
-            moveLeft = true;
-            break;
-        case 'KeyD':
-            moveRight = true;
-            break;
-    }
-}
-
-function mockOnKeyUp(event) {
-    switch (event.code) {
-        case 'KeyW':
-            moveForward = false;
-            break;
-        case 'KeyS':
-            moveBackward = false;
-            break;
-        case 'KeyA':
-            moveLeft = false;
-            break;
-        case 'KeyD':
-            moveRight = false;
-            break;
-    }
-}
-
-// Mock movement function that mirrors the logic from main.js
-function mockMove(delta, camera, velocity, moveForward, moveBackward, moveLeft, moveRight) {
-    // Apply gravity (simplified for testing)
-    velocity.y -= mockConfig.gravity * delta;
-
-    // Movement controls with proper direction calculation
-    if (moveForward || moveBackward || moveLeft || moveRight) {
-        // Calculate movement direction based on camera rotation
-        const direction = new MockVector3();
-        
-        if (moveForward) direction.z -= 1;
-        if (moveBackward) direction.z += 1;
-        if (moveLeft) direction.x -= 1;
-        if (moveRight) direction.x += 1;
-        
-        // Normalize the direction vector to prevent faster diagonal movement
-        const length = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-        if (length > 0) {
-            direction.x /= length;
-            direction.z /= length;
+function registerMovementTests(test, levelData) {
+    function equal(actual, expected) {
+        if (actual !== expected) {
+            throw new Error(`Expected ${expected}, got ${actual}`);
         }
-        
-        // Apply movement with proper speed (simplified - not applying quaternion rotation for this test)
-        velocity.x = direction.x * mockConfig.moveSpeed;
-        velocity.z = direction.z * mockConfig.moveSpeed;
     }
 
-    // Apply movement to camera position
-    camera.position.add(velocity);
-
-    // Slow down movement over time (friction)
-    velocity.x *= mockConfig.friction;
-    velocity.z *= mockConfig.friction;
-
-    return camera.position;
-}
-
-// Test functions
-function testMovementForward() {
-    console.log("Testing forward movement...");
-    
-    // Set up test state
-    const startPosition = new MockVector3(0, 1.6, 0);
-    const startVelocity = new MockVector3();
-    moveForward = true;
-    
-    // Simulate movement for a short time
-    const delta = 0.016; // ~60fps
-    const resultPosition = mockMove(delta, { position: startPosition }, startVelocity, 
-                                   moveForward, false, false, false);
-    
-    console.log("Start position:", startPosition.x, startPosition.y, startPosition.z);
-    console.log("Result position:", resultPosition.x, resultPosition.y, resultPosition.z);
-    
-    // Verify forward movement occurred (should have moved in Z direction)
-    const zChange = resultPosition.z - startPosition.z;
-    console.log("Z change:", zChange);
-    
-    if (zChange < 0) {
-        console.log("✓ Forward movement test PASSED: Moved backward (as expected with negative Z)");
-        return true;
-    } else {
-        console.log("✗ Forward movement test FAILED: Should have moved in negative Z direction");
-        return false;
+    function near(actual, expected, tolerance = 1e-9) {
+        if (!(Math.abs(actual - expected) <= tolerance)) {
+            throw new Error(`Expected ${actual} to be within ${tolerance} of ${expected}`);
+        }
     }
-}
 
-function testMovementBackward() {
-    console.log("\nTesting backward movement...");
-    
-    // Set up test state
-    const startPosition = new MockVector3(0, 1.6, 0);
-    const startVelocity = new MockVector3();
-    moveBackward = true;
-    
-    // Simulate movement for a short time
-    const delta = 0.016; // ~60fps
-    const resultPosition = mockMove(delta, { position: startPosition }, startVelocity, 
-                                   false, moveBackward, false, false);
-    
-    console.log("Start position:", startPosition.x, startPosition.y, startPosition.z);
-    console.log("Result position:", resultPosition.x, resultPosition.y, resultPosition.z);
-    
-    // Verify backward movement occurred (should have moved in positive Z direction)
-    const zChange = resultPosition.z - startPosition.z;
-    console.log("Z change:", zChange);
-    
-    if (zChange > 0) {
-        console.log("✓ Backward movement test PASSED: Moved forward (as expected with positive Z)");
-        return true;
-    } else {
-        console.log("✗ Backward movement test FAILED: Should have moved in positive Z direction");
-        return false;
+    function setup() {
+        const camera = new THREE.PerspectiveCamera();
+        camera.rotation.order = 'YXZ';
+        const player = new Player(camera, gameConfig);
+        const level = new Level(levelData, gameConfig);
+        const scene = new THREE.Scene();
+        level.build(scene);
+        player.resetPosition(level.playerStart, level.playerLookAt);
+        return { camera, player, level, scene };
     }
-}
 
-function testMovementLeft() {
-    console.log("\nTesting left movement...");
-    
-    // Set up test state
-    const startPosition = new MockVector3(0, 1.6, 0);
-    const startVelocity = new MockVector3();
-    moveLeft = true;
-    
-    // Simulate movement for a short time
-    const delta = 0.016; // ~60fps
-    const resultPosition = mockMove(delta, { position: startPosition }, startVelocity, 
-                                   false, false, moveLeft, false);
-    
-    console.log("Start position:", startPosition.x, startPosition.y, startPosition.z);
-    console.log("Result position:", resultPosition.x, resultPosition.y, resultPosition.z);
-    
-    // Verify left movement occurred (should have moved in negative X direction)
-    const xChange = resultPosition.x - startPosition.x;
-    console.log("X change:", xChange);
-    
-    if (xChange < 0) {
-        console.log("✓ Left movement test PASSED: Moved left (as expected with negative X)");
-        return true;
-    } else {
-        console.log("✗ Left movement test FAILED: Should have moved in negative X direction");
-        return false;
-    }
-}
+    test('WASD moves in the expected directions relative to the starting view', () => {
+        for (const [code, dx, dz] of [
+            ['KeyW', 0, 0.6], ['KeyS', 0, -0.6],
+            ['KeyA', 0.6, 0], ['KeyD', -0.6, 0]
+        ]) {
+            const { player, level } = setup();
+            player.onKeyDown({ code });
+            player.update(0.1, level);
+            near(player.position.x, level.playerStart.x + dx);
+            near(player.position.z, level.playerStart.z + dz);
+        }
+    });
 
-function testMovementRight() {
-    console.log("\nTesting right movement...");
-    
-    // Set up test state
-    const startPosition = new MockVector3(0, 1.6, 0);
-    const startVelocity = new MockVector3();
-    moveRight = true;
-    
-    // Simulate movement for a short time
-    const delta = 0.016; // ~60fps
-    const resultPosition = mockMove(delta, { position: startPosition }, startVelocity, 
-                                   false, false, false, moveRight);
-    
-    console.log("Start position:", startPosition.x, startPosition.y, startPosition.z);
-    console.log("Result position:", resultPosition.x, resultPosition.y, resultPosition.z);
-    
-    // Verify right movement occurred (should have moved in positive X direction)
-    const xChange = resultPosition.x - startPosition.x;
-    console.log("X change:", xChange);
-    
-    if (xChange > 0) {
-        console.log("✓ Right movement test PASSED: Moved right (as expected with positive X)");
-        return true;
-    } else {
-        console.log("✗ Right movement test FAILED: Should have moved in positive X direction");
-        return false;
-    }
-}
+    test('one second of movement covers the same distance at 15, 30, 60, and 144 FPS', () => {
+        for (const fps of [15, 30, 60, 144]) {
+            const { player, level } = setup();
+            player.onKeyDown({ code: 'KeyW' });
+            for (let frame = 0; frame < fps; frame++) {
+                player.update(1 / fps, level);
+            }
+            near(player.position.z - level.playerStart.z, gameConfig.moveSpeed);
+        }
+    });
 
-function runAllTests() {
-    console.log("Running all movement tests...\n");
-    
-    const results = [];
-    results.push(testMovementForward());
-    results.push(testMovementBackward());
-    results.push(testMovementLeft());
-    results.push(testMovementRight());
-    
-    console.log("\n=== TEST RESULTS ===");
-    const passed = results.filter(r => r).length;
-    const total = results.length;
-    console.log(`Passed: ${passed}/${total}`);
-    
-    if (passed === total) {
-        console.log("🎉 All tests PASSED!");
-    } else {
-        console.log("❌ Some tests FAILED!");
-    }
-    
-    return results;
-}
+    test('diagonal movement is normalized and opposite inputs cancel', () => {
+        const { player, level } = setup();
+        player.onKeyDown({ code: 'KeyW' });
+        player.onKeyDown({ code: 'KeyD' });
+        player.update(0.1, level);
+        const distance = Math.hypot(
+            player.position.x - level.playerStart.x,
+            player.position.z - level.playerStart.z
+        );
+        near(distance, 0.6);
 
-// Export for use in HTML
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        runAllTests,
-        testMovementForward,
-        testMovementBackward,
-        testMovementLeft,
-        testMovementRight
-    };
+        player.onKeyDown({ code: 'KeyS' });
+        player.onKeyDown({ code: 'KeyA' });
+        const stationary = player.position.clone();
+        player.update(0.1, level);
+        near(player.position.x, stationary.x);
+        near(player.position.z, stationary.z);
+    });
+
+    test('releasing a key slows the player consistently across frame rates', () => {
+        for (const fps of [30, 60, 144]) {
+            const { player, level } = setup();
+            player.onKeyDown({ code: 'KeyW' });
+            player.update(0.1, level);
+            const releasePosition = player.position.z;
+            player.onKeyUp({ code: 'KeyW' });
+            for (let frame = 0; frame < fps; frame++) {
+                player.update(1 / fps, level);
+            }
+            near(player.velocity.z, gameConfig.moveSpeed * Math.exp(-gameConfig.friction));
+            const expectedCoast = gameConfig.moveSpeed * (1 - Math.exp(-gameConfig.friction)) / gameConfig.friction;
+            near(player.position.z - releasePosition, expectedCoast);
+        }
+    });
+
+    test('mouse changes yaw and clamps pitch while movement stays horizontal', () => {
+        const { camera, player, level } = setup();
+        const startYaw = camera.rotation.y;
+        player.onMouseMove({ movementX: Math.PI / 0.004, movementY: -10000 });
+        near(camera.rotation.y, startYaw - Math.PI / 2);
+        near(camera.rotation.x, Math.PI / 2 - 0.01);
+
+        player.onKeyDown({ code: 'KeyW' });
+        player.update(0.1, level);
+        near(player.position.x - level.playerStart.x, -0.6);
+        near(player.position.z, level.playerStart.z);
+        near(camera.position.y, gameConfig.cameraHeight);
+    });
+
+    test('camera stays at eye height when falling onto the floor', () => {
+        const { camera, player, level } = setup();
+        player.resetPosition({ x: 0, y: 1, z: 0 });
+        player.update(1, level);
+        equal(player.position.y, 0);
+        equal(player.velocity.y, 0);
+        near(camera.position.y, gameConfig.cameraHeight);
+    });
+
+    test('all four perimeter walls stop the player, even on a long step', () => {
+        for (const [code, axis, edge] of [
+            ['KeyW', 'z', 14.5], ['KeyS', 'z', -14.5],
+            ['KeyA', 'x', 4.5], ['KeyD', 'x', -4.5]
+        ]) {
+            const { player, level } = setup();
+            player.onKeyDown({ code });
+            player.update(9, level);
+            near(player.position[axis], edge - Math.sign(edge) * gameConfig.playerRadius, 0.16);
+            equal(level.isBlocked(player.position, gameConfig.playerRadius, gameConfig.playerHeight), false);
+            equal(player.velocity[axis], 0);
+        }
+    });
+
+    test('the player slides along a wall while holding diagonal input', () => {
+        const { player, level } = setup();
+        player.resetPosition({ x: 4.15, y: 0, z: 0 }, level.playerLookAt);
+        player.camera.rotation.y = Math.PI;
+        player.onKeyDown({ code: 'KeyW' });
+        player.onKeyDown({ code: 'KeyA' });
+        player.update(0.5, level);
+        equal(player.position.x <= 4.2, true);
+        near(player.position.z, 3 / Math.sqrt(2));
+    });
+
+    test('wall meshes match their level dimensions and are disposed on rebuild', () => {
+        const { player, level, scene } = setup();
+        const original = [...scene.children];
+        const wallMeshes = original.filter(object => object.material.color.getHex() === 0x607289);
+        equal(wallMeshes.length, levelData.walls.length);
+        for (const [index, mesh] of wallMeshes.entries()) {
+            const { x, y, z, width, height, depth } = levelData.walls[index];
+            equal(mesh.position.x, x);
+            equal(mesh.position.y, y + height / 2);
+            equal(mesh.position.z, z);
+            equal(mesh.geometry.parameters.width, width);
+            equal(mesh.geometry.parameters.height, height);
+            equal(mesh.geometry.parameters.depth, depth);
+        }
+
+        let disposals = 0;
+        for (const mesh of wallMeshes) {
+            mesh.geometry.addEventListener('dispose', () => disposals++);
+            mesh.material.addEventListener('dispose', () => disposals++);
+        }
+        player.onKeyDown({ code: 'KeyW' });
+        player.update(0.2, level);
+        level.build(scene);
+        player.resetPosition(level.playerStart, level.playerLookAt);
+        equal(scene.children.length, original.length);
+        equal(scene.children.some(object => original.includes(object)), false);
+        equal(disposals, wallMeshes.length * 2);
+        near(player.position.z, level.playerStart.z);
+        player.update(0.2, level);
+        near(player.position.z, level.playerStart.z);
+    });
+
+    test('classroom interaction is available only near the door', () => {
+        const { player, level } = setup();
+        const { x, z, interactionRadius } = levelData.classroom;
+        equal(level.canEnterClassroom(player.position), false);
+        equal(level.canEnterClassroom({ x, z: z - interactionRadius - 0.01 }), false);
+        equal(level.canEnterClassroom({ x, z: z - interactionRadius + 0.01 }), true);
+    });
 }

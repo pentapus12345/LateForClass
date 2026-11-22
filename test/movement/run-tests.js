@@ -1,79 +1,111 @@
-// Simple test runner for movement functionality
-const fs = require('fs');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
 
-// Read the test file content
-const testContent = fs.readFileSync('./test/movement/test-movement.js', 'utf8');
+const root = path.resolve(__dirname, '../..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-// Create a minimal environment to run tests
-function createTestEnvironment() {
-    // Mock browser globals
-    global.performance = {
-        now: function() {
-            return Date.now();
-        }
-    };
-    
-    // Mock Three.js Vector3
-    class Vector3 {
-        constructor(x = 0, y = 0, z = 0) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-        
-        add(vector) {
-            this.x += vector.x;
-            this.y += vector.y;
-            this.z += vector.z;
-            return this;
-        }
-        
-        set(x, y, z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            return this;
-        }
-        
-        copy(vector) {
-            this.x = vector.x;
-            this.y = vector.y;
-            this.z = vector.z;
-            return this;
-        }
+// Supply the small Three.js surface needed by the production classes.
+// The browser test page runs these same cases with the actual renderer library.
+class Vector3 {
+    constructor(x = 0, y = 0, z = 0) {
+        this.set(x, y, z);
     }
-    
-    global.THREE = {
-        Vector3: Vector3
-    };
-    
-    // Execute the test content in this environment
-    eval(testContent);
-    
-    return {
-        runAllTests,
-        testMovementForward,
-        testMovementBackward,
-        testMovementLeft,
-        testMovementRight
-    };
+
+    set(x, y, z) {
+        Object.assign(this, { x, y, z });
+    }
+
+    clone() {
+        return new Vector3(this.x, this.y, this.z);
+    }
 }
 
-// Run tests and output results
-try {
-    const env = createTestEnvironment();
-    console.log("Running movement tests...\n");
-    const results = env.runAllTests();
-    
-    const passed = results.filter(r => r).length;
-    const total = results.length;
-    console.log(`\nResults: ${passed}/${total} tests passed`);
-    
-    if (passed === total) {
-        console.log("🎉 All tests PASSED!");
-    } else {
-        console.log("❌ Some tests FAILED!");
+class Camera {
+    position = new Vector3();
+    rotation = new Vector3();
+
+    lookAt(x, y, z) {
+        const dx = x - this.position.x;
+        const dy = y - this.position.y;
+        const dz = z - this.position.z;
+        this.rotation.set(Math.atan2(dy, Math.hypot(dx, dz)), Math.atan2(-dx, -dz), 0);
     }
-} catch (error) {
-    console.error("Error running tests:", error);
 }
+
+class Scene {
+    children = [];
+
+    add(object) {
+        this.children.push(object);
+    }
+
+    remove(object) {
+        this.children = this.children.filter(child => child !== object);
+    }
+}
+
+class Resource extends EventTarget {
+    constructor(width, height, depth) {
+        super();
+        this.parameters = { width, height, depth };
+        this.color = { getHex: () => width.color };
+    }
+
+    dispose() {
+        this.dispatchEvent(new Event('dispose'));
+    }
+
+    setFromPoints() {
+        return this;
+    }
+}
+
+class Mesh {
+    constructor(geometry, material) {
+        this.geometry = geometry;
+        this.material = material;
+        this.position = new Vector3();
+        this.rotation = new Vector3();
+    }
+}
+
+const { levels } = JSON.parse(read('assets/levels.json'));
+const context = vm.createContext({
+    THREE: {
+        Vector3,
+        PerspectiveCamera: Camera,
+        Scene,
+        BoxGeometry: Resource,
+        PlaneGeometry: Resource,
+        EdgesGeometry: Resource,
+        BufferGeometry: Resource,
+        MeshLambertMaterial: Resource,
+        LineBasicMaterial: Resource,
+        LineSegments: Mesh,
+        Mesh
+    },
+    window: {},
+    test,
+    levelData: levels[0]
+});
+
+for (const file of [
+    'assets/gameConfig.js',
+    'js/wall.js',
+    'js/Level.js',
+    'js/player.js',
+    'test/movement/test-movement.js'
+]) {
+    vm.runInContext(read(file), context, { filename: file });
+}
+vm.runInContext('registerMovementTests(test, levelData)', context);
+
+test('local scripts in the game page match the exact filename casing', () => {
+    for (const [, src] of read('index.html').matchAll(/<script src="([^":]+)"/g)) {
+        const directory = path.join(root, path.dirname(src));
+        assert.ok(fs.readdirSync(directory).includes(path.basename(src)), src);
+    }
+});

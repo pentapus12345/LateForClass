@@ -1,33 +1,13 @@
-# Tests for Late For Class Game
+# Late For Class tests
 
-This directory contains tests for the game's functionality, specifically focusing on movement mechanics.
+From the repository root:
 
-## Test Structure
+```bash
+node test/movement/run-tests.js
+```
 
-### Movement Tests
-- `movement/` - Directory containing movement-related tests
-  - `test-movement.js` - Main test file with movement logic tests
-  - `index.html` - HTML page to run tests in browser
-  - `run-tests.js` - Node.js script to run tests from command line
+The runner loads the production `Player`, `Level`, and `Wall` classes. It supplies a minimal Three.js stand-in so the tests can run offline. A failure makes the process exit with a nonzero status.
 
-## Running Tests
+To run the same gameplay cases with Three.js, start the local server from the project README, open <http://localhost:8090/test/movement/>, and click **Run tests**.
 
-### Browser Tests
-1. Open `test/movement/index.html` in a web browser
-2. Click "Run All Tests" button
-
-### Command Line Tests
-1. Navigate to the project root directory
-2. Run: `node test/movement/run-tests.js`
-
-## Test Coverage
-- Forward movement (W key)
-- Backward movement (S key)  
-- Left movement (A key)
-- Right movement (D key)
-
-The tests verify that:
-- Movement coordinates change correctly in all directions
-- Movement speed is consistent
-- Diagonal movement is normalized to prevent speed advantage
-- Friction and gravity are applied properly
+The suite covers movement directions, diagonal speed, frame-rate independence, braking, mouse yaw and pitch, eye height, perimeter collision, wall sliding, level rebuilds, and classroom interaction range. The Node runner also checks the exact filename casing of scripts loaded by the game page.
