@@ -1,11 +1,10 @@
-// Initialize the game after its scripts and page have loaded.
 (async () => {
     try {
-        const game = new Game(window.gameConfig);
+        const game = new Game(GAME_CONFIG);
         await game.init();
     } catch (error) {
-        console.error('Unable to start Late For Class', error);
-        document.getElementById('screenMessage').textContent =
+        console.error('Unable to start LateForClass', error);
+        document.getElementById('screen-message').textContent =
             'Could not load the game. Check your connection and reload the page.';
     }
 })();

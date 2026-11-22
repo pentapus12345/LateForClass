@@ -1,12 +1,20 @@
-const movementKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+const MOUSE_SENSITIVITY = 0.002;
+const MAX_PITCH = Math.PI / 2 - 0.01;
 
 class Player {
-    constructor(camera, config) {
+    constructor(config) {
         this.config = config;
-        this.camera = camera;
+        this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        this.camera.rotation.order = 'YXZ';
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
-        this.keys = new Set();
+        this.pressedKeys = new Set();
+    }
+
+    resizeCamera(width, height) {
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
     }
 
     resetPosition(start, lookAt) {
@@ -30,36 +38,34 @@ class Player {
     }
 
     clearInput() {
-        this.keys.clear();
+        this.pressedKeys.clear();
         this.velocity.set(0, 0, 0);
     }
 
     onKeyDown(event) {
-        if (movementKeys.has(event.code)) {
-            this.keys.add(event.code);
+        if (MOVEMENT_KEYS.has(event.code)) {
+            this.pressedKeys.add(event.code);
         }
     }
 
     onKeyUp(event) {
-        this.keys.delete(event.code);
+        this.pressedKeys.delete(event.code);
     }
 
     onMouseMove(event) {
-        const sensitivity = 0.002;
-        const maxPitch = Math.PI / 2 - 0.01;
-        this.camera.rotation.y -= event.movementX * sensitivity;
+        this.camera.rotation.y -= event.movementX * MOUSE_SENSITIVITY;
         this.camera.rotation.x = Math.max(
-            -maxPitch,
-            Math.min(maxPitch, this.camera.rotation.x - event.movementY * sensitivity)
+            -MAX_PITCH,
+            Math.min(MAX_PITCH, this.camera.rotation.x - event.movementY * MOUSE_SENSITIVITY)
         );
         this.camera.rotation.z = 0;
     }
 
-    update(delta, level) {
-        const strafe = Number(this.keys.has('KeyD')) - Number(this.keys.has('KeyA'));
-        const forward = Number(this.keys.has('KeyW')) - Number(this.keys.has('KeyS'));
+    update(deltaTime, level) {
+        const strafe = Number(this.pressedKeys.has('KeyD')) - Number(this.pressedKeys.has('KeyA'));
+        const forward = Number(this.pressedKeys.has('KeyW')) - Number(this.pressedKeys.has('KeyS'));
         const inputLength = Math.hypot(strafe, forward);
-        let movementTime = delta;
+        let movementTime = deltaTime;
         let damping = 1;
 
         if (inputLength > 0) {
@@ -67,18 +73,18 @@ class Player {
             const speed = this.config.moveSpeed / inputLength;
             this.velocity.x = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * speed;
             this.velocity.z = (-strafe * Math.sin(yaw) - forward * Math.cos(yaw)) * speed;
-        } else if (this.keys.size > 0) {
+        } else if (this.pressedKeys.size > 0) {
             this.velocity.x = 0;
             this.velocity.z = 0;
         } else if (this.config.friction > 0) {
-            damping = Math.exp(-this.config.friction * delta);
+            damping = Math.exp(-this.config.friction * deltaTime);
             // Integrate the decaying velocity over the whole step.
-            movementTime = -Math.expm1(-this.config.friction * delta) / this.config.friction;
+            movementTime = -Math.expm1(-this.config.friction * deltaTime) / this.config.friction;
         }
 
-        this.position.y += (this.velocity.y - this.config.gravity * delta / 2) * delta;
-        this.velocity.y -= this.config.gravity * delta;
-        const groundHeight = level.getGroundHeight(this.position.x, this.position.z);
+        this.position.y += (this.velocity.y - this.config.gravity * deltaTime / 2) * deltaTime;
+        this.velocity.y -= this.config.gravity * deltaTime;
+        const groundHeight = level.getGroundHeight();
         if (this.position.y <= groundHeight) {
             this.position.y = groundHeight;
             this.velocity.y = 0;
@@ -90,15 +96,17 @@ class Player {
         this.updateCameraPosition();
     }
 
-    moveHorizontally(dx, dz, level) {
-        if (dx === 0 && dz === 0) return;
+    moveHorizontally(displacementX, displacementZ, level) {
+        if (displacementX === 0 && displacementZ === 0) {
+            return;
+        }
 
         const { playerRadius, playerHeight } = this.config;
         // Small steps prevent passing through thin walls. Resolving each axis
         // separately lets the player slide along a wall.
-        const steps = Math.ceil(Math.hypot(dx, dz) / (playerRadius / 2));
-        let stepX = dx / steps;
-        let stepZ = dz / steps;
+        const steps = Math.ceil(Math.hypot(displacementX, displacementZ) / (playerRadius / 2));
+        let stepX = displacementX / steps;
+        let stepZ = displacementZ / steps;
 
         for (let step = 0; step < steps; step++) {
             const previousX = this.position.x;

@@ -12,26 +12,24 @@ function registerMovementTests(test, levelData) {
     }
 
     function setup() {
-        const camera = new THREE.PerspectiveCamera();
-        camera.rotation.order = 'YXZ';
-        const player = new Player(camera, gameConfig);
-        const level = new Level(levelData, gameConfig);
+        const player = new Player(GAME_CONFIG);
+        const level = new Level(levelData, GAME_CONFIG);
         const scene = new THREE.Scene();
         level.build(scene);
         player.resetPosition(level.playerStart, level.playerLookAt);
-        return { camera, player, level, scene };
+        return { camera: player.camera, player, level, scene };
     }
 
     test('WASD moves in the expected directions relative to the starting view', () => {
-        for (const [code, dx, dz] of [
+        for (const [code, offsetX, offsetZ] of [
             ['KeyW', 0, 0.6], ['KeyS', 0, -0.6],
             ['KeyA', 0.6, 0], ['KeyD', -0.6, 0]
         ]) {
             const { player, level } = setup();
             player.onKeyDown({ code });
             player.update(0.1, level);
-            near(player.position.x, level.playerStart.x + dx);
-            near(player.position.z, level.playerStart.z + dz);
+            near(player.position.x, level.playerStart.x + offsetX);
+            near(player.position.z, level.playerStart.z + offsetZ);
         }
     });
 
@@ -42,7 +40,7 @@ function registerMovementTests(test, levelData) {
             for (let frame = 0; frame < fps; frame++) {
                 player.update(1 / fps, level);
             }
-            near(player.position.z - level.playerStart.z, gameConfig.moveSpeed);
+            near(player.position.z - level.playerStart.z, GAME_CONFIG.moveSpeed);
         }
     });
 
@@ -75,8 +73,8 @@ function registerMovementTests(test, levelData) {
             for (let frame = 0; frame < fps; frame++) {
                 player.update(1 / fps, level);
             }
-            near(player.velocity.z, gameConfig.moveSpeed * Math.exp(-gameConfig.friction));
-            const expectedCoast = gameConfig.moveSpeed * (1 - Math.exp(-gameConfig.friction)) / gameConfig.friction;
+            near(player.velocity.z, GAME_CONFIG.moveSpeed * Math.exp(-GAME_CONFIG.friction));
+            const expectedCoast = GAME_CONFIG.moveSpeed * (1 - Math.exp(-GAME_CONFIG.friction)) / GAME_CONFIG.friction;
             near(player.position.z - releasePosition, expectedCoast);
         }
     });
@@ -92,7 +90,7 @@ function registerMovementTests(test, levelData) {
         player.update(0.1, level);
         near(player.position.x - level.playerStart.x, -0.6);
         near(player.position.z, level.playerStart.z);
-        near(camera.position.y, gameConfig.cameraHeight);
+        near(camera.position.y, GAME_CONFIG.cameraHeight);
     });
 
     test('camera stays at eye height when falling onto the floor', () => {
@@ -101,19 +99,22 @@ function registerMovementTests(test, levelData) {
         player.update(1, level);
         equal(player.position.y, 0);
         equal(player.velocity.y, 0);
-        near(camera.position.y, gameConfig.cameraHeight);
+        near(camera.position.y, GAME_CONFIG.cameraHeight);
     });
 
-    test('all four perimeter walls stop the player, even on a long step', () => {
-        for (const [code, axis, edge] of [
-            ['KeyW', 'z', 14.5], ['KeyS', 'z', -14.5],
-            ['KeyA', 'x', 4.5], ['KeyD', 'x', -4.5]
+    test('all four invisible perimeter walls stop the player, even on a long step', () => {
+        const { width, depth, wallThickness } = levelData.hallway;
+        for (const [code, axis, boxEdge] of [
+            ['KeyW', 'z', depth / 2], ['KeyS', 'z', -depth / 2],
+            ['KeyA', 'x', width / 2], ['KeyD', 'x', -width / 2]
         ]) {
             const { player, level } = setup();
+            const insideEdge = Math.abs(boxEdge) - wallThickness / 2 - GAME_CONFIG.playerRadius;
             player.onKeyDown({ code });
             player.update(9, level);
-            near(player.position[axis], edge - Math.sign(edge) * gameConfig.playerRadius, 0.16);
-            equal(level.isBlocked(player.position, gameConfig.playerRadius, gameConfig.playerHeight), false);
+            near(player.position[axis], Math.sign(boxEdge) * insideEdge, 0.16);
+            equal(Math.abs(player.position[axis]) <= insideEdge + 1e-9, true);
+            equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
             equal(player.velocity[axis], 0);
         }
     });
@@ -129,25 +130,54 @@ function registerMovementTests(test, levelData) {
         near(player.position.z, 3 / Math.sqrt(2));
     });
 
-    test('wall meshes match their level dimensions and are disposed on rebuild', () => {
+    test('the hallway contains twelve distinct outer edges and the configured pillar row', () => {
+        const { scene } = setup();
+        const { width, height, depth } = levelData.hallway;
+        const { count, startX, z, radius, spacing, height: pillarHeight } = levelData.pillars;
+        const [frame, ...pillars] = scene.children;
+        equal(frame.isLineSegments, true);
+        equal(pillars.length, count);
+
+        const positions = frame.geometry.getAttribute('position');
+        equal(positions.count, 24);
+        const edges = new Set();
+        const corners = new Set();
+        for (let index = 0; index < positions.count; index += 2) {
+            const [a, b] = [index, index + 1].map(i => [
+                positions.getX(i), positions.getY(i), positions.getZ(i)
+            ]);
+            for (const point of [a, b]) {
+                near(Math.abs(point[0]), width / 2);
+                equal(point[1] === 0 || point[1] === height, true);
+                near(Math.abs(point[2]), depth / 2);
+                corners.add(point.join(','));
+            }
+            equal(a.filter((coordinate, axis) => coordinate !== b[axis]).length, 1);
+            edges.add([a.join(','), b.join(',')].sort().join('|'));
+        }
+        equal(edges.size, 12);
+        equal(corners.size, 8);
+
+        for (const [index, pillar] of pillars.entries()) {
+            equal(pillar.geometry.type, 'CylinderGeometry');
+            equal(pillar.geometry.parameters.radiusTop, radius);
+            equal(pillar.geometry.parameters.radiusBottom, radius);
+            equal(pillar.geometry.parameters.height, pillarHeight);
+            equal(pillar.material.wireframe, true);
+            near(pillar.position.x, startX + index * spacing);
+            near(pillar.position.y, pillarHeight / 2);
+            near(pillar.position.z, z);
+        }
+    });
+
+    test('rebuild replaces level objects and disposes shared resources once', () => {
         const { player, level, scene } = setup();
         const original = [...scene.children];
-        const wallMeshes = original.filter(object => object.material.color.getHex() === 0x607289);
-        equal(wallMeshes.length, levelData.walls.length);
-        for (const [index, mesh] of wallMeshes.entries()) {
-            const { x, y, z, width, height, depth } = levelData.walls[index];
-            equal(mesh.position.x, x);
-            equal(mesh.position.y, y + height / 2);
-            equal(mesh.position.z, z);
-            equal(mesh.geometry.parameters.width, width);
-            equal(mesh.geometry.parameters.height, height);
-            equal(mesh.geometry.parameters.depth, depth);
-        }
-
-        let disposals = 0;
-        for (const mesh of wallMeshes) {
-            mesh.geometry.addEventListener('dispose', () => disposals++);
-            mesh.material.addEventListener('dispose', () => disposals++);
+        const resources = new Set(original.flatMap(object => [object.geometry, object.material]));
+        const disposals = new Map();
+        for (const resource of resources) {
+            disposals.set(resource, 0);
+            resource.addEventListener('dispose', () => disposals.set(resource, disposals.get(resource) + 1));
         }
         player.onKeyDown({ code: 'KeyW' });
         player.update(0.2, level);
@@ -155,17 +185,21 @@ function registerMovementTests(test, levelData) {
         player.resetPosition(level.playerStart, level.playerLookAt);
         equal(scene.children.length, original.length);
         equal(scene.children.some(object => original.includes(object)), false);
-        equal(disposals, wallMeshes.length * 2);
+        for (const disposeCount of disposals.values()) {
+            equal(disposeCount, 1);
+        }
         near(player.position.z, level.playerStart.z);
         player.update(0.2, level);
         near(player.position.z, level.playerStart.z);
     });
 
-    test('classroom interaction is available only near the door', () => {
+    test('classroom interaction is out of range at spawn and reachable inside the far wall', () => {
         const { player, level } = setup();
         const { x, z, interactionRadius } = levelData.classroom;
         equal(level.canEnterClassroom(player.position), false);
-        equal(level.canEnterClassroom({ x, z: z - interactionRadius - 0.01 }), false);
-        equal(level.canEnterClassroom({ x, z: z - interactionRadius + 0.01 }), true);
+        equal(level.canEnterClassroom({ x, y: 0, z: z - interactionRadius - 0.01 }), false);
+        const approach = { x, y: 0, z: z - interactionRadius + 0.01 };
+        equal(level.canEnterClassroom(approach), true);
+        equal(level.isBlocked(approach, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
     });
 }

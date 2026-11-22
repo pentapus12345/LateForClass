@@ -5,12 +5,8 @@
       "name": "Hallway",
       "playerStart": { "x": 0, "y": 0, "z": -12 },
       "playerLookAt": { "x": 0, "y": 1.6, "z": 14.4 },
-      "walls": [
-        { "x": -5, "y": 0, "z": 0, "width": 1, "height": 5, "depth": 30 },
-        { "x": 5, "y": 0, "z": 0, "width": 1, "height": 5, "depth": 30 },
-        { "x": 0, "y": 0, "z": -15, "width": 10, "height": 5, "depth": 1 },
-        { "x": 0, "y": 0, "z": 15, "width": 10, "height": 5, "depth": 1 }
-      ],
+      "hallway": { "width": 10, "height": 5, "depth": 30, "wallThickness": 1 },
+      "pillars": { "startX": -4, "z": -15, "count": 10, "spacing": 1, "radius": 0.5, "height": 4 },
       "classroom": { "x": 0, "z": 14.38, "interactionRadius": 2 }
     }
   ]

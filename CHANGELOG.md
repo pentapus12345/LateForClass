@@ -2,10 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Release headings use [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Older entries use the
+file paths and test status from the time of the change.
 
 ## [Unreleased]
+
+### 2026-11-22 — Repository cleanup and standardization
+
+- Renamed `js/player.js` to `js/Player.js` and `js/wall.js` to `js/Wall.js` using intermediate Git moves. Moved `test/` to `tests/` and updated the game, browser test page, offline runner, and documentation references.
+- Standardized JavaScript constants and names, HTML IDs and CSS selectors, and control-flow formatting. Removed the duplicate global config export and kept the existing startup path and class responsibilities.
+- Added `AGENTS.md` as the shared development guide, pointed `CLAUDE.md` to it, and updated the project and test readmes.
+- Passed all 14 Node tests and all 11 shared tests in Chrome. The playthrough verified controls, collisions, completion, and reset. Compared the rendered spawn, overlay styles, geometry, camera, and wall bounds with the baseline using a server that enforces exact filename casing.
+- The game requires a desktop browser with WebGL, Pointer Lock, and access to the Three.js CDN.
+
+### 2026-11-22 — Restore the minimal wireframe hallway
+
+- Kept the verified `js/main.js` bootstrap and the single `Game` / `Player` / `Level` implementation. Moved camera creation and resizing into `js/player.js`. Updated `js/Game.js` to load level data before starting the renderer, and adjusted `index.html` and the on-screen instructions for the wireframe layout.
+- Updated `js/Level.js`, `js/wall.js`, `assets/gameConfig.js`, and `assets/levels.json` to use the same hallway dimensions for the twelve outer edges and four invisible wall colliders. Restored the ten intended pillars and removed the rendered floor, grid, walls, and door. The existing classroom prompt still appears at the far end.
+- Updated `README.md`, `test/README.md`, and the Node and shared tests in `test/movement/`. All 14 Node tests and all 11 Chrome regression tests passed. A separate Chrome playthrough verified the scene, mouse look, movement, pause, restart, wall collision, and completion.
+- The starting level requires a desktop browser with WebGL, Pointer Lock, and access to the Three.js CDN.
 
 ### 2026-11-22 — First playable level
 
@@ -17,39 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verified 11 Node tests and 10 Chrome regression tests. The Chrome playthrough also verified pointer lock, mouse look, Escape and Resume, wall collision, restart, completion, and Play Again.
 - The game has one level and uses the Three.js CDN. It requires a desktop browser with WebGL and Pointer Lock support.
 
-### Added
-- Initial project structure with HTML, CSS, and JavaScript files
-- Basic game framework with main.js and wall.js files
-- Test directory with movement tests
-- CLAUDE.md development rules documentation
-- CHANGELOG.md file for tracking changes
-- assets/levels.json file with initial level data
-
-### Changed
-- Fixed movement logic in main.js to properly handle direction vector normalization
-- Movement system now works reliably under all key press combinations
-- Simplified Three.js scene to contain exactly 12 line segments forming rectangular box edges
-- Removed redundant floor mesh and middleWall geometry
-- Made player movement frame-rate independent using delta time
-- Updated player starting position and look direction in levels.json
-- Player now starts at configured camera position from level data
-
-### Removed
-- Redundant floor mesh that introduced additional wireframe triangles
-- middleWall geometry and its rendering
-- Unused variables, functions, and references associated with deleted floor and middle wall
-- Unnecessary collision detection logic for middleWall that blocked movement
-
 ## [0.2.0] - 2026-11-22
 
 ### Added
+
 - Game class (`js/Game.js`) for central application coordination
 - Level class (`js/Level.js`) for level management and scene building
-- Player class (`js/Player.js`) for player movement and physics
+- Player class (`js/player.js`) for player movement and physics
 - Wall class with improved collision detection (`js/wall.js`)
 - Asynchronous level loading from assets/levels.json
 
 ### Changed
+
 - Refactored main.js into a bootstrap file that initializes the Game object
 - Implemented object-oriented architecture with clear separation of concerns
 - Improved level loading to use JSON data instead of hardcoded values
@@ -57,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized game logic in the Game class while delegating responsibilities to other classes
 
 ### Removed
+
 - Duplicated physics code from main.js
 - Hardcoded level geometry in main.js
 - Global variables for movement state (now managed by Player)
@@ -65,52 +61,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2026-11-20
 
 ### Added
+
 - Level data structure in assets/levels.json including player starting position and look direction
 - Frame-rate independent movement calculations
 - Proper camera positioning based on level data
 
 ### Changed
+
 - Refactored main.js to clean up scene creation and movement logic
+- Normalized direction vectors for movement key combinations
 - Optimized Three.js scene to use only 12 line segments for box edges
 - Improved movement physics with proper delta time application
 - Removed collision detection for middleWall that was blocking player movement
 
 ### Removed
+
 - Unnecessary floor mesh and middleWall geometry
 - Unused variables and code related to deleted elements
 
 ## [0.1.0] - 2026-11-20
 
 ### Added
-- Initial project skeleton with index.html, main.js, and wall.js
-- Basic game configuration in assets/gameConfig.js
-- Test structure in test/movement/ directory
-- README.md documentation
-- CLAUDE.md development rules file
-- Complete game architecture files including movement logic tests
 
-### Changed
-- Updated development discipline guidelines in CLAUDE.md
-- Configured basic project structure following development rules
-
-### Removed
-- No removals
-
-### Files Added
-- `index.html` - Main HTML page for the game
-- `js/main.js` - Core game logic and Three.js scene setup
-- `js/wall.js` - Wall class implementation with collision detection
-- `assets/gameConfig.js` - Game configuration parameters
-- `test/movement/test-movement.js` - Movement functionality tests
-- `test/movement/run-tests.js` - Test runner script
-- `test/movement/index.html` - HTML test page
-- `test/README.md` - Documentation for tests
-
-### Tests Performed
-- Initial project structure validation
-- Basic functionality verification
-- Git repository setup completed
-
-### Known Limitations
-- Project not yet initialized as a Git repository
-- Movement tests are currently in a mock state and need integration with actual game code
+- Initial HTML, CSS, and JavaScript project structure with `index.html`, `js/main.js`, `js/wall.js`, and `assets/gameConfig.js`.
+- Movement test runner, browser test page, and documentation in `test/`. The initial movement tests used mock logic.
+- Project documentation, development guidelines in `CLAUDE.md`, and this changelog.

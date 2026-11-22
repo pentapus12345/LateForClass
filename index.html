@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Late For Class</title>
+    <title>LateForClass</title>
     <style>
         [hidden] {
             display: none !important;
@@ -15,12 +15,12 @@
             background-color: #1e2935;
             color: white;
         }
-        #gameContainer {
+        #game-container {
             position: relative;
             width: 100vw;
             height: 100vh;
         }
-        #gameContainer canvas {
+        #game-container canvas {
             display: block;
         }
         #objective {
@@ -37,7 +37,7 @@
             text-align: center;
             pointer-events: none;
         }
-        #startScreen {
+        #start-screen {
             position: absolute;
             inset: 0;
             display: flex;
@@ -48,17 +48,17 @@
             background-color: #141d29e8;
             text-align: center;
         }
-        #startScreen h1 {
+        #start-screen h1 {
             margin: 0;
         }
-        #screenMessage {
+        #screen-message {
             margin-bottom: 0;
         }
         #instructions {
             color: #d2dbe7;
             line-height: 1.6;
         }
-        #startButton {
+        #start-button {
             padding: 0.65rem 1.4rem;
             font: inherit;
             font-weight: bold;
@@ -68,31 +68,31 @@
             border-radius: 0.3rem;
             cursor: pointer;
         }
-        #startButton:disabled {
+        #start-button:disabled {
             opacity: 0.5;
             cursor: default;
         }
-        #startButton:focus-visible {
+        #start-button:focus-visible {
             outline: 2px solid white;
             outline-offset: 3px;
         }
     </style>
 </head>
 <body>
-    <main id="gameContainer">
+    <main id="game-container">
         <p id="objective" role="status" hidden></p>
-        <section id="startScreen" aria-labelledby="screenTitle">
-            <h1 id="screenTitle">Late For Class</h1>
-            <p id="screenMessage" role="status">Loading the hallway…</p>
-            <p id="instructions">WASD to move · Mouse to look · E to enter<br>Escape to pause · R to restart</p>
-            <button id="startButton" type="button" disabled>Start Game</button>
+        <section id="start-screen" aria-labelledby="screen-title">
+            <h1 id="screen-title">Late For Class</h1>
+            <p id="screen-message" role="status">Loading the hallway…</p>
+            <p id="instructions">WASD to move · Mouse to look · E when prompted<br>Escape to pause · R to restart</p>
+            <button id="start-button" type="button" disabled>Start Game</button>
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="assets/gameConfig.js"></script>
-    <script src="js/wall.js"></script>
+    <script src="js/Wall.js"></script>
     <script src="js/Level.js"></script>
-    <script src="js/player.js"></script>
+    <script src="js/Player.js"></script>
     <script src="js/Game.js"></script>
     <script src="js/main.js"></script>
 </body>

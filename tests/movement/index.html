@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Late For Class Tests</title>
+    <title>LateForClass Tests</title>
 </head>
 <body>
-    <h1>Late For Class Tests</h1>
+    <h1>LateForClass Tests</h1>
     <button id="run" type="button">Run tests</button>
     <pre id="results" role="status"></pre>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="../../assets/gameConfig.js"></script>
-    <script src="../../js/wall.js"></script>
+    <script src="../../js/Wall.js"></script>
     <script src="../../js/Level.js"></script>
-    <script src="../../js/player.js"></script>
+    <script src="../../js/Player.js"></script>
     <script src="test-movement.js"></script>
     <script>
         const button = document.getElementById('run');
@@ -23,7 +23,9 @@
             button.disabled = true;
             try {
                 const response = await fetch('../../assets/levels.json');
-                if (!response.ok) throw new Error(`Could not load level data (${response.status})`);
+                if (!response.ok) {
+                    throw new Error(`Could not load level data (${response.status})`);
+                }
                 const { levels } = await response.json();
                 const reports = [];
                 registerMovementTests((name, run) => {
