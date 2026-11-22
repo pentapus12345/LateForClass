@@ -1,4 +1,5 @@
 const PILLAR_RADIAL_SEGMENTS = 16;
+const CONTACT_TOLERANCE = 1e-9;
 
 class Level {
     constructor(definition, config) {
@@ -6,14 +7,14 @@ class Level {
         this.config = config;
         this.playerStart = definition.playerStart;
         this.playerLookAt = definition.playerLookAt;
-        this.walls = [];
+        this.solids = [];
         this.objects = [];
     }
 
     build(scene) {
         this.clear(scene);
         this.createHallway(scene);
-        this.createWalls();
+        this.createColliders();
 
         if (this.definition.pillars) {
             this.addPillars(scene);
@@ -40,7 +41,7 @@ class Level {
             material.dispose();
         }
         this.objects = [];
-        this.walls = [];
+        this.solids = [];
     }
 
     createHallway(scene) {
@@ -69,13 +70,14 @@ class Level {
         this.addObject(scene, frame);
     }
 
-    createWalls() {
+    createColliders() {
         const { width, height, depth, wallThickness } = this.definition.hallway;
-        this.walls = [
+        this.solids = [
             new Wall({ x: -width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: 0, z: -depth / 2, width, height, depth: wallThickness }),
-            new Wall({ x: 0, z: depth / 2, width, height, depth: wallThickness })
+            new Wall({ x: 0, z: depth / 2, width, height, depth: wallThickness }),
+            ...(this.definition.platforms ?? []).map(platform => new Wall(platform))
         ];
     }
 
@@ -101,10 +103,25 @@ class Level {
     }
 
     isBlocked(position, radius, height) {
-        return this.walls.some(wall => wall.checkCollision(position, radius, height));
+        return this.solids.some(solid => solid.checkCollision(position, radius, height));
     }
 
-    getGroundHeight() {
-        return 0;
+    // Return the first contact as a feet height. A stationary query checks support.
+    getVerticalCollision(position, targetY, radius, height) {
+        const rising = targetY > position.y;
+        const boundary = rising ? this.definition.hallway.height - height : 0;
+        const crossesFace = face => rising
+            ? position.y <= face + CONTACT_TOLERANCE && targetY >= face
+            : position.y >= face - CONTACT_TOLERANCE && targetY <= face + CONTACT_TOLERANCE;
+        const nearestFace = rising ? Math.min : Math.max;
+        let contactY = crossesFace(boundary) ? boundary : null;
+
+        for (const solid of this.solids) {
+            const face = rising ? solid.minY - height : solid.maxY;
+            if (crossesFace(face) && solid.overlapsFootprint(position, radius)) {
+                contactY = contactY === null ? face : nearestFace(contactY, face);
+            }
+        }
+        return contactY;
     }
 }

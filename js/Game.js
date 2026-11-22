@@ -51,7 +51,7 @@ class Game {
         document.addEventListener('keydown', event => this.onKeyDown(event));
         document.addEventListener('keyup', event => this.player.onKeyUp(event));
         document.addEventListener('mousemove', event => {
-            if (this.isPlaying()) {
+            if (this.isPlaying() && document.hasFocus()) {
                 this.player.onMouseMove(event);
             }
         });
@@ -97,7 +97,7 @@ class Game {
 
     restart() {
         this.level.build(this.scene);
-        this.player.resetPosition(this.level.playerStart, this.level.playerLookAt);
+        this.player.resetPosition(this.level.playerStart, this.level.playerLookAt, this.level);
         this.completed = false;
         this.pointerLockFailed = false;
         this.updateInterface();
@@ -105,7 +105,7 @@ class Game {
     }
 
     onKeyDown(event) {
-        if (event.repeat) {
+        if (event.repeat || !document.hasFocus()) {
             return;
         }
 
@@ -131,6 +131,9 @@ class Game {
             return;
         }
 
+        if (event.code === 'Space') {
+            event.preventDefault();
+        }
         this.player.onKeyDown(event);
     }
 

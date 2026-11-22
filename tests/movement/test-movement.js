@@ -1,4 +1,6 @@
 function registerMovementTests(test, levelData) {
+    const ELEVATED_PLATFORM = { x: 0, y: 2.2, z: 0, width: 2, height: 0.05, depth: 2 };
+
     function equal(actual, expected) {
         if (actual !== expected) {
             throw new Error(`Expected ${expected}, got ${actual}`);
@@ -11,13 +13,22 @@ function registerMovementTests(test, levelData) {
         }
     }
 
-    function setup() {
-        const player = new Player(GAME_CONFIG);
-        const level = new Level(levelData, GAME_CONFIG);
+    function setup({ platforms = [], config = GAME_CONFIG } = {}) {
+        const player = new Player(config);
+        const level = new Level({ ...levelData, platforms }, config);
         const scene = new THREE.Scene();
         level.build(scene);
-        player.resetPosition(level.playerStart, level.playerLookAt);
+        player.resetPosition(level.playerStart, level.playerLookAt, level);
         return { camera: player.camera, player, level, scene };
+    }
+
+    function advance(player, level, duration, framesPerSecond) {
+        const frameTime = 1 / framesPerSecond;
+        const frames = Math.floor(duration / frameTime);
+        for (let frame = 0; frame < frames; frame++) {
+            player.update(frameTime, level);
+        }
+        player.update(duration - frames * frameTime, level);
     }
 
     test('WASD moves in the expected directions relative to the starting view', () => {
@@ -95,11 +106,143 @@ function registerMovementTests(test, levelData) {
 
     test('camera stays at eye height when falling onto the floor', () => {
         const { camera, player, level } = setup();
-        player.resetPosition({ x: 0, y: 1, z: 0 });
+        player.resetPosition({ x: 0, y: 1, z: 0 }, null, level);
+        equal(player.isGrounded, false);
+        player.onKeyDown({ code: 'Space' });
+        player.update(0.2, level);
+        near(player.position.y, 1 - GAME_CONFIG.gravity * 0.2 ** 2 / 2);
+        near(player.velocity.y, -GAME_CONFIG.gravity * 0.2);
+        equal(player.isGrounded, false);
         player.update(1, level);
         equal(player.position.y, 0);
         equal(player.velocity.y, 0);
+        equal(player.isGrounded, true);
         near(camera.position.y, GAME_CONFIG.cameraHeight);
+    });
+
+    test('Space jumps only from support and holding it does not jump again on landing', () => {
+        const { player, level } = setup();
+        equal(player.isGrounded, true);
+        player.onKeyDown({ code: 'Space' });
+        equal(player.isGrounded, false);
+        const launchSpeed = Math.sqrt(2 * GAME_CONFIG.gravity * GAME_CONFIG.jumpHeight);
+        near(player.velocity.y, launchSpeed);
+        player.update(0.2, level);
+        const risingVelocity = player.velocity.y;
+        player.onKeyUp({ code: 'Space' });
+        player.onKeyDown({ code: 'Space' });
+        near(player.velocity.y, risingVelocity);
+        player.update(0.4, level);
+        const fallingVelocity = player.velocity.y;
+        equal(fallingVelocity < 0, true);
+        player.onKeyDown({ code: 'Space' });
+        near(player.velocity.y, fallingVelocity);
+
+        player.update(1, level);
+        equal(player.isGrounded, true);
+        equal(player.velocity.y, 0);
+        player.onKeyDown({ code: 'Space', repeat: true });
+        player.update(0.1, level);
+        equal(player.position.y, 0);
+        player.onKeyUp({ code: 'Space' });
+        player.onKeyDown({ code: 'Space' });
+        near(player.velocity.y, launchSpeed);
+    });
+
+    test('jump height and air time follow configuration across frame rates', () => {
+        const config = { ...GAME_CONFIG, gravity: 13, jumpHeight: 1.4 };
+        const apexTime = Math.sqrt(2 * config.jumpHeight / config.gravity);
+        for (const framesPerSecond of [15, 30, 60, 144]) {
+            const { player, level } = setup({ config });
+            player.onKeyDown({ code: 'Space' });
+            player.onKeyDown({ code: 'KeyW' });
+            advance(player, level, apexTime, framesPerSecond);
+            near(player.position.y, config.jumpHeight);
+            near(player.velocity.y, 0);
+            near(player.position.z - level.playerStart.z, config.moveSpeed * apexTime);
+            equal(player.isGrounded, false);
+            advance(player, level, apexTime - 0.01, framesPerSecond);
+            equal(player.isGrounded, false);
+            player.update(0.02, level);
+            equal(player.isGrounded, true);
+            near(player.position.y, 0);
+        }
+    });
+
+    test('a fast fall lands on the highest thin platform, then walking off resumes gravity', () => {
+        const { player, level } = setup({
+            platforms: [{ ...ELEVATED_PLATFORM, y: 1.1 }, ELEVATED_PLATFORM]
+        });
+        const platformTop = ELEVATED_PLATFORM.y + ELEVATED_PLATFORM.height;
+        player.resetPosition({ x: 0, y: 3, z: 0 }, null, level);
+        player.velocity.y = -70;
+        player.update(0.25, level);
+        near(player.position.y, platformTop);
+        equal(player.velocity.y, 0);
+        equal(player.isGrounded, true);
+        near(player.camera.position.y, platformTop + GAME_CONFIG.cameraHeight);
+
+        player.onKeyDown({ code: 'KeyD' });
+        player.update(0.1, level);
+        equal(player.isGrounded, true);
+        player.update(0.2, level);
+        equal(player.isGrounded, false);
+        equal(player.position.y < platformTop && player.velocity.y < 0, true);
+        player.onKeyUp({ code: 'KeyD' });
+        player.update(1, level);
+        equal(player.position.y, 0);
+        equal(player.isGrounded, true);
+    });
+
+    test('a platform can be reached from an airborne approach and blocks walking through its side', () => {
+        const platform = { ...ELEVATED_PLATFORM, y: 0.5, height: 0.1 };
+        const { player, level } = setup({ platforms: [platform] });
+        player.resetPosition({ x: -2.5, y: 0, z: 0 }, null, level);
+        player.onKeyDown({ code: 'KeyD' });
+        player.update(0.25, level);
+        equal(player.position.x <= -1 - GAME_CONFIG.playerRadius, true);
+        player.onKeyDown({ code: 'Space' });
+        player.update(0.5, level);
+        equal(player.position.x > -1 && player.position.y > platform.y + platform.height, true);
+        player.onKeyUp({ code: 'KeyD' });
+        player.update(0.4, level);
+        equal(player.isGrounded, true);
+        near(player.position.y, platform.y + platform.height);
+    });
+
+    test('a spawn at a decimal platform height is supported despite rounding', () => {
+        const platform = { ...ELEVATED_PLATFORM, y: 0.1, height: 0.2 };
+        const { player, level } = setup({ platforms: [platform] });
+        player.resetPosition({ x: 0, y: 0.3, z: 0 }, null, level);
+        equal(player.isGrounded, true);
+        player.update(0.1, level);
+        near(player.position.y, 0.3);
+        equal(player.velocity.y, 0);
+    });
+
+    function checkCeiling(config, platform) {
+        const { player, level } = setup({ config, platforms: platform ? [platform] : [] });
+        player.resetPosition({ x: 0, y: 0, z: 0 }, null, level);
+        const surfaceY = platform ? platform.y : levelData.hallway.height;
+        const clearance = surfaceY - config.playerHeight;
+        const launchSpeed = Math.sqrt(2 * config.gravity * config.jumpHeight);
+        const impactTime = 2 * clearance / (launchSpeed + Math.sqrt(launchSpeed ** 2 - 2 * config.gravity * clearance));
+        player.onKeyDown({ code: 'Space' });
+        player.update(impactTime + 0.02, level);
+        near(player.position.y, clearance - config.gravity * 0.02 ** 2 / 2);
+        near(player.velocity.y, -config.gravity * 0.02);
+        equal(player.isGrounded, false);
+        player.update(2, level);
+        equal(player.isGrounded, true);
+        equal(player.position.y, 0);
+    }
+
+    test('the underside of an elevated platform stops a jump and the player falls back', () => {
+        checkCeiling(GAME_CONFIG, ELEVATED_PLATFORM);
+    });
+
+    test('the hallway ceiling blocks a jump that would rise above the box', () => {
+        checkCeiling({ ...GAME_CONFIG, jumpHeight: 4 });
     });
 
     test('all four invisible perimeter walls stop the player, even on a long step', () => {
@@ -121,7 +264,7 @@ function registerMovementTests(test, levelData) {
 
     test('the player slides along a wall while holding diagonal input', () => {
         const { player, level } = setup();
-        player.resetPosition({ x: 4.15, y: 0, z: 0 }, level.playerLookAt);
+        player.resetPosition({ x: 4.15, y: 0, z: 0 }, level.playerLookAt, level);
         player.camera.rotation.y = Math.PI;
         player.onKeyDown({ code: 'KeyW' });
         player.onKeyDown({ code: 'KeyA' });
@@ -182,7 +325,7 @@ function registerMovementTests(test, levelData) {
         player.onKeyDown({ code: 'KeyW' });
         player.update(0.2, level);
         level.build(scene);
-        player.resetPosition(level.playerStart, level.playerLookAt);
+        player.resetPosition(level.playerStart, level.playerLookAt, level);
         equal(scene.children.length, original.length);
         equal(scene.children.some(object => original.includes(object)), false);
         for (const disposeCount of disposals.values()) {

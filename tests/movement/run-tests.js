@@ -173,8 +173,10 @@ async function loadGame(response) {
         elements.set(id, element);
     }
 
+    let hasFocus = true;
     const document = Object.assign(new EventTarget(), {
         getElementById: id => elements.get(id) ?? null,
+        hasFocus: () => hasFocus,
         pointerLockElement: null,
         exitPointerLock() {
             this.pointerLockElement = null;
@@ -182,6 +184,8 @@ async function loadGame(response) {
         }
     });
     const window = Object.assign(new EventTarget(), { innerWidth: 800, innerHeight: 600 });
+    window.addEventListener('blur', () => { hasFocus = false; });
+    window.addEventListener('focus', () => { hasFocus = true; });
     const frames = [];
     const renderers = [];
     const errors = [];
@@ -274,6 +278,49 @@ test('the page boots one game and routes start, movement, resize, pause, and res
     window.dispatchEvent(new Event('resize'));
     assert.deepEqual(renderers[0].size, [960, 600]);
     assert.equal(camera.aspect, 960 / 600);
+});
+
+test('the game routes Space and clears movement on blur and pointer unlock', async () => {
+    const { document, window, elements, frames, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels }) });
+    const [{ camera }] = renderers;
+    const startButton = elements.get('start-button');
+    const press = code => {
+        const event = Object.assign(new Event('keydown', { cancelable: true }), { code });
+        document.dispatchEvent(event);
+        return event;
+    };
+    const eyeHeight = camera.position.y;
+    press('Space');
+    frames.shift()();
+    assert.equal(camera.position.y, eyeHeight);
+
+    startButton.dispatchEvent(new Event('click'));
+    assert.equal(press('Space').defaultPrevented, true);
+    press('KeyW');
+    frames.shift()();
+    const firstJumpY = camera.position.y;
+    const forwardZ = camera.position.z;
+    assert.ok(firstJumpY > eyeHeight);
+
+    window.dispatchEvent(new Event('blur'));
+    press('KeyW');
+    frames.shift()();
+    assert.equal(camera.position.z, forwardZ);
+    assert.ok(camera.position.y > firstJumpY);
+
+    window.dispatchEvent(new Event('focus'));
+    press('KeyW');
+    press('Escape');
+    const pausedY = camera.position.y;
+    frames.shift()();
+    assert.equal(camera.position.y, pausedY);
+    assert.equal(camera.position.z, forwardZ);
+
+    startButton.dispatchEvent(new Event('click'));
+    frames.shift()();
+    assert.ok(camera.position.y > pausedY);
+    assert.equal(camera.position.z, forwardZ);
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {

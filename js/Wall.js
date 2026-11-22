@@ -9,10 +9,14 @@ class Wall {
     }
 
     checkCollision(position, radius, height) {
-        if (position.y >= this.maxY || position.y + height <= this.minY) {
+        if (position.y >= this.maxY || position.y <= this.minY - height) {
             return false;
         }
 
+        return this.overlapsFootprint(position, radius);
+    }
+
+    overlapsFootprint(position, radius) {
         const closestX = Math.max(this.minX, Math.min(position.x, this.maxX));
         const closestZ = Math.max(this.minZ, Math.min(position.z, this.maxZ));
         return Math.hypot(position.x - closestX, position.z - closestZ) < radius;

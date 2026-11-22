@@ -2,6 +2,7 @@ const GAME_CONFIG = {
     moveSpeed: 6,
     friction: 12,
     gravity: 9.8,
+    jumpHeight: 1,
     cameraHeight: 1.6,
     playerHeight: 1.8,
     playerRadius: 0.3,

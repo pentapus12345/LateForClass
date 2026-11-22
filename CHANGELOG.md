@@ -8,6 +8,14 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-22 — Player jumping and vertical collision
+
+- Updated `js/Player.js` and `assets/gameConfig.js` with grounded jumps on Space, configurable gravity and jump height, and short physics steps that interleave vertical motion with camera-relative walking and wall sliding.
+- Updated `js/Level.js` and `js/Wall.js` to find the first floor, ceiling, or platform face crossed in a vertical step. Optional solid platforms support landing, underside collision, and stepping off. The current level data and rendered geometry remain the same.
+- Updated `js/Game.js` to route Space and stop accepting movement and mouse input on focus or pointer-lock loss. Pausing preserves vertical momentum for resume.
+- Updated `README.md`, `tests/README.md`, and the Node and shared tests in `tests/movement/`. All 22 Node tests and 18 Chrome regression tests passed. A Chrome playthrough verified Space, landing, pointer lock, mouse look, pause and resume, wall collision, restart, and completion.
+- Elevated platforms and ceiling impacts from high jumps are covered by test fixtures. The shipped hallway has a flat floor and no elevated platforms.
+
 ### 2026-11-22 — Repository cleanup and standardization
 
 - Renamed `js/player.js` to `js/Player.js` and `js/wall.js` to `js/Wall.js` using intermediate Git moves. Moved `test/` to `tests/` and updated the game, browser test page, offline runner, and documentation references.

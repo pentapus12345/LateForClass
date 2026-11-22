@@ -18,11 +18,20 @@ Open <http://localhost:8090> in a desktop browser and click **Start Game**. The 
 | --- | --- |
 | WASD | Move relative to the camera |
 | Mouse | Look around |
+| Space | Jump from the ground or a platform |
 | E | Complete the level when the classroom prompt appears |
 | Escape | Pause and release the mouse. Click Resume to continue. |
 | R | Restart the level |
 
 Choose **Play Again** on the completion screen to return to the starting position.
+
+## Player physics
+
+Y is vertical and X/Z are horizontal. The player position tracks the feet, and the camera stays at eye height above them. WASD follows camera yaw, and mouse pitch leaves walking speed unchanged.
+
+`assets/gameConfig.js` sets gravity to 9.8 world units per second squared and jump height to 1 world unit in open space. The player uses short time steps for wall sliding and checks the full vertical travel in each step for floors, ceilings, and platform faces.
+
+Level definitions can include an optional `platforms` array of solid boxes. Each box uses `x` and `z` for its center, `y` for its bottom, and `width`, `height`, and `depth` for its size. Platforms are collision geometry, and the current hallway uses only its existing layout.
 
 ## Project layout
 

@@ -1,6 +1,7 @@
 const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const MOUSE_SENSITIVITY = 0.002;
 const MAX_PITCH = Math.PI / 2 - 0.01;
+const MAX_PHYSICS_STEP = 1 / 120;
 
 class Player {
     constructor(config) {
@@ -10,6 +11,7 @@ class Player {
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
         this.pressedKeys = new Set();
+        this.isGrounded = false;
     }
 
     resizeCamera(width, height) {
@@ -17,9 +19,14 @@ class Player {
         this.camera.updateProjectionMatrix();
     }
 
-    resetPosition(start, lookAt) {
+    resetPosition(start, lookAt, level) {
         this.clearInput();
+        this.velocity.y = 0;
         this.position.set(start.x, start.y, start.z);
+        const { playerRadius, playerHeight } = this.config;
+        const supportY = level.getVerticalCollision(this.position, start.y, playerRadius, playerHeight);
+        this.isGrounded = supportY !== null;
+        this.position.y = supportY ?? start.y;
         this.updateCameraPosition();
 
         if (lookAt) {
@@ -39,12 +46,17 @@ class Player {
 
     clearInput() {
         this.pressedKeys.clear();
-        this.velocity.set(0, 0, 0);
+        this.velocity.x = 0;
+        this.velocity.z = 0;
     }
 
     onKeyDown(event) {
         if (MOVEMENT_KEYS.has(event.code)) {
             this.pressedKeys.add(event.code);
+        } else if (event.code === 'Space' && !event.repeat && this.isGrounded) {
+            const { gravity, jumpHeight } = this.config;
+            this.velocity.y = Math.sqrt(2 * gravity * jumpHeight);
+            this.isGrounded = false;
         }
     }
 
@@ -62,69 +74,97 @@ class Player {
     }
 
     update(deltaTime, level) {
+        if (deltaTime <= 0) {
+            return;
+        }
+
         const strafe = Number(this.pressedKeys.has('KeyD')) - Number(this.pressedKeys.has('KeyA'));
         const forward = Number(this.pressedKeys.has('KeyW')) - Number(this.pressedKeys.has('KeyS'));
         const inputLength = Math.hypot(strafe, forward);
-        let movementTime = deltaTime;
-        let damping = 1;
-
+        const hasMovementInput = this.pressedKeys.size > 0;
         if (inputLength > 0) {
             const yaw = this.camera.rotation.y;
             const speed = this.config.moveSpeed / inputLength;
             this.velocity.x = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * speed;
             this.velocity.z = (-strafe * Math.sin(yaw) - forward * Math.cos(yaw)) * speed;
-        } else if (this.pressedKeys.size > 0) {
+        } else if (hasMovementInput) {
             this.velocity.x = 0;
             this.velocity.z = 0;
-        } else if (this.config.friction > 0) {
-            damping = Math.exp(-this.config.friction * deltaTime);
-            // Integrate the decaying velocity over the whole step.
-            movementTime = -Math.expm1(-this.config.friction * deltaTime) / this.config.friction;
         }
 
-        this.position.y += (this.velocity.y - this.config.gravity * deltaTime / 2) * deltaTime;
-        this.velocity.y -= this.config.gravity * deltaTime;
-        const groundHeight = level.getGroundHeight();
-        if (this.position.y <= groundHeight) {
-            this.position.y = groundHeight;
-            this.velocity.y = 0;
-        }
+        const { x: desiredX, z: desiredZ } = this.velocity;
+        // Interleave horizontal and vertical motion. Small steps preserve wall
+        // sliding and resolve platform edges while entering or leaving a footprint.
+        const distance = Math.hypot(desiredX, desiredZ) * deltaTime;
+        const maxStepDistance = this.config.playerRadius / 2;
+        const steps = Math.ceil(Math.max(deltaTime / MAX_PHYSICS_STEP, distance / maxStepDistance));
+        const stepTime = deltaTime / steps;
+        const friction = hasMovementInput ? 0 : Math.max(0, this.config.friction);
+        const damping = Math.exp(-friction * stepTime);
+        // Integrate the decaying velocity over the whole step.
+        const movementTime = friction > 0 ? -Math.expm1(-friction * stepTime) / friction : stepTime;
 
-        this.moveHorizontally(this.velocity.x * movementTime, this.velocity.z * movementTime, level);
-        this.velocity.x *= damping;
-        this.velocity.z *= damping;
+        for (let step = 0; step < steps; step++) {
+            if (hasMovementInput) {
+                this.velocity.x = desiredX;
+                this.velocity.z = desiredZ;
+            }
+            this.moveHorizontally(this.velocity.x * movementTime, this.velocity.z * movementTime, level);
+            this.moveVertically(stepTime, level);
+            this.velocity.x *= damping;
+            this.velocity.z *= damping;
+        }
         this.updateCameraPosition();
     }
 
     moveHorizontally(displacementX, displacementZ, level) {
-        if (displacementX === 0 && displacementZ === 0) {
-            return;
+        const { playerRadius, playerHeight } = this.config;
+        const { x, z } = this.position;
+
+        this.position.x += displacementX;
+        if (displacementX && level.isBlocked(this.position, playerRadius, playerHeight)) {
+            this.position.x = x;
+            this.velocity.x = 0;
         }
 
-        const { playerRadius, playerHeight } = this.config;
-        // Small steps prevent passing through thin walls. Resolving each axis
-        // separately lets the player slide along a wall.
-        const steps = Math.ceil(Math.hypot(displacementX, displacementZ) / (playerRadius / 2));
-        let stepX = displacementX / steps;
-        let stepZ = displacementZ / steps;
+        this.position.z += displacementZ;
+        if (displacementZ && level.isBlocked(this.position, playerRadius, playerHeight)) {
+            this.position.z = z;
+            this.velocity.z = 0;
+        }
+    }
 
-        for (let step = 0; step < steps; step++) {
-            const previousX = this.position.x;
-            const previousZ = this.position.z;
+    moveVertically(stepTime, level) {
+        const { gravity, playerRadius, playerHeight } = this.config;
+        let fallTime = stepTime;
 
-            this.position.x += stepX;
-            if (stepX && level.isBlocked(this.position, playerRadius, playerHeight)) {
-                this.position.x = previousX;
-                this.velocity.x = 0;
-                stepX = 0;
+        if (this.velocity.y > 0) {
+            // Sweep the ascent and descent separately so a step spanning the
+            // apex still detects a ceiling reached before the player falls.
+            const riseTime = Math.min(stepTime, this.velocity.y / gravity);
+            const targetY = this.position.y + (this.velocity.y - gravity * riseTime / 2) * riseTime;
+            const ceilingY = level.getVerticalCollision(this.position, targetY, playerRadius, playerHeight);
+            this.isGrounded = false;
+
+            if (ceilingY === null) {
+                this.position.y = targetY;
+                this.velocity.y = Math.max(0, this.velocity.y - gravity * riseTime);
+                fallTime -= riseTime;
+            } else {
+                const riseDistance = Math.max(0, ceilingY - this.position.y);
+                const impactSpeed = Math.sqrt(Math.max(0, this.velocity.y ** 2 - 2 * gravity * riseDistance));
+                fallTime -= 2 * riseDistance / (this.velocity.y + impactSpeed);
+                this.position.y = ceilingY;
+                this.velocity.y = 0;
             }
+        }
 
-            this.position.z += stepZ;
-            if (stepZ && level.isBlocked(this.position, playerRadius, playerHeight)) {
-                this.position.z = previousZ;
-                this.velocity.z = 0;
-                stepZ = 0;
-            }
+        if (fallTime > 0) {
+            const targetY = this.position.y + (this.velocity.y - gravity * fallTime / 2) * fallTime;
+            const floorY = level.getVerticalCollision(this.position, targetY, playerRadius, playerHeight);
+            this.isGrounded = floorY !== null;
+            this.position.y = floorY ?? targetY;
+            this.velocity.y = this.isGrounded ? 0 : this.velocity.y - gravity * fallTime;
         }
     }
 }
