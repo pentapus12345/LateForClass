@@ -2,7 +2,7 @@
 const gameConfig = {
     // Movement parameters
     moveSpeed: 0.1,
-    friction: 0.9,
+    friction: 5.9,
     gravity: 9.8,
     
     // Camera parameters

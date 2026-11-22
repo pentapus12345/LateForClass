@@ -1,0 +1,52 @@
+{
+  "levels": [
+    {
+      "id": 1,
+      "name": "Basic Level",
+      "playerStart": {
+        "x": 0,
+        "y": 0,
+        "z": -4
+      },
+      "playerLookAt": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      },
+      "walls": [
+        {
+          "x": -5,
+          "y": 0,
+          "z": -5,
+          "width": 10,
+          "height": 2,
+          "depth": 1
+        },
+        {
+          "x": 5,
+          "y": 0,
+          "z": -5,
+          "width": 1,
+          "height": 2,
+          "depth": 10
+        },
+        {
+          "x": 5,
+          "y": 0,
+          "z": 5,
+          "width": 10,
+          "height": 2,
+          "depth": 1
+        },
+        {
+          "x": -5,
+          "y": 0,
+          "z": 5,
+          "width": 1,
+          "height": 2,
+          "depth": 10
+        }
+      ]
+    }
+  ]
+}

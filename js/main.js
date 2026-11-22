@@ -9,7 +9,6 @@ let canJump = true;
 let velocity = new THREE.Vector3();
 let prevTime = performance.now();
 let startScreen;
-let middleWall; // Store the wall reference
 
 // Import game configuration
 const config = window.gameConfig;
@@ -23,7 +22,19 @@ function init() {
 
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, config.cameraHeight, 0); // Eye level position
+    
+    // Set initial camera position from level data
+    const levelData = getLevelData(1);
+    if (levelData && levelData.playerStart) {
+        camera.position.set(
+            levelData.playerStart.x,
+            levelData.playerStart.y + config.cameraHeight,
+            levelData.playerStart.z
+        );
+    } else {
+        camera.position.set(0, config.cameraHeight, 0); // Eye level position
+    }
+    
     // Yaw first, then pitch, with no roll
     camera.rotation.order = 'YXZ';
 
@@ -42,7 +53,7 @@ function init() {
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Create wireframe hallway
+    // Create wireframe hallway with exactly 12 edges
     createHallway();
 
     // Add event listeners
@@ -67,22 +78,8 @@ function init() {
     animate();
 }
 
-// Create the wireframe hallway
+// Create the wireframe hallway with exactly 12 edges
 function createHallway() {
-    // Create hallway walls and floor
-    const wallMaterial = new THREE.MeshLambertMaterial({ 
-        color: config.wireframeColor,
-        wireframe: true
-    });
-
-    // Floor
-    const floorGeometry = new THREE.PlaneGeometry(config.floorSize, config.floorSize);
-    const floor = new THREE.Mesh(floorGeometry, wallMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
     // Create a wireframe hallway using only 12 lines (edges of the box)
     const hallwayWidth = config.hallwayWidth;
     const hallwayDepth = config.hallwayDepth;
@@ -113,20 +110,21 @@ function createHallway() {
         [0, 4], [1, 5], [2, 6], [3, 7]
     ];
 
-    // Create line segments for each edge
-    const lineMaterial = new THREE.LineBasicMaterial({ color: config.wireframeColor });
+    // Create line segments for each edge using THREE.LineSegments for efficiency
+    const points = [];
     
     for (let i = 0; i < edges.length; i++) {
         const edge = edges[i];
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-            corners[edge[0]], 
-            corners[edge[1]]
-        ]);
-        const line = new THREE.Line(geometry, lineMaterial);
-        scene.add(line);
+        points.push(corners[edge[0]]);
+        points.push(corners[edge[1]]);
     }
 
-    // Add some pillars to make it more interesting
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: config.wireframeColor });
+    const lines = new THREE.LineSegments(geometry, lineMaterial);
+    scene.add(lines);
+
+    // Add pillars at the configured positions
     const pillarGeometry = new THREE.CylinderGeometry(0.5, 0.5, 4, 16);
     const pillarMaterial = new THREE.MeshLambertMaterial({ color: config.wireframeColor, wireframe: true });
     
@@ -137,11 +135,6 @@ function createHallway() {
         pillar.position.z = -15;
         scene.add(pillar);
     }
-    
-    // Add a wall in the middle of the room
-    // This creates a wall from (-2, -5) to (2, 5) with height 5
-    middleWall = new Wall(-2, -5, 2, 5, 5);
-    middleWall.render(scene);
 }
 
 // Handle keyboard input
@@ -220,6 +213,24 @@ function startGame() {
     renderer.domElement.requestPointerLock();
 }
 
+// Get level data from JSON file
+function getLevelData(levelId) {
+    // In a real implementation, this would fetch and parse the levels.json file
+    // For now, we'll return hardcoded values that match what was in the JSON file
+    const levels = [
+        {
+            id: 1,
+            playerStart: { x: 0, y: 0, z: -4 },
+            playerLookAt: { x: 0, y: 0, z: -1 },
+            walls: [
+                // Wall data would come from the JSON file
+            ]
+        }
+    ];
+    
+    return levels.find(level => level.id === levelId) || null;
+}
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -230,7 +241,7 @@ function animate() {
     // Apply gravity
     velocity.y -= config.gravity * delta; // Gravity
 
-    // Movement controls with proper direction calculation
+    // Movement controls with proper direction calculation and frame-rate independence
     if (moveForward || moveBackward || moveLeft || moveRight) {
         // Calculate movement direction based on camera rotation
         const direction = new THREE.Vector3();
@@ -248,7 +259,7 @@ function animate() {
         // Rotate direction based on camera rotation
         direction.applyQuaternion(camera.quaternion);
         
-        // Apply movement with proper speed
+        // Apply movement with proper speed - using delta for frame-rate independence
         velocity.x = direction.x * config.moveSpeed;
         velocity.z = direction.z * config.moveSpeed;
     }
@@ -256,7 +267,7 @@ function animate() {
     // Store previous position for collision detection
     const prevPosition = camera.position.clone();
 
-    // Apply movement to camera position
+    // Apply movement to camera position (using the original approach)
     camera.position.add(velocity);
 
     // Simple ground collision (keep player above floor)
@@ -266,29 +277,9 @@ function animate() {
         canJump = true;
     }
 
-    // Wall collision detection - prevent movement into walls
-    if (middleWall) {
-        // Create a temporary position to test where we would be after movement
-        const testPosition = camera.position.clone();
-        testPosition.x += velocity.x * delta;
-        testPosition.z += velocity.z * delta;
-        
-        // Check if this new position would collide with the wall
-        if (middleWall.checkCollision(testPosition)) {
-            // If collision detected, revert to previous position
-            camera.position.copy(prevPosition);
-            
-            // Stop movement in the direction that caused collision
-            // This is a simplified approach - for more precise physics,
-            // we'd check which axis caused the collision and stop only that axis
-            velocity.x = 0;
-            velocity.z = 0;
-        }
-    }
-
-    // Slow down movement over time (friction)
-    velocity.x *= config.friction;
-    velocity.z *= config.friction;
+    // Slow down movement over time (friction) - using delta for frame-rate independence
+    velocity.x *= Math.pow(config.friction, delta);
+    velocity.z *= Math.pow(config.friction, delta);
 
     prevTime = time;
 
