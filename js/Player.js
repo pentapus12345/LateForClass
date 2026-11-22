@@ -1,13 +1,16 @@
 const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const MOUSE_SENSITIVITY = 0.002;
 const MAX_PITCH = Math.PI / 2 - 0.01;
+const FULL_TURN = 2 * Math.PI;
 const MAX_PHYSICS_STEP = 1 / 120;
 
 class Player {
     constructor(config) {
         this.config = config;
         this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-        this.camera.rotation.order = 'YXZ';
+        this.yaw = 0;
+        this.pitch = 0;
+        this.updateCameraRotation();
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
         this.pressedKeys = new Set();
@@ -29,11 +32,18 @@ class Player {
         this.position.y = supportY ?? start.y;
         this.updateCameraPosition();
 
+        this.yaw = 0;
+        this.pitch = 0;
         if (lookAt) {
-            this.camera.lookAt(lookAt.x, lookAt.y, lookAt.z);
-        } else {
-            this.camera.rotation.set(0, 0, 0);
+            const directionX = lookAt.x - this.camera.position.x;
+            const directionY = lookAt.y - this.camera.position.y;
+            const directionZ = lookAt.z - this.camera.position.z;
+            const horizontalLength = Math.hypot(directionX, directionZ);
+            // A vertical target has no horizontal heading. Use the default yaw.
+            this.yaw = horizontalLength > 0 ? Math.atan2(-directionX, -directionZ) : 0;
+            this.pitch = Math.atan2(directionY, horizontalLength);
         }
+        this.updateCameraRotation();
     }
 
     updateCameraPosition() {
@@ -42,6 +52,12 @@ class Player {
             this.position.y + this.config.cameraHeight,
             this.position.z
         );
+    }
+
+    updateCameraRotation() {
+        this.yaw %= FULL_TURN;
+        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
+        this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     }
 
     clearInput() {
@@ -65,12 +81,9 @@ class Player {
     }
 
     onMouseMove(event) {
-        this.camera.rotation.y -= event.movementX * MOUSE_SENSITIVITY;
-        this.camera.rotation.x = Math.max(
-            -MAX_PITCH,
-            Math.min(MAX_PITCH, this.camera.rotation.x - event.movementY * MOUSE_SENSITIVITY)
-        );
-        this.camera.rotation.z = 0;
+        this.yaw -= event.movementX * MOUSE_SENSITIVITY;
+        this.pitch -= event.movementY * MOUSE_SENSITIVITY;
+        this.updateCameraRotation();
     }
 
     update(deltaTime, level) {
@@ -83,10 +96,9 @@ class Player {
         const inputLength = Math.hypot(strafe, forward);
         const hasMovementInput = this.pressedKeys.size > 0;
         if (inputLength > 0) {
-            const yaw = this.camera.rotation.y;
             const speed = this.config.moveSpeed / inputLength;
-            this.velocity.x = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * speed;
-            this.velocity.z = (-strafe * Math.sin(yaw) - forward * Math.cos(yaw)) * speed;
+            this.velocity.x = (strafe * Math.cos(this.yaw) - forward * Math.sin(this.yaw)) * speed;
+            this.velocity.z = (-strafe * Math.sin(this.yaw) - forward * Math.cos(this.yaw)) * speed;
         } else if (hasMovementInput) {
             this.velocity.x = 0;
             this.velocity.z = 0;

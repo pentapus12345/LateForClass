@@ -27,6 +27,8 @@ Use exact filename casing in every script reference and import. Prefer descripti
 
 Give each class a clear responsibility. Extend the appropriate existing class first. Introduce a class only when its responsibility warrants it. Keep browser rendering, game state, player physics, and level data separate. Avoid circular dependencies and unnecessary global state.
 
+The first-person camera uses world-up Y, explicit yaw and pitch, and zero roll. All orientation changes must pass through the Player's camera rotation method. Camera initialization, restart, and mouse movement must use the same orientation model. Any changes to camera controls must pass the camera rotation regression tests.
+
 ## Coding standards
 
 Use four-space indentation, single quotes in JavaScript, semicolons, and braces for control-flow blocks. Use `const` by default and `let` for reassignment. Prefer straightforward control flow, descriptive names, and comments that explain decisions or algorithms. Keep the vanilla JavaScript setup and add dependencies only when the task requires them.

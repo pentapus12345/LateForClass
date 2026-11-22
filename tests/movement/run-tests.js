@@ -30,24 +30,56 @@ class Vector3 {
 
     set(x, y, z) {
         Object.assign(this, { x, y, z });
+        return this;
     }
 
     clone() {
         return new Vector3(this.x, this.y, this.z);
     }
+
+    sub(vector) {
+        return this.set(this.x - vector.x, this.y - vector.y, this.z - vector.z);
+    }
+}
+
+class Euler {
+    constructor() {
+        this.set(0, 0, 0, 'XYZ');
+    }
+
+    set(x, y, z, order = this.order) {
+        Object.assign(this, { x, y, z, order });
+    }
 }
 
 class Camera {
     position = new Vector3();
-    rotation = new Vector3();
+    rotation = new Euler();
 
     updateProjectionMatrix() {}
+    updateMatrixWorld() {}
 
-    lookAt(x, y, z) {
-        const dx = x - this.position.x;
-        const dy = y - this.position.y;
-        const dz = z - this.position.z;
-        this.rotation.set(Math.atan2(dy, Math.hypot(dx, dz)), Math.atan2(-dx, -dz), 0);
+    localToWorld(vector) {
+        let { x, y, z } = vector;
+
+        // Intrinsic Euler rotations act on a local vector in reverse order.
+        for (const axis of [...this.rotation.order].reverse()) {
+            const angle = this.rotation[axis.toLowerCase()];
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            if (axis === 'X') {
+                [y, z] = [y * cos - z * sin, y * sin + z * cos];
+            } else if (axis === 'Y') {
+                [x, z] = [x * cos + z * sin, z * cos - x * sin];
+            } else {
+                [x, y] = [x * cos - y * sin, x * sin + y * cos];
+            }
+        }
+        return vector.set(x + this.position.x, y + this.position.y, z + this.position.z);
+    }
+
+    getWorldDirection(target) {
+        return this.localToWorld(target.set(0, 0, -1)).sub(this.position);
     }
 }
 
@@ -321,6 +353,26 @@ test('the game routes Space and clears movement on blur and pointer unlock', asy
     frames.shift()();
     assert.ok(camera.position.y > pausedY);
     assert.equal(camera.position.z, forwardZ);
+});
+
+test('R restores the configured non-level camera orientation after mouse look', async () => {
+    const level = { ...levels[0], playerLookAt: { x: 3, y: 4, z: 6 } };
+    const { document, elements, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels: [level] }) });
+    const [{ camera }] = renderers;
+    const direction = () => camera.getWorldDirection(new Vector3());
+    const startingDirection = direction();
+    assert.ok(startingDirection.x > 0 && startingDirection.y > 0);
+
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    document.dispatchEvent(Object.assign(new Event('mousemove'), { movementX: 830, movementY: 240 }));
+    assert.notDeepEqual(direction(), startingDirection);
+
+    document.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyR' }));
+    assert.deepEqual(direction(), startingDirection);
+    assert.equal(camera.rotation.z, 0);
+    document.dispatchEvent(Object.assign(new Event('mousemove'), { movementX: 300, movementY: 0 }));
+    assert.ok(Math.abs(direction().y - startingDirection.y) < 1e-9);
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {

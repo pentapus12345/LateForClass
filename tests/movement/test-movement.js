@@ -13,6 +13,21 @@ function registerMovementTests(test, levelData) {
         }
     }
 
+    function nearVector(actual, expected) {
+        near(actual.x, expected.x);
+        near(actual.y, expected.y);
+        near(actual.z, expected.z);
+    }
+
+    function cameraDirection(camera) {
+        return camera.getWorldDirection(new THREE.Vector3());
+    }
+
+    function cameraRight(camera) {
+        camera.updateMatrixWorld();
+        return camera.localToWorld(new THREE.Vector3(1, 0, 0)).sub(camera.position);
+    }
+
     function setup({ platforms = [], config = GAME_CONFIG } = {}) {
         const player = new Player(config);
         const level = new Level({ ...levelData, platforms }, config);
@@ -90,18 +105,132 @@ function registerMovementTests(test, levelData) {
         }
     });
 
-    test('mouse changes yaw and clamps pitch while movement stays horizontal', () => {
-        const { camera, player, level } = setup();
-        const startYaw = camera.rotation.y;
-        player.onMouseMove({ movementX: Math.PI / 0.004, movementY: -10000 });
-        near(camera.rotation.y, startYaw - Math.PI / 2);
-        near(camera.rotation.x, Math.PI / 2 - 0.01);
+    test('horizontal mouse movement turns the view without changing its pitch', () => {
+        const { camera, player } = setup();
+        player.onMouseMove({ movementX: 0, movementY: -240 });
+        const before = cameraDirection(camera);
+        player.onMouseMove({ movementX: -Math.PI / 0.004, movementY: 0 });
+        nearVector(cameraDirection(camera), { x: before.z, y: before.y, z: -before.x });
+        near(cameraRight(camera).y, 0);
+    });
 
-        player.onKeyDown({ code: 'KeyW' });
-        player.update(0.1, level);
-        near(player.position.x - level.playerStart.x, -0.6);
-        near(player.position.z, level.playerStart.z);
-        near(camera.position.y, GAME_CONFIG.cameraHeight);
+    test('vertical mouse movement changes pitch while preserving the horizontal heading', () => {
+        const { camera, player } = setup();
+        player.onMouseMove({ movementX: 360, movementY: 0 });
+        const heading = cameraDirection(camera);
+        const right = cameraRight(camera);
+        player.onMouseMove({ movementX: 0, movementY: 300 });
+        nearVector(cameraDirection(camera), {
+            x: heading.x * Math.cos(0.6),
+            y: -Math.sin(0.6),
+            z: heading.z * Math.cos(0.6)
+        });
+        nearVector(cameraRight(camera), right);
+    });
+
+    test('combined mouse movement keeps the horizon level and leaves the player and camera in place', () => {
+        const { camera, player } = setup();
+        const startPosition = player.position.clone();
+        const cameraPosition = camera.position.clone();
+        for (const [movementX, movementY] of [[350, -200], [520, 570], [-910, -490]]) {
+            player.onMouseMove({ movementX, movementY });
+            near(cameraRight(camera).y, 0);
+            near(camera.rotation.z, 0);
+        }
+        nearVector(player.position, startPosition);
+        nearVector(camera.position, cameraPosition);
+    });
+
+    test('pitch clamps above and below the horizon without flipping', () => {
+        const { camera, player } = setup();
+        for (const direction of [1, -1]) {
+            player.onMouseMove({ movementX: 380, movementY: -direction * 10000 });
+            const forward = cameraDirection(camera);
+            near(forward.y, direction * Math.cos(0.01));
+            near(Math.hypot(forward.x, forward.z), Math.sin(0.01));
+            player.onMouseMove({ movementX: 450, movementY: 0 });
+            near(cameraDirection(camera).y, forward.y);
+            near(cameraRight(camera).y, 0);
+            player.onMouseMove({ movementX: 0, movementY: direction * 100 });
+            equal(direction * cameraDirection(camera).y < direction * forward.y, true);
+        }
+    });
+
+    test('successive quarter turns cycle through all headings over multiple full rotations', () => {
+        const { camera, player, level } = setup();
+        player.resetPosition(level.playerStart, null, level);
+        const directions = [
+            { x: -1, y: 0, z: 0 }, { x: 0, y: 0, z: 1 },
+            { x: 1, y: 0, z: 0 }, { x: 0, y: 0, z: -1 }
+        ];
+        for (let quarterTurn = 0; quarterTurn < 24; quarterTurn++) {
+            player.onMouseMove({ movementX: -Math.PI / 0.004, movementY: 0 });
+            nearVector(cameraDirection(camera), directions[quarterTurn % directions.length]);
+            near(cameraRight(camera).y, 0);
+        }
+    });
+
+    test('repeated combined mouse movements return to the same orientation without drift', () => {
+        const { camera, player } = setup();
+        player.onMouseMove({ movementX: 200, movementY: 125 });
+        const direction = cameraDirection(camera);
+        const right = cameraRight(camera);
+        for (let cycle = 0; cycle < 1000; cycle++) {
+            for (const [movementX, movementY] of [[470, 120], [-210, 180], [-470, -120], [210, -180]]) {
+                player.onMouseMove({ movementX, movementY });
+                near(cameraRight(camera).y, 0);
+            }
+        }
+        nearVector(cameraDirection(camera), direction);
+        nearVector(cameraRight(camera), right);
+    });
+
+    test('a spawn target sets nonzero yaw and pitch from eye height and reset restores both', () => {
+        const { camera, player, level } = setup();
+        const start = { x: 1, y: 0, z: -6 };
+        const target = { x: 4, y: GAME_CONFIG.cameraHeight + 2, z: -10 };
+        const length = Math.hypot(3, 2, 4);
+        const expected = { x: 3 / length, y: 2 / length, z: -4 / length };
+        player.resetPosition(start, target, level);
+        nearVector(cameraDirection(camera), expected);
+        near(cameraRight(camera).y, 0);
+        player.onMouseMove({ movementX: 1900, movementY: 680 });
+        player.resetPosition(start, target, level);
+        nearVector(cameraDirection(camera), expected);
+        near(cameraRight(camera).y, 0);
+    });
+
+    test('a vertical spawn target uses the same pitch clamp as mouse input', () => {
+        const { camera, player, level } = setup();
+        const start = level.playerStart;
+        const eyeY = start.y + GAME_CONFIG.cameraHeight;
+        for (const direction of [1, -1]) {
+            player.resetPosition(start, { x: start.x, y: eyeY + direction, z: start.z }, level);
+            const forward = cameraDirection(camera);
+            nearVector(forward, { x: 0, y: direction * Math.cos(0.01), z: -Math.sin(0.01) });
+            player.onMouseMove({ movementX: 300, movementY: 0 });
+            near(cameraDirection(camera).y, forward.y);
+            near(cameraRight(camera).y, 0);
+        }
+        player.resetPosition(start, { x: start.x, y: eyeY, z: start.z }, level);
+        nearVector(cameraDirection(camera), { x: 0, y: 0, z: -1 });
+    });
+
+    test('forward movement follows the horizontal view at upward, level, and downward pitch', () => {
+        for (const movementY of [-10000, 0, 10000]) {
+            const { camera, player, level } = setup();
+            player.onMouseMove({ movementX: 450, movementY });
+            const { x, z } = cameraDirection(camera);
+            const horizontalLength = Math.hypot(x, z);
+            const distance = 0.1 * GAME_CONFIG.moveSpeed;
+            player.onKeyDown({ code: 'KeyW' });
+            player.update(0.1, level);
+            nearVector(player.position, {
+                x: level.playerStart.x + distance * x / horizontalLength,
+                y: level.playerStart.y,
+                z: level.playerStart.z + distance * z / horizontalLength
+            });
+        }
     });
 
     test('camera stays at eye height when falling onto the floor', () => {
@@ -264,8 +393,7 @@ function registerMovementTests(test, levelData) {
 
     test('the player slides along a wall while holding diagonal input', () => {
         const { player, level } = setup();
-        player.resetPosition({ x: 4.15, y: 0, z: 0 }, level.playerLookAt, level);
-        player.camera.rotation.y = Math.PI;
+        player.resetPosition({ x: 4.15, y: 0, z: 0 }, { x: 4.15, y: GAME_CONFIG.cameraHeight, z: 1 }, level);
         player.onKeyDown({ code: 'KeyW' });
         player.onKeyDown({ code: 'KeyA' });
         player.update(0.5, level);

@@ -8,6 +8,13 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-22 — Unify first-person camera orientation
+
+- Diagnosed two camera orientation paths in `js/Player.js`. Startup and restart used Three.js `lookAt()`, which could initialize pitch outside the mouse clamp. Chrome reproduced a pitch snap on the first horizontal-only mouse event after a vertical spawn. The stock hallway did not reproduce sideways roll during that check.
+- Gave Player explicit yaw and pitch and one `YXZ` rotation method that applies zero roll. Startup targets, restart, and mouse look share the same clamp. WASD uses the same yaw to determine horizontal direction.
+- Added the camera rule to `AGENTS.md` and documented the regression checks in `tests/README.md`. The Node and shared tests in `tests/movement/` check the world-space camera basis, including the horizontal right axis that keeps the horizon level.
+- Passed 31 Node tests and 26 Chrome tests using Three.js. A pointer-locked Chrome session exercised horizontal turns while looking up and down, circular mouse input, multiple full turns, and restart. The horizon test also detected a deliberate rotation-order error in an isolated copy.
+
 ### 2026-11-22 — Player jumping and vertical collision
 
 - Updated `js/Player.js` and `assets/gameConfig.js` with grounded jumps on Space, configurable gravity and jump height, and short physics steps that interleave vertical motion with camera-relative walking and wall sliding.
