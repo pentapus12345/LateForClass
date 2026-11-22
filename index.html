@@ -76,6 +76,10 @@
             outline: 2px solid white;
             outline-offset: 3px;
         }
+        .level-picker-link {
+            margin-top: 1rem;
+            color: #f0b765;
+        }
     </style>
 </head>
 <body>
@@ -86,6 +90,7 @@
             <p id="screen-message" role="status">Loading the hallway…</p>
             <p id="instructions">WASD to move · Mouse to look · E when prompted<br>Escape to pause · R to restart</p>
             <button id="start-button" type="button" disabled>Start Game</button>
+            <a class="level-picker-link" href="levels/">Choose a level</a>
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

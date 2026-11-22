@@ -9,15 +9,26 @@ class Level {
         this.playerLookAt = definition.playerLookAt;
         this.solids = [];
         this.objects = [];
+        this.door = null;
     }
 
     build(scene) {
         this.clear(scene);
-        this.createHallway(scene);
-        this.createColliders();
+        if (this.definition.hallway) {
+            this.createHallway(scene);
+            this.createHallwayColliders();
+        }
+        for (const platform of this.definition.platforms ?? []) {
+            const solid = new Wall(platform);
+            this.solids.push(solid);
+            this.addWireframeBox(scene, solid, platform.color, platform.name);
+        }
 
         if (this.definition.pillars) {
             this.addPillars(scene);
+        }
+        if (this.definition.door) {
+            this.addDoor(scene, this.definition.door);
         }
     }
 
@@ -42,21 +53,21 @@ class Level {
         }
         this.objects = [];
         this.solids = [];
+        this.door = null;
     }
 
     createHallway(scene) {
         const { width, height, depth } = this.definition.hallway;
-        const halfWidth = width / 2;
-        const halfDepth = depth / 2;
+        this.addWireframeBox(scene, {
+            minX: -width / 2, maxX: width / 2, minY: 0, maxY: height, minZ: -depth / 2, maxZ: depth / 2
+        });
+    }
+
+    addWireframeBox(scene, bounds, color = this.config.wireframeColor, name = '') {
+        const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
         const corners = [
-            [-halfWidth, 0, -halfDepth],
-            [halfWidth, 0, -halfDepth],
-            [halfWidth, 0, halfDepth],
-            [-halfWidth, 0, halfDepth],
-            [-halfWidth, height, -halfDepth],
-            [halfWidth, height, -halfDepth],
-            [halfWidth, height, halfDepth],
-            [-halfWidth, height, halfDepth]
+            [minX, minY, minZ], [maxX, minY, minZ], [maxX, minY, maxZ], [minX, minY, maxZ],
+            [minX, maxY, minZ], [maxX, maxY, minZ], [maxX, maxY, maxZ], [minX, maxY, maxZ]
         ].map(point => new THREE.Vector3(...point));
         // Bottom edges, top edges, then the vertical edges.
         const edges = [
@@ -65,19 +76,19 @@ class Level {
             0, 4, 1, 5, 2, 6, 3, 7
         ];
         const geometry = new THREE.BufferGeometry().setFromPoints(edges.map(index => corners[index]));
-        const material = new THREE.LineBasicMaterial({ color: this.config.wireframeColor });
+        const material = new THREE.LineBasicMaterial({ color });
         const frame = new THREE.LineSegments(geometry, material);
+        frame.name = name;
         this.addObject(scene, frame);
     }
 
-    createColliders() {
+    createHallwayColliders() {
         const { width, height, depth, wallThickness } = this.definition.hallway;
         this.solids = [
             new Wall({ x: -width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: 0, z: -depth / 2, width, height, depth: wallThickness }),
-            new Wall({ x: 0, z: depth / 2, width, height, depth: wallThickness }),
-            ...(this.definition.platforms ?? []).map(platform => new Wall(platform))
+            new Wall({ x: 0, z: depth / 2, width, height, depth: wallThickness })
         ];
     }
 
@@ -102,19 +113,68 @@ class Level {
         return distance <= classroom.interactionRadius;
     }
 
+    addDoor(scene, definition) {
+        const { x, y, z, width, height, depth, color, name } = definition;
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        const material = new THREE.MeshBasicMaterial({ color, opacity: 0.65, transparent: true });
+        const panel = new THREE.Mesh(geometry, material);
+        panel.name = name;
+        panel.position.set(x, y + height / 2, z);
+        this.door = { panel, solidIndex: this.solids.length, isOpen: false };
+        this.solids.push(new Wall(definition));
+        this.addObject(scene, panel);
+    }
+
+    canOpenDoor(position) {
+        if (!this.door || this.door.isOpen) {
+            return false;
+        }
+        const { x, y, z, interactionRadius } = this.definition.door;
+        return Math.hypot(position.x - x, position.y - y, position.z - z) <= interactionRadius;
+    }
+
+    openDoor(position) {
+        if (!this.canOpenDoor(position)) {
+            return false;
+        }
+        const { x, y, z, width, height, depth } = this.definition.door;
+        // Swing around the left jamb, away from the player.
+        const swing = position.z <= z ? 1 : -1;
+        const openX = x - width / 2;
+        const openZ = z + swing * width / 2;
+        this.door.panel.position.set(openX, y + height / 2, openZ);
+        this.door.panel.rotation.y = -swing * Math.PI / 2;
+        this.solids[this.door.solidIndex] = new Wall({
+            x: openX, y, z: openZ, width: depth, height, depth: width
+        });
+        this.door.isOpen = true;
+        return true;
+    }
+
     isBlocked(position, radius, height) {
         return this.solids.some(solid => solid.checkCollision(position, radius, height));
+    }
+
+    getStepHeight(position, radius, height, maxStepHeight) {
+        let stepY = position.y;
+        for (const solid of this.solids) {
+            if (solid.checkCollision(position, radius, height)) {
+                stepY = Math.max(stepY, solid.maxY);
+            }
+        }
+        return stepY > position.y && stepY - position.y <= maxStepHeight + CONTACT_TOLERANCE ? stepY : null;
     }
 
     // Return the first contact as a feet height. A stationary query checks support.
     getVerticalCollision(position, targetY, radius, height) {
         const rising = targetY > position.y;
-        const boundary = rising ? this.definition.hallway.height - height : 0;
+        const hallway = this.definition.hallway;
+        const boundary = hallway ? (rising ? hallway.height - height : 0) : null;
         const crossesFace = face => rising
             ? position.y <= face + CONTACT_TOLERANCE && targetY >= face
             : position.y >= face - CONTACT_TOLERANCE && targetY <= face + CONTACT_TOLERANCE;
         const nearestFace = rising ? Math.min : Math.max;
-        let contactY = crossesFace(boundary) ? boundary : null;
+        let contactY = boundary !== null && crossesFace(boundary) ? boundary : null;
 
         for (const solid of this.solids) {
             const face = rising ? solid.minY - height : solid.maxY;

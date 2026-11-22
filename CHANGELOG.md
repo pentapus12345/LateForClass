@@ -8,6 +8,35 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-22 — Connect two floors by stairs
+
+- Extended Corridor and Classroom in `assets/levels.json` with twelve treads, a stairwell, and an enclosed upper landing three world units above the classroom floor. The route uses the existing rendering and collision system.
+- Updated the README, test documentation, and roadmap. All 51 Node and 42 Chrome regression tests passed. A Chrome playthrough verified opening the existing door, walking every tread in both directions while grounded, and stopping at the landing wall. Automated coverage checks head clearance and landing boundaries.
+
+### 2026-11-22 — Add one interactive classroom door
+
+- Added a data-defined door to Corridor and Classroom. `Level` keeps the panel and collider aligned as the door swings away from the player. `Game` shows the prompt in range, routes E to open it, and restores the closed state on restart.
+- Updated the README, test documentation, and roadmap. All 48 Node tests and 39 Chrome regression tests passed. A Chrome playthrough verified both approaches, out-of-range input, traversal, reset, and matching panel and collider bounds in both states.
+
+### 2026-11-22 — Add a level picker
+
+- Added `/levels/` using `levels/index.html` and `js/level-picker.js`. It lists every level by name from `assets/levels.json` and opens the selected level through its existing URL.
+- Added a picker link to the game screen and documented it in `README.md` and `ROADMAP.md`.
+- All 47 Node tests passed, including future level entries and empty or unavailable data. Chrome verified all three level links, the return link, and the list at a narrow viewport.
+
+### 2026-11-22 — Connect one corridor and one classroom
+
+- Added the Corridor and Classroom development scene to `assets/levels.json` at `/?level=3`. A level doorway connects the two spaces, with the visible wireframe and collision using the existing box data. The default hallway and Physics Playground retain their level definitions.
+- Documented the route in `README.md` and recorded the approved milestone as completed in `ROADMAP.md`.
+- Updated the browser and Node test entry points and added doorway regressions in `tests/movement/`. All 45 Node tests and 38 Chrome regression tests passed. A Chrome playthrough verified the grounded round trip, collision beside the doorway, and R restoring spawn and view.
+
+### 2026-11-22 — Physics Playground and stair movement
+
+- Added the Physics Playground to `assets/levels.json` with a jump gap, three raised platforms, six stair treads, a low ceiling, and an elevated deck. `js/Game.js` selects it with `?level=2` and restarts the selected level. The original hallway remains the default with its existing definition and controls.
+- Updated `js/Level.js` to draw each playground wireframe from the same box bounds used for collision. `js/Player.js` now clears short steps when grounded and follows nearby lower treads, subject to head clearance and the `maxStepHeight` setting in `assets/gameConfig.js`.
+- Updated the project and test readmes and the runner, shared tests, and browser test page in `tests/movement/`. All 41 Node and 35 Chrome regression tests passed, including camera checks. A Chrome playthrough verified the gap jump, stair ascent and descent, elevated fall, restart, and matching rendered and collision bounds.
+- The playground uses static axis-aligned boxes. Grounded stair motion follows each discrete tread height, and larger drops use gravity.
+
 ### 2026-11-22 — Unify first-person camera orientation
 
 - Diagnosed two camera orientation paths in `js/Player.js`. Startup and restart used Three.js `lookAt()`, which could initialize pitch outside the mouse clamp. Chrome reproduced a pitch snap on the first horizontal-only mouse event after a vertical spawn. The stock hallway did not reproduce sideways roll during that check.

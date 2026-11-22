@@ -3,6 +3,7 @@ const GAME_CONFIG = {
     friction: 12,
     gravity: 9.8,
     jumpHeight: 1,
+    maxStepHeight: 0.35,
     cameraHeight: 1.6,
     playerHeight: 1.8,
     playerRadius: 0.3,

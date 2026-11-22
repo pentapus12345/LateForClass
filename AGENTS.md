@@ -44,6 +44,18 @@ Report load failures to the player and retain the underlying error in the consol
 5. Update `CHANGELOG.md` whenever code or project structure changes. Record the scope, reason, verification, and remaining issues.
 6. Review the final diff and report what changed and what you could verify.
 
+## Milestone approval
+
+[VISION.md](VISION.md) defines the product direction and may be changed only with the product owner's approval. [ROADMAP.md](ROADMAP.md) records completed work, current progress, and proposed milestones.
+
+- The product owner makes game-design decisions and approves milestones. Codex handles technical analysis, implementation, and testing.
+- An approval applies only to the specific proposed milestone and its agreed scope. Wait for explicit approval before implementing a proposal. The product owner may reject, change, or reprioritize any proposal.
+- Stop and ask the product owner if implementation raises a significant new design decision or scope change. Resume once that decision has been made.
+- When the product owner asks “What's next?”, review the vision, roadmap, source, and current state. Present the highest-priority milestone, why it matters, and its acceptance criteria. Wait for approval.
+- When the product owner says “Approved”, implement only the unambiguously identified milestone. Update its roadmap status, run the relevant tests, and fix regressions. After verification, update `CHANGELOG.md` and `ROADMAP.md`, report what changed and what was verified, and propose exactly one next milestone. Stop and wait for approval before starting it.
+- When the product owner rejects or changes a proposal, revise the proposal and wait for approval before coding. Ask for clarification if approval could refer to more than one proposal.
+- Commit or push only with explicit authorization to do so.
+
 ## Testing guidelines
 
 Run `node tests/movement/run-tests.js` from the repository root. Serve the repository with `python3 -m http.server 8090`, then visit `/tests/movement/` on that server for the shared tests with Three.js. For changes to startup, rendering, or input, also exercise the game at `/` in a desktop browser. Check startup and the console, movement and pointer lock, collisions, level geometry, and reset behavior as relevant. Report only tests that ran.

@@ -25,7 +25,10 @@ class Game {
             throw new Error(`Failed to load levels.json: ${response.status}`);
         }
         const { levels } = await response.json();
-        const levelDefinition = levels.find(level => level.id === STARTING_LEVEL_ID);
+        const requestedLevel = new URLSearchParams(window.location.search).get('level');
+        const requestedLevelId = Number(requestedLevel || STARTING_LEVEL_ID);
+        const levelDefinition = levels.find(level => level.id === requestedLevelId) ??
+            levels.find(level => level.id === STARTING_LEVEL_ID);
         if (!levelDefinition) {
             throw new Error(`Level ${STARTING_LEVEL_ID} is missing`);
         }
@@ -42,6 +45,11 @@ class Game {
         this.scene.add(directionalLight);
 
         this.level = new Level(levelDefinition, this.config);
+        if (!levelDefinition.classroom) {
+            const interaction = levelDefinition.door ? ' · E to open the door' : '';
+            document.getElementById('instructions').textContent =
+                `WASD to move · Mouse to look · Space to jump${interaction} · Escape to pause · R to restart`;
+        }
         this.player = new Player(this.config);
         this.resizeRenderer();
         this.restart();
@@ -122,6 +130,10 @@ class Game {
             return;
         }
         if (event.code === 'KeyE') {
+            if (this.level.openDoor(this.player.position)) {
+                this.updateObjective();
+                return;
+            }
             if (this.level.canEnterClassroom(this.player.position)) {
                 this.completed = true;
                 this.player.clearInput();
@@ -140,12 +152,12 @@ class Game {
     updateInterface() {
         const isPlaying = this.isPlaying();
         this.startScreen.hidden = isPlaying;
-        this.objective.hidden = !isPlaying;
 
         if (isPlaying) {
             this.updateObjective();
             return;
         }
+        this.objective.hidden = true;
 
         if (this.completed) {
             this.screenTitle.textContent = 'You made it to class!';
@@ -158,16 +170,24 @@ class Game {
                 : 'Click Resume to regain mouse control.';
             this.startButton.textContent = 'Resume';
         } else {
-            this.screenTitle.textContent = 'Late For Class';
-            this.screenMessage.textContent = `${HALLWAY_OBJECTIVE}.`;
+            const { classroom, name, instructions } = this.level.definition;
+            this.screenTitle.textContent = classroom ? 'Late For Class' : name;
+            this.screenMessage.textContent = instructions ?? `${HALLWAY_OBJECTIVE}.`;
             this.startButton.textContent = 'Start Game';
         }
     }
 
     updateObjective() {
-        const instruction = this.level.canEnterClassroom(this.player.position)
-            ? 'Press E to enter the classroom'
-            : HALLWAY_OBJECTIVE;
+        const { position } = this.player;
+        let instruction = '';
+        if (this.level.canOpenDoor(position)) {
+            instruction = 'Press E to open the door';
+        } else if (this.level.definition.classroom) {
+            instruction = this.level.canEnterClassroom(position)
+                ? 'Press E to enter the classroom'
+                : HALLWAY_OBJECTIVE;
+        }
+        this.objective.hidden = !instruction;
         if (this.objective.textContent !== instruction) {
             this.objective.textContent = instruction;
         }

@@ -130,20 +130,60 @@ class Player {
     }
 
     moveHorizontally(displacementX, displacementZ, level) {
-        const { playerRadius, playerHeight } = this.config;
+        const { playerRadius, playerHeight, maxStepHeight } = this.config;
         const { x, z } = this.position;
+        this.moveAlongAxis('x', displacementX, level);
+        this.moveAlongAxis('z', displacementZ, level);
 
-        this.position.x += displacementX;
-        if (displacementX && level.isBlocked(this.position, playerRadius, playerHeight)) {
-            this.position.x = x;
-            this.velocity.x = 0;
+        // Follow a nearby lower tread while grounded. A larger drop uses gravity.
+        if (this.isGrounded && (this.position.x !== x || this.position.z !== z)) {
+            const supportY = level.getVerticalCollision(
+                this.position, this.position.y - maxStepHeight, playerRadius, playerHeight
+            );
+            this.position.y = supportY ?? this.position.y;
+        }
+    }
+
+    moveAlongAxis(axis, displacement, level) {
+        if (!displacement) {
+            return;
+        }
+        const { playerRadius, playerHeight, maxStepHeight } = this.config;
+        const position = this.position;
+        const previous = position[axis];
+        const target = previous + displacement;
+        position[axis] = target;
+        if (!level.isBlocked(position, playerRadius, playerHeight)) {
+            return;
         }
 
-        this.position.z += displacementZ;
-        if (displacementZ && level.isBlocked(this.position, playerRadius, playerHeight)) {
-            this.position.z = z;
-            this.velocity.z = 0;
+        const stepY = this.isGrounded ? level.getStepHeight(position, playerRadius, playerHeight, maxStepHeight) : null;
+        position[axis] = previous;
+        if (stepY !== null && this.tryStepUp(axis, target, stepY, level)) {
+            return;
         }
+        this.velocity[axis] = 0;
+    }
+
+    tryStepUp(axis, target, stepY, level) {
+        const { playerRadius, playerHeight } = this.config;
+        const position = this.position;
+        const { y } = position;
+        const support = level.getVerticalCollision(position, y, playerRadius, playerHeight);
+        const headContact = level.getVerticalCollision(position, stepY, playerRadius, playerHeight);
+        if (support === null || (headContact !== null && headContact < stepY)) {
+            return false;
+        }
+
+        const previous = position[axis];
+        position.y = stepY;
+        position[axis] = target;
+        if (!level.isBlocked(position, playerRadius, playerHeight)) {
+            return true;
+        }
+        position.y = y;
+        position[axis] = previous;
+        return false;
     }
 
     moveVertically(stepTime, level) {

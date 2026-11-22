@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose a level · LateForClass</title>
+    <style>
+        [hidden] {
+            display: none;
+        }
+        body {
+            margin: 0;
+            background: #1e2935;
+            color: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+        main {
+            box-sizing: border-box;
+            width: min(100%, 36rem);
+            margin: 0 auto;
+            padding: clamp(2rem, 12vh, 7rem) 1.25rem 2rem;
+        }
+        header p {
+            margin: 0 0 0.5rem;
+            color: #f0b765;
+            font-weight: bold;
+        }
+        h1 {
+            margin: 0;
+            font-size: clamp(2rem, 8vw, 3rem);
+        }
+        #level-list {
+            display: grid;
+            gap: 0.65rem;
+            margin: 1.5rem 0 0;
+            padding: 0;
+            list-style: none;
+        }
+        .level-link {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid #4d6074;
+            border-radius: 0.3rem;
+            background: #263647;
+            color: inherit;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .level-link:hover {
+            border-color: #f0b765;
+            background: #304258;
+        }
+        .level-link:focus-visible {
+            outline: 2px solid #f0b765;
+            outline-offset: 3px;
+        }
+        .level-arrow {
+            color: #f0b765;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <p>LateForClass</p>
+            <h1>Choose a level</h1>
+        </header>
+        <p id="level-status" role="status">Loading levels…</p>
+        <nav aria-label="Levels" hidden>
+            <ul id="level-list"></ul>
+        </nav>
+    </main>
+    <script src="../js/level-picker.js"></script>
+</body>
+</html>

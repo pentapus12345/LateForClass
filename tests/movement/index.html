@@ -35,7 +35,7 @@
                     } catch (error) {
                         reports.push(`FAIL  ${name}\n      ${error.message}`);
                     }
-                }, levels[0]);
+                }, levels);
                 results.textContent = reports.join('\n');
             } catch (error) {
                 results.textContent = error.message;

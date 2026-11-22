@@ -1,6 +1,6 @@
 # LateForClass
 
-LateForClass is a first-person browser game written in JavaScript, HTML, and CSS with Three.js r128. The single level is a wireframe hallway with twelve outer edges, ten pillars, and invisible perimeter collision. Reach the far end and press **E** when prompted to complete the level.
+LateForClass is a first-person browser game written in JavaScript, HTML, and CSS with Three.js r128. The default level is a wireframe hallway with twelve outer edges, ten pillars, and invisible perimeter collision. Reach the far end and press **E** when prompted to complete the level.
 
 ## Run locally
 
@@ -11,6 +11,8 @@ python3 -m http.server 8090
 ```
 
 Open <http://localhost:8090> in a desktop browser and click **Start Game**. The browser needs WebGL, Pointer Lock, and access to the Three.js CDN. The game runs directly from source.
+
+Open the [level picker](http://localhost:8090/levels/) or click **Choose a level** from the game screen to browse all levels by name. The list comes from `assets/levels.json` and includes new levels automatically.
 
 ## Controls
 
@@ -25,13 +27,21 @@ Open <http://localhost:8090> in a desktop browser and click **Start Game**. The 
 
 Choose **Play Again** on the completion screen to return to the starting position.
 
+## Physics Playground
+
+Open <http://localhost:8090/?level=2> to load the development level. The blue decks mark the gap to jump across. On the far side, try the purple platforms, the amber staircase and elevated deck, and the red low ceiling. Press **R** to restart after a fall into the pit. Open the default URL to return to the hallway.
+
+## Corridor and Classroom
+
+Open <http://localhost:8090/?level=3> to explore the connected rooms. Walk up to the amber door, press **E**, and head straight through the classroom to reach the stairs. Walk up to the upper landing and back down with **WASD**. Press **R** to return to spawn and close the door.
+
 ## Player physics
 
 Y is vertical and X/Z are horizontal. The player position tracks the feet, and the camera stays at eye height above them. WASD follows camera yaw, and mouse pitch leaves walking speed unchanged.
 
-`assets/gameConfig.js` sets gravity to 9.8 world units per second squared and jump height to 1 world unit in open space. The player uses short time steps for wall sliding and checks the full vertical travel in each step for floors, ceilings, and platform faces.
+`assets/gameConfig.js` sets gravity to 9.8 world units per second squared and jump height to 1 world unit in open space. Its `maxStepHeight` of 0.35 world units limits automatic step-ups and ground following when stepping down. The player uses short time steps for wall sliding and checks the full vertical travel in each step for floors, ceilings, and platform faces.
 
-Level definitions can include an optional `platforms` array of solid boxes. Each box uses `x` and `z` for its center, `y` for its bottom, and `width`, `height`, and `depth` for its size. Platforms are collision geometry, and the current hallway uses only its existing layout.
+Level definitions can include an optional `platforms` array of solid boxes. Each box uses `x` and `z` for its center, `y` for its bottom, and `width`, `height`, and `depth` for its size. Visible wireframes use those same collision bounds. The playground uses these boxes for its enclosure and each individual feature.
 
 ## Project layout
 

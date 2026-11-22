@@ -127,6 +127,13 @@ class CylinderGeometry extends Resource {
     }
 }
 
+class BoxGeometry extends Resource {
+    constructor(width, height, depth) {
+        super();
+        this.parameters = { width, height, depth };
+    }
+}
+
 class Material extends Resource {
     constructor(options) {
         super();
@@ -154,6 +161,8 @@ const THREE = {
     Scene,
     BufferGeometry,
     CylinderGeometry,
+    BoxGeometry,
+    MeshBasicMaterial: Material,
     MeshLambertMaterial: Material,
     LineBasicMaterial: Material,
     LineSegments,
@@ -162,7 +171,7 @@ const THREE = {
 const context = vm.createContext({
     THREE,
     test,
-    levelData: levels[0]
+    levels
 });
 
 const browserTestScripts = readScriptSources(BROWSER_TEST_PAGE);
@@ -172,7 +181,7 @@ const browserTestFiles = browserTestScripts.slice(1).map(source =>
 for (const file of browserTestFiles) {
     vm.runInContext(read(file), context, { filename: file });
 }
-vm.runInContext('registerMovementTests(test, levelData)', context);
+vm.runInContext('registerMovementTests(test, levels)', context);
 
 const gameHtml = read(GAME_PAGE);
 const gameScripts = readScriptSources(GAME_PAGE);
@@ -197,7 +206,55 @@ class Element extends EventTarget {
     }
 }
 
-async function loadGame(response) {
+async function loadLevelPicker(response) {
+    const list = new Element();
+    list.parentElement = { hidden: true };
+    const status = { hidden: false };
+    const elements = new Map([['level-list', list], ['level-status', status]]);
+    const errors = [];
+    const page = vm.createContext({
+        document: {
+            getElementById: id => elements.get(id),
+            createElement: tagName => Object.assign(new Element(), { tagName, setAttribute() {} })
+        },
+        fetch: async url => {
+            assert.equal(url, '../assets/levels.json');
+            return response;
+        },
+        console: { error: (...args) => errors.push(args) }
+    });
+    const [script] = readScriptSources('levels/index.html');
+    const source = path.posix.join('levels', script);
+    assertExactPath(source);
+    await vm.runInContext(read(source), page, { filename: source });
+    return { list, status, errors };
+}
+
+test('the level picker lists all named levels, including future additions', async () => {
+    const definitions = [...levels, { id: 12, name: 'Future Test Level' }];
+    const { list, status, errors } = await loadLevelPicker({
+        ok: true, json: async () => ({ levels: definitions })
+    });
+    const links = list.children.map(item => item.children[0]);
+    assert.deepEqual(links.map(link => [link.tagName, link.textContent, link.href]),
+        definitions.map(({ id, name }) => ['a', name, `../?level=${id}`]));
+    assert.equal(list.parentElement.hidden, false);
+    assert.equal(status.hidden, true);
+    assert.deepEqual(errors, []);
+});
+
+test('the level picker reports empty and unavailable level data', async () => {
+    const empty = await loadLevelPicker({ ok: true, json: async () => ({ levels: [] }) });
+    assert.equal(empty.status.textContent, 'No levels are available.');
+    assert.equal(empty.list.parentElement.hidden, true);
+
+    const failure = await loadLevelPicker({ ok: false, status: 404 });
+    assert.match(failure.status.textContent, /Could not load levels/);
+    assert.equal(failure.list.parentElement.hidden, true);
+    assert.match(failure.errors[0][1].message, /404/);
+});
+
+async function loadGame(response, search = '') {
     const elements = new Map();
     for (const [, tag, id] of gameHtml.matchAll(/(<[^>]*\bid="([^"]+)"[^>]*>)/g)) {
         const element = new Element();
@@ -215,7 +272,7 @@ async function loadGame(response) {
             this.dispatchEvent(new Event('pointerlockchange'));
         }
     });
-    const window = Object.assign(new EventTarget(), { innerWidth: 800, innerHeight: 600 });
+    const window = Object.assign(new EventTarget(), { innerWidth: 800, innerHeight: 600, location: { search } });
     window.addEventListener('blur', () => { hasFocus = false; });
     window.addEventListener('focus', () => { hasFocus = true; });
     const frames = [];
@@ -246,6 +303,7 @@ async function loadGame(response) {
     const page = vm.createContext({
         document,
         window,
+        URLSearchParams,
         fetch: async url => {
             assert.equal(url, 'assets/levels.json');
             return response;
@@ -373,6 +431,74 @@ test('R restores the configured non-level camera orientation after mouse look', 
     assert.equal(camera.rotation.z, 0);
     document.dispatchEvent(Object.assign(new Event('mousemove'), { movementX: 300, movementY: 0 }));
     assert.ok(Math.abs(direction().y - startingDirection.y) < 1e-9);
+});
+
+test('the level query selects the playground and restart keeps that level', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const { document, elements, frames, renderers } = await loadGame(response, '?level=2');
+    const [{ camera, scene }] = renderers;
+    assert.equal(elements.get('screen-title').textContent, 'Physics Playground');
+    assert.equal(camera.position.z, levels[1].playerStart.z);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, levels[1].platforms.length);
+
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    assert.equal(elements.get('objective').hidden, true);
+    document.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyW' }));
+    frames.shift()();
+    assert.ok(camera.position.z > levels[1].playerStart.z);
+    document.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyR' }));
+    assert.equal(camera.position.z, levels[1].playerStart.z);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, levels[1].platforms.length);
+
+    const fallback = await loadGame(response, '?level=unknown');
+    assert.equal(fallback.elements.get('screen-title').textContent, 'Late For Class');
+    assert.equal(fallback.renderers[0].camera.position.z, levels[0].playerStart.z);
+});
+
+test('the classroom prompts for E in range and R restores its closed door, spawn, and view', async () => {
+    const { document, elements, frames, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const [{ camera, scene }] = renderers;
+    const { playerStart, platforms, door } = levels.find(level => level.id === 3);
+    const startingPosition = camera.position.clone();
+    const startingDirection = camera.getWorldDirection(new Vector3());
+    const dispatch = (type, properties) => document.dispatchEvent(Object.assign(new Event(type), properties));
+    assert.equal(elements.get('screen-title').textContent, 'Corridor and Classroom');
+    assert.equal(camera.position.z, playerStart.z);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length);
+    const initialPanel = scene.children.find(object => object.name === door.name);
+    assert.equal(initialPanel.rotation.y, 0);
+
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    const objective = elements.get('objective');
+    assert.equal(objective.hidden, true);
+    dispatch('keydown', { code: 'KeyE' });
+    assert.equal(initialPanel.rotation.y, 0);
+    dispatch('keydown', { code: 'KeyW' });
+    for (let frame = 0; frame < 15; frame++) {
+        frames.shift()();
+    }
+    assert.ok(camera.position.z < 0);
+    assert.equal(objective.hidden, false);
+    assert.equal(objective.textContent, 'Press E to open the door');
+    dispatch('keydown', { code: 'KeyE' });
+    assert.equal(objective.hidden, true);
+    assert.equal(initialPanel.rotation.y, -Math.PI / 2);
+    for (let frame = 0; frame < 5; frame++) {
+        frames.shift()();
+    }
+    assert.ok(camera.position.z > 2);
+    dispatch('mousemove', { movementX: 400, movementY: 200 });
+    assert.notDeepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
+    dispatch('keydown', { code: 'KeyR' });
+    frames.shift()();
+    assert.deepEqual(camera.position, startingPosition);
+    assert.deepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length);
+    const resetPanel = scene.children.find(object => object.name === door.name);
+    assert.notEqual(resetPanel, initialPanel);
+    assert.equal(scene.children.includes(initialPanel), false);
+    assert.equal(resetPanel.rotation.y, 0);
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {

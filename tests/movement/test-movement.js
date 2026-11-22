@@ -1,4 +1,5 @@
-function registerMovementTests(test, levelData) {
+function registerMovementTests(test, levels) {
+    const [levelData, playgroundData, classroomData] = levels;
     const ELEVATED_PLATFORM = { x: 0, y: 2.2, z: 0, width: 2, height: 0.05, depth: 2 };
 
     function equal(actual, expected) {
@@ -28,9 +29,9 @@ function registerMovementTests(test, levelData) {
         return camera.localToWorld(new THREE.Vector3(1, 0, 0)).sub(camera.position);
     }
 
-    function setup({ platforms = [], config = GAME_CONFIG } = {}) {
+    function setup({ definition = levelData, platforms = definition.platforms, config = GAME_CONFIG } = {}) {
         const player = new Player(config);
-        const level = new Level({ ...levelData, platforms }, config);
+        const level = new Level({ ...definition, platforms }, config);
         const scene = new THREE.Scene();
         level.build(scene);
         player.resetPosition(level.playerStart, level.playerLookAt, level);
@@ -44,6 +45,15 @@ function registerMovementTests(test, levelData) {
             player.update(frameTime, level);
         }
         player.update(duration - frames * frameTime, level);
+    }
+
+    function startPlayground(position, config = GAME_CONFIG) {
+        const setupState = setup({ definition: playgroundData, config });
+        const { player, level } = setupState;
+        player.resetPosition(position, {
+            x: position.x, y: position.y + config.cameraHeight, z: position.z + 1
+        }, level);
+        return setupState;
     }
 
     test('WASD moves in the expected directions relative to the starting view', () => {
@@ -399,6 +409,282 @@ function registerMovementTests(test, levelData) {
         player.update(0.5, level);
         equal(player.position.x <= 4.2, true);
         near(player.position.z, 3 / Math.sqrt(2));
+    });
+
+    test('the playground gap drops walkers into the pit and can be cleared by jumping', () => {
+        const start = { x: 0, y: 0, z: -6.4 };
+        const walking = startPlayground(start);
+        walking.player.onKeyDown({ code: 'KeyW' });
+        advance(walking.player, walking.level, 1.4, 60);
+        near(walking.player.position.y, -2);
+        equal(walking.player.position.z < -3.5, true);
+
+        const { player, level } = startPlayground(start);
+        player.onKeyDown({ code: 'KeyW' });
+        player.onKeyDown({ code: 'Space' });
+        advance(player, level, 0.27, 60);
+        equal(player.position.z > -6 && player.position.z < -3.5, true);
+        equal(player.position.y > 0 && !player.isGrounded, true);
+        advance(player, level, 0.70, 60);
+        equal(player.position.z > -3.5 && player.isGrounded, true);
+        near(player.position.y, 0);
+    });
+
+    test('walking climbs and descends every stair tread while staying grounded', () => {
+        const { player, level } = startPlayground({ x: 0, y: 0, z: 0.2 });
+        const walk = (code, rising) => {
+            const visited = new Set();
+            let previousY = player.position.y;
+            player.onKeyDown({ code });
+            for (let frame = 0; frame < 57; frame++) {
+                player.update(1 / 60, level);
+                equal(player.isGrounded, true);
+                equal(rising ? player.position.y >= previousY : player.position.y <= previousY, true);
+                equal(Math.abs(player.position.y - previousY) <= GAME_CONFIG.maxStepHeight, true);
+                equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+                visited.add(player.position.y);
+                previousY = player.position.y;
+            }
+            player.onKeyUp({ code });
+            return [...visited];
+        };
+        equal(walk('KeyW', true).join(','), '0,0.25,0.5,0.75,1,1.25,1.5');
+        near(player.position.y, 1.5);
+        equal(walk('KeyS', false).join(','), '1.5,1.25,1,0.75,0.5,0.25,0');
+        near(player.position.y, 0);
+    });
+
+    test('lowering the step limit blocks the first tread and the exact tread height is allowed', () => {
+        for (const maxStepHeight of [0.2, 0.25]) {
+            const config = { ...GAME_CONFIG, maxStepHeight };
+            const { player, level } = startPlayground({ x: 0, y: 0, z: 0.5 }, config);
+            player.onKeyDown({ code: 'KeyW' });
+            advance(player, level, 0.15, 60);
+            near(player.position.y, maxStepHeight === 0.25 ? 0.25 : 0);
+            equal(player.isGrounded, true);
+            equal(level.isBlocked(player.position, config.playerRadius, config.playerHeight), false);
+        }
+    });
+
+    test('tall platform faces block walking but players can jump between raised platforms', () => {
+        const start = { x: -4.5, y: 0.65, z: 1.7 };
+        const walking = startPlayground(start);
+        walking.player.onKeyDown({ code: 'KeyW' });
+        advance(walking.player, walking.level, 0.8, 60);
+        equal(walking.player.position.z < 2.35, true);
+        equal(walking.player.position.y < 1.3, true);
+
+        const { player, level } = startPlayground(start);
+        player.onKeyDown({ code: 'KeyW' });
+        player.onKeyDown({ code: 'Space' });
+        advance(player, level, 0.42, 60);
+        player.onKeyUp({ code: 'KeyW' });
+        advance(player, level, 0.5, 60);
+        near(player.position.y, 1.3);
+        equal(player.isGrounded, true);
+    });
+
+    test('walking off the elevated deck falls to the lower surface', () => {
+        const { player, level } = startPlayground({ x: 0, y: 1.5, z: 7.5 });
+        player.onKeyDown({ code: 'KeyA' });
+        advance(player, level, 0.25, 60);
+        near(player.position.y, 1.5);
+        equal(player.isGrounded, true);
+        advance(player, level, 0.16, 60);
+        equal(player.position.y < 1.5 && player.velocity.y < 0 && !player.isGrounded, true);
+        player.onKeyUp({ code: 'KeyA' });
+        advance(player, level, 0.7, 60);
+        near(player.position.y, 0);
+        equal(player.isGrounded, true);
+    });
+
+    test('the low ceiling stops the player head at its visible underside', () => {
+        const { player, level } = startPlayground({ x: 4.75, y: 0, z: 2.5 });
+        const ceiling = playgroundData.platforms.find(platform => platform.name === 'Low ceiling');
+        player.onKeyDown({ code: 'Space' });
+        let peak = 0;
+        for (let frame = 0; frame < 120; frame++) {
+            player.update(1 / 120, level);
+            peak = Math.max(peak, player.position.y);
+        }
+        near(peak + GAME_CONFIG.playerHeight, ceiling.y, 0.001);
+        equal(player.isGrounded, true);
+        near(player.position.y, 0);
+    });
+
+    test('diagonal input slides along high stair sides without clipping', () => {
+        const { player, level } = startPlayground({ x: -2, y: 0, z: 3.625 });
+        player.onKeyDown({ code: 'KeyA' });
+        player.onKeyDown({ code: 'KeyW' });
+        for (let frame = 0; frame < 20; frame++) {
+            player.update(1 / 60, level);
+            equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+            near(player.position.y, 0);
+        }
+        equal(player.position.x <= -1.6 + 1e-9, true);
+        equal(player.position.z > 4.8, true);
+    });
+
+    test('a stair below a low overhang cannot lift the player into it', () => {
+        const { player, level } = setup({ platforms: [
+            { x: 0, y: 0, z: 1.5, width: 2, height: 0.25, depth: 1 },
+            { x: 0, y: 2, z: 1.5, width: 2, height: 0.25, depth: 1.5 }
+        ] });
+        player.resetPosition({ x: 0, y: 0, z: 0 }, { x: 0, y: GAME_CONFIG.cameraHeight, z: 1 }, level);
+        player.onKeyDown({ code: 'KeyW' });
+        player.update(0.4, level);
+        near(player.position.y, 0);
+        equal(player.position.z <= 0.7 + 1e-9, true);
+        equal(player.isGrounded, true);
+    });
+
+    test('every playground wireframe uses the exact bounds of its solid collider', () => {
+        const { level, scene } = setup({ definition: playgroundData });
+        equal(scene.children.length, playgroundData.platforms.length);
+        equal(level.solids.length, scene.children.length);
+        for (const [index, frame] of scene.children.entries()) {
+            const solid = level.solids[index];
+            equal(frame.name, playgroundData.platforms[index].name);
+            equal(frame.isLineSegments, true);
+            const positions = frame.geometry.getAttribute('position');
+            equal(positions.count, 24);
+            for (const axis of ['X', 'Y', 'Z']) {
+                const coordinates = Array.from({ length: positions.count }, (_, vertex) =>
+                    positions[`get${axis}`](vertex)
+                );
+                near(Math.min(...coordinates), solid[`min${axis}`], 1e-6);
+                near(Math.max(...coordinates), solid[`max${axis}`], 1e-6);
+            }
+        }
+    });
+
+    test('the open doorway can be walked through and back with continuous floor support', () => {
+        const { player, level } = setup({ definition: classroomData });
+        equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
+        for (const [code, expectedZ] of [['KeyW', 3], ['KeyS', classroomData.playerStart.z]]) {
+            player.onKeyDown({ code });
+            for (let frame = 0; frame < 90; frame++) {
+                player.update(1 / 60, level);
+                equal(player.isGrounded, true);
+                near(player.position.y, 0);
+                near(player.position.x, 0);
+            }
+            player.onKeyUp({ code });
+            near(player.position.z, expectedZ);
+        }
+    });
+
+    test('both sides of the doorway wall block walking from either room', () => {
+        for (const x of [-1.4, 1.4]) {
+            for (const side of [-1, 1]) {
+                const { player, level } = setup({ definition: classroomData });
+                equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
+                player.resetPosition({ x, y: 0, z: side * 2 }, {
+                    x, y: GAME_CONFIG.cameraHeight, z: 4
+                }, level);
+                player.onKeyDown({ code: side < 0 ? 'KeyW' : 'KeyS' });
+                advance(player, level, 0.6, 60);
+                const minimumClearance = 0.125 + GAME_CONFIG.playerRadius;
+                equal(side * player.position.z >= minimumClearance - 1e-9, true);
+                near(player.position.z, side * minimumClearance, 0.06);
+                near(player.position.y, 0);
+                equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+            }
+        }
+    });
+
+    test('the doorway jamb leaves clearance only where the full player fits', () => {
+        for (const [x, fits] of [[0.55, true], [0.75, false]]) {
+            const { player, level } = setup({ definition: classroomData });
+            equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
+            player.resetPosition({ x, y: 0, z: -2 }, { x, y: GAME_CONFIG.cameraHeight, z: 4 }, level);
+            player.onKeyDown({ code: 'KeyW' });
+            advance(player, level, 0.6, 60);
+            equal(player.position.z > 0, fits);
+            equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+        }
+    });
+
+    test('the closed door stops travel from either side and swings away when opened', () => {
+        const { playerRadius, playerHeight } = GAME_CONFIG;
+        const definition = classroomData.door;
+        for (const side of [-1, 1]) {
+            const { player, level, scene } = setup({ definition: classroomData });
+            const panel = scene.children.find(object => object.name === definition.name);
+            const approach = { x: definition.x, y: definition.y, z: definition.z + side * 2 };
+            equal(level.openDoor(approach), false);
+            near(panel.rotation.y, 0);
+            equal(level.canOpenDoor({ ...approach, z: definition.z + side * definition.interactionRadius }), true);
+            player.resetPosition(approach, { ...approach, y: GAME_CONFIG.cameraHeight, z: 4 }, level);
+            player.onKeyDown({ code: side < 0 ? 'KeyW' : 'KeyS' });
+            advance(player, level, 0.6, 60);
+            equal(side * player.position.z >= definition.depth / 2 + playerRadius - 1e-9, true);
+            equal(level.openDoor(player.position), true);
+            near(panel.rotation.y, side * Math.PI / 2);
+            near(panel.position.z, definition.z - side * definition.width / 2);
+            equal(level.isBlocked(panel.position, playerRadius, playerHeight), true);
+            equal(level.isBlocked(player.position, playerRadius, playerHeight), false);
+            equal(level.openDoor(player.position), false);
+            advance(player, level, 0.5, 60);
+            equal(side * player.position.z < 0 && player.isGrounded, true);
+        }
+    });
+
+    test('the connected route stays grounded on all twelve treads in both directions', () => {
+        const expectedHeights = Array.from({ length: 13 }, (_, index) => index * 0.25);
+        for (const framesPerSecond of [30, 144]) {
+            const { player, level } = setup({ definition: classroomData });
+            equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
+            for (const [code, heights, targetZ] of [
+                ['KeyW', expectedHeights, 18],
+                ['KeyS', [...expectedHeights].reverse(), classroomData.playerStart.z]
+            ]) {
+                const visited = new Set([player.position.y]);
+                player.onKeyDown({ code });
+                for (let frame = 0; frame < 4 * framesPerSecond; frame++) {
+                    player.update(1 / framesPerSecond, level);
+                    equal(player.isGrounded, true);
+                    equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+                    visited.add(player.position.y);
+                }
+                player.onKeyUp({ code });
+                equal([...visited].join(','), heights.join(','));
+                near(player.position.z, targetZ);
+            }
+        }
+    });
+
+    test('the stairwell has standing head clearance at every tread and the landing', () => {
+        const { level } = setup({ definition: classroomData });
+        const { playerRadius, playerHeight } = GAME_CONFIG;
+        const elevatedSurfaces = classroomData.platforms.filter(box =>
+            box.name.startsWith('Classroom stair ') || box.name === 'Upper-floor landing'
+        );
+        equal(elevatedSurfaces.length, 13);
+        for (const { x, y, z, height } of elevatedSurfaces) {
+            const feet = { x, y: y + height, z };
+            equal(level.isBlocked(feet, playerRadius, playerHeight), false);
+            const overheadContact = level.getVerticalCollision(feet, feet.y + 10, playerRadius, playerHeight);
+            near(overheadContact + playerHeight, 6.4);
+            equal(overheadContact > feet.y, true);
+        }
+    });
+
+    test('the upper landing walls stop the player on both sides and at the far end', () => {
+        const { player, level } = setup({ definition: classroomData });
+        const { playerRadius } = GAME_CONFIG;
+        for (const [code, axis, edge] of [['KeyA', 'x', 1.75], ['KeyD', 'x', -1.75], ['KeyW', 'z', 19.5]]) {
+            player.resetPosition({ x: 0, y: 3, z: 17.5 }, { x: 0, y: 4.6, z: 18.5 }, level);
+            player.onKeyDown({ code });
+            advance(player, level, 0.7, 60);
+            const side = Math.sign(edge);
+            const limit = edge - side * playerRadius;
+            equal(side * player.position[axis] <= side * limit + 1e-9, true);
+            near(player.position[axis], limit, 0.06);
+            near(player.position.y, 3);
+            equal(player.isGrounded, true);
+            equal(player.velocity[axis], 0);
+        }
     });
 
     test('the hallway contains twelve distinct outer edges and the configured pillar row', () => {
