@@ -48,15 +48,57 @@
             background-color: #141d29e8;
             text-align: center;
         }
-        #view-status {
+        #lower-hud {
             position: absolute;
+            left: 1rem;
             right: 1rem;
             bottom: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+        #schedule-panel,
+        #view-status {
             margin: 0;
             padding: 0.45rem 0.65rem;
             border-radius: 0.3rem;
             background: #15202beb;
-            pointer-events: none;
+        }
+        #schedule-panel {
+            max-width: 16rem;
+            min-width: 0;
+            overflow-wrap: anywhere;
+            line-height: 1.4;
+        }
+        #schedule-panel p,
+        #schedule-heading {
+            margin: 0;
+        }
+        #schedule-panel #school-clock {
+            display: flex;
+            align-items: baseline;
+            gap: 0.75rem;
+            margin-bottom: 0.35rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px solid #475565;
+        }
+        #school-time {
+            font-size: 1.35rem;
+            font-variant-numeric: tabular-nums;
+            font-weight: bold;
+        }
+        #schedule-heading {
+            color: #d2dbe7;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+        #schedule-class-name {
+            font-weight: bold;
+        }
+        #view-status {
+            margin-left: auto;
         }
         #start-screen h1 {
             margin: 0;
@@ -78,12 +120,11 @@
             border-radius: 0.3rem;
             cursor: pointer;
         }
-        #start-button:disabled {
+        button:disabled {
             opacity: 0.5;
             cursor: default;
         }
-        #view-toggle {
-            margin-top: 0.75rem;
+        .secondary-button {
             padding: 0.5rem 0.85rem;
             font: inherit;
             color: white;
@@ -92,10 +133,86 @@
             border-radius: 0.3rem;
             cursor: pointer;
         }
-        #start-button:focus-visible,
-        #view-toggle:focus-visible {
+        #start-screen .secondary-button {
+            margin-top: 0.75rem;
+        }
+        :is(button, select, input):focus-visible {
             outline: 2px solid white;
             outline-offset: 3px;
+        }
+        #options-screen {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: start center;
+            overflow: auto;
+            padding: clamp(1rem, 4vw, 2.5rem);
+            background: #141d29f5;
+        }
+        #control-form {
+            width: min(100%, 40rem);
+            margin-block: auto;
+            color-scheme: dark;
+            accent-color: #f0b765;
+        }
+        #options-title {
+            margin: 0 0 1.25rem;
+        }
+        .control-groups {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+            gap: 1rem;
+        }
+        .control-groups fieldset {
+            display: grid;
+            align-content: start;
+            gap: 1rem;
+            margin: 0;
+            min-width: 0;
+            padding: 1rem;
+            border: 1px solid #475565;
+            border-radius: 0.4rem;
+            background-color: #1e2935;
+        }
+        .control-groups legend {
+            padding-inline: 0.35rem;
+            font-weight: bold;
+        }
+        .control-groups select {
+            display: block;
+            width: 100%;
+            margin-top: 0.35rem;
+            padding: 0.45rem;
+            color: inherit;
+            font: inherit;
+        }
+        .control-check,
+        .range-heading,
+        .options-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .control-check input,
+        .control-range input {
+            margin: 0;
+        }
+        .range-heading {
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .range-heading output,
+        #options-status {
+            color: #d2dbe7;
+        }
+        .control-range input {
+            display: block;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        .options-actions {
+            flex-wrap: wrap;
+            margin-top: 1.25rem;
         }
         .level-picker-link {
             margin-top: 1rem;
@@ -106,21 +223,74 @@
 <body>
     <main id="game-container">
         <p id="objective" role="status" hidden></p>
-        <p id="view-status" role="status" hidden></p>
+        <div id="lower-hud">
+            <section id="schedule-panel" aria-labelledby="schedule-heading" hidden>
+                <p id="school-clock" hidden>School time <time id="school-time"></time></p>
+                <h2 id="schedule-heading">Next class</h2>
+                <p id="schedule-class-name"></p>
+                <p><span id="schedule-room"></span> · Starts <time id="schedule-start-time"></time></p>
+            </section>
+            <p id="view-status" role="status" hidden></p>
+        </div>
         <section id="start-screen" aria-labelledby="screen-title">
             <h1 id="screen-title">Late For Class</h1>
             <p id="screen-message" role="status">Loading the hallway…</p>
-            <p id="instructions">WASD to move · Mouse to look · E when prompted<br>Escape to pause · R to restart</p>
+            <p id="instructions"></p>
             <button id="start-button" type="button" disabled>Start Game</button>
-            <button id="view-toggle" type="button" hidden></button>
+            <button id="options-button" class="secondary-button" type="button" aria-controls="options-screen" disabled>Options</button>
+            <button id="view-toggle" class="secondary-button" type="button" hidden></button>
             <a class="level-picker-link" href="levels/">Choose a level</a>
+        </section>
+        <section id="options-screen" aria-labelledby="options-title" hidden>
+            <form id="control-form">
+                <h1 id="options-title">Options</h1>
+                <div class="control-groups">
+                    <fieldset>
+                        <legend>Keyboard</legend>
+                        <label for="keyboard-layout">Layout
+                            <select id="keyboard-layout" name="keyboardLayout">
+                                <option value="standard">Standard · WASD moves</option>
+                                <option value="swapped">Swapped · Arrow keys move</option>
+                            </select>
+                        </label>
+                        <label class="control-check"><input name="keyboardLook" type="checkbox"> Keyboard look</label>
+                        <div class="control-range">
+                            <div class="range-heading">
+                                <label for="keyboard-look-speed">Camera speed</label>
+                                <output id="keyboard-speed-value" for="keyboard-look-speed"></output>
+                            </div>
+                            <input id="keyboard-look-speed" name="keyboardLookSpeed" type="range" min="30" max="270" step="15">
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Mouse</legend>
+                        <label class="control-check"><input name="mouseLook" type="checkbox"> Mouse look</label>
+                        <div class="control-range">
+                            <div class="range-heading">
+                                <label for="mouse-sensitivity">Sensitivity</label>
+                                <output id="mouse-sensitivity-value" for="mouse-sensitivity"></output>
+                            </div>
+                            <input id="mouse-sensitivity" name="mouseSensitivity" type="range" min="0.25" max="4" step="0.25">
+                        </div>
+                        <label class="control-check"><input name="invertMouseY" type="checkbox"> Invert vertical mouse look</label>
+                        <label class="control-check"><input name="clickToJump" type="checkbox"> Left click to jump</label>
+                    </fieldset>
+                </div>
+                <div class="options-actions">
+                    <button id="options-back" class="secondary-button" type="button">Back</button>
+                    <button id="restore-controls" class="secondary-button" type="button">Restore Defaults</button>
+                </div>
+                <p id="options-status" role="status" hidden>Settings could only be saved for this session.</p>
+            </form>
         </section>
     </main>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="assets/gameConfig.js"></script>
+    <script src="js/controls.js"></script>
     <script src="js/Wall.js"></script>
     <script src="js/Level.js"></script>
     <script src="js/Player.js"></script>
+    <script src="js/SchoolClock.js"></script>
     <script src="js/Game.js"></script>
     <script src="js/main.js"></script>
 </body>

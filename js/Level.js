@@ -8,6 +8,7 @@ class Level {
         this.config = config;
         this.playerStart = definition.playerStart;
         this.playerLookAt = definition.playerLookAt;
+        this.classroomBounds = definition.classroom?.bounds ? new Wall(definition.classroom.bounds) : null;
         this.solids = [];
         this.objects = [];
         this.renderPairs = [];
@@ -32,9 +33,6 @@ class Level {
         }
         if (this.definition.door) {
             this.addDoor(scene, this.definition.door);
-        }
-        if (this.definition.classroom?.zone) {
-            this.addClassroomMarker(scene, this.definition.classroom.zone);
         }
         if (this.definition.classroom?.sign) {
             this.addClassroomSign(scene, this.definition.classroom);
@@ -158,30 +156,38 @@ class Level {
         }
     }
 
-    canEnterClassroom(position) {
-        const classroom = this.definition.classroom;
-        if (!classroom) {
-            return false;
+    get destinationRoomId() {
+        return this.definition.schedule?.roomId ?? this.definition.destinationRoomId;
+    }
+
+    getEnteredRoomId(position) {
+        const roomId = this.definition.classroom?.id;
+        if (!roomId || !this.classroomBounds) {
+            return null;
         }
-        if (classroom.zone) {
-            const { x, y, z, width, depth } = classroom.zone;
-            return classroom.id === this.definition.destinationRoomId &&
-                Math.abs(position.y - y) <= CONTACT_TOLERANCE &&
-                Math.abs(position.x - x) <= width / 2 &&
-                Math.abs(position.z - z) <= depth / 2;
+        if (this.definition.door?.roomId === roomId && !this.door?.isOpen) {
+            return null;
+        }
+        // The player's full footprint must clear the doorway, and their body
+        // must fit between this room's floor and ceiling.
+        const { x, y, z } = position;
+        const { playerRadius, playerHeight } = this.config;
+        const { minX, maxX, minY, maxY, minZ, maxZ } = this.classroomBounds;
+        const inside = x - playerRadius >= minX - CONTACT_TOLERANCE &&
+            x + playerRadius <= maxX + CONTACT_TOLERANCE &&
+            y >= minY - CONTACT_TOLERANCE && y + playerHeight <= maxY + CONTACT_TOLERANCE &&
+            z - playerRadius >= minZ - CONTACT_TOLERANCE &&
+            z + playerRadius <= maxZ + CONTACT_TOLERANCE;
+        return inside ? roomId : null;
+    }
+
+    canConfirmArrival(position) {
+        const classroom = this.definition.classroom;
+        if (this.classroomBounds || classroom?.interactionRadius === undefined) {
+            return false;
         }
         const distance = Math.hypot(position.x - classroom.x, position.z - classroom.z);
         return distance <= classroom.interactionRadius;
-    }
-
-    addClassroomMarker(scene, { x, y, z, width, depth, color }) {
-        // Offset the outline slightly above the floor. It has no collider.
-        const minY = y + 0.02;
-        this.addWireframeBox(scene, {
-            minX: x - width / 2, maxX: x + width / 2,
-            minY, maxY: minY + 0.04,
-            minZ: z - depth / 2, maxZ: z + depth / 2
-        }, color, 'Classroom destination');
     }
 
     addClassroomSign(scene, { id, sign }) {

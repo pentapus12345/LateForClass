@@ -1,248 +1,187 @@
 # LateForClass development roadmap
 
-Product direction lives in [VISION.md](VISION.md). This roadmap records the implementation baseline and ranks proposed milestones. Each proposal requires separate product-owner approval under the [development workflow](AGENTS.md#milestone-approval).
+The product direction is defined in [VISION.md](VISION.md). This roadmap records completed work and proposes the next milestones. Under [AGENTS.md](AGENTS.md), **each proposed milestone requires separate product-owner approval before implementation**. Editing this roadmap does not approve a milestone.
 
-## Status
+## Status definitions
 
 | Status | Meaning |
 | --- | --- |
 | Proposed | Awaiting the product owner's decision |
-| Approved | The product owner has approved this specific scope and acceptance criteria |
-| In Progress | Implementation of the approved scope is under way |
+| Approved | The product owner approved this specific scope |
+| In Progress | Approved work is being implemented |
 | Completed | Implementation and verification are recorded |
-| Rejected | The product owner declined the proposal |
+| Rejected | The product owner declined this proposal |
 
-## Completed milestones
+## Completed development baseline
 
-| Milestone | Status | Acceptance and evidence |
+Each entry records the result and verification for its milestone.
+
+| Milestone or foundation | Status | Recorded result |
 | --- | --- | --- |
-| Browser prototype and hallway loop | Completed | The default level starts, supports pause and restart, and completes when the player presses E in range of the classroom marker. |
-| Data-driven engine foundation | Completed | Game, Player, Level, and Wall have separate responsibilities. The original hallway loads from JSON and renders twelve outer edges and ten pillars. |
-| Movement, jumping, and collision | Completed | Camera-relative WASD, grounded Space jumps, gravity, wall sliding, and floor, ceiling, and platform contact have automated coverage. |
-| First-person camera consistency | Completed | Spawn, mouse look, and restart share yaw and pitch with zero roll. Tests cover the world-space horizon, full turns, and reset. |
-| Physics Playground and stairs | Completed | The development scene is selectable at `/?level=2`. The gap, stair ascent and descent, ledge fall, restart, and matching wireframe and collision bounds passed the recorded Chrome checks. This milestone is part of the committed development baseline. |
-| 1. Connect one corridor and one classroom | Completed | The data-defined scene opens at `/?level=3`. Chrome verified walking through the opening in both directions at floor height, collision beside it, and R restoring spawn and view. Targeted tests cover both sides of the doorway and player clearance. |
-| Development level picker | Completed | `/levels/` lists levels by name from the level data. Chrome verified navigation to each current level and back. |
-| 2. Add one interactive door | Completed | The data-defined door in `/?level=3` starts closed, opens with E in range from either side, and closes on R. Tests and Chrome verified traversal and matching panel and collision bounds. |
-| 3. Connect two floors by stairs | Completed | Twelve data-defined stairs connect the classroom to an upper landing. Tests verify grounded traversal at two frame rates, head clearance, and landing boundaries. A Chrome playthrough used every tread up and down. |
-| 4. Complete one classroom objective in the connected layout | Completed | Open the door with E, reach the green marker in the lower classroom, and press E to finish. Tests and Chrome verified the marked area, the upper landing as an invalid destination, and R restoring the door and objective. |
-| 4. Classroom identity and arrival | Completed | The Room 101 doorway label matches the configured destination. E confirms arrival at the matching room and floor. Targeted tests and Chrome verified the objective, door, arrival, and reset. |
-| 4.5. Visual foundations | Completed | Corridor and Classroom opens in solid view. V switches to collision outlines from the same bounds. Chrome verified room-sign readability, door interaction, stairs, jumping, arrival, and reset across the two views. |
-
-The green-marker prototype passed 53 Node tests and 43 Chrome regression tests. Classroom identity and arrival passed 54 Node tests and 44 Chrome regression tests. Visual foundations passed 57 Node tests and 46 Chrome regression tests. The default hallway and Physics Playground retained their existing routes and level definitions. [CHANGELOG.md](CHANGELOG.md)
-
-## Known bugs and limitations
-
-- The earlier camera pitch snap was fixed and has regression coverage. The reported intermittent sideways roll was not reproduced in the stock hallway during the prior investigation. The current Node run passed the camera tests. [CHANGELOG.md](CHANGELOG.md)
-- The default hallway's classroom prompt checks horizontal distance to a point. Corridor and Classroom checks identity, position, and floor height for its Room 101 objective. The class schedule and deadline evaluation are still proposed. [Game.js](js/Game.js) · [Level.js](js/Level.js)
-- The playground uses static, axis-aligned boxes and discrete stair treads. A fall into its pit is recoverable with R. [README.md](README.md)
-- The current build requires a desktop browser with WebGL, Pointer Lock, and access to the Three.js CDN. [README.md](README.md)
-- Corridor and Classroom has a solid blockout and a wireframe collision view. The artistic treatment remains open.
-
-## Proposed milestones in priority order
-
-### 5. Player schedule panel
-
-**Status** Proposed
-
-**Objective** Show the player their next class, classroom identifier, and scheduled start time during play.
-
-**Contribution to the vision** Give the player the information needed to choose a destination and plan their route.
-
-**Scope** Display one configured upcoming class in a schedule panel. Bind its classroom identifier to the room introduced in milestone 4.
-
-**Dependencies** Milestone 4.
-
-**Acceptance criteria**
-
-- The player can read the class name, room identifier, and start time while playing.
-- The displayed values match the configured schedule, and the room identifier matches the visible classroom label.
-- The panel works alongside the existing movement and interaction controls. Changing the configured class updates the displayed entry.
-
-### 6. Configurable controls and options screen
-
-**Status** Proposed
-
-**Objective** Allow players to customize keyboard and mouse controls through a dedicated options screen, while preserving intuitive first-person movement and camera behavior.
-
-**Contribution to the vision** Provide a comfortable, accessible, and polished control experience that accommodates different player preferences without compromising navigation or gameplay.
-
-**Scope**
-
-Implement a configurable input system that separates player actions from their physical input devices.
-
-**Keyboard controls**
-- Support two predefined keyboard layouts:
-  - **Standard:** WASD for movement, arrow keys for camera control.
-  - **Swapped:** Arrow keys for movement, WASD for camera control.
-- Allow keyboard camera control to be enabled or disabled independently of mouse look.
-- Support configurable keyboard camera rotation speed.
-- Preserve diagonal movement normalization and frame-rate independence.
-- Keep Space as the default jump key and E as the default interaction key.
+| Browser prototype and hallway | Completed | Starts, pauses, restarts, and supports the initial E-to-complete marker objective. |
+| Data-driven engine | Completed | Game, Player, Level, and Wall responsibilities separated; JSON hallway with 12 outer edges and 10 pillars. |
+| Movement, gravity, jumping, collisions | Completed | Camera-relative movement, grounded jumps, gravity, sliding, and floor/ceiling/platform collisions covered by tests. |
+| First-person camera consistency | Completed | Unified yaw/pitch, zero roll, and camera reset; regression coverage. |
+| Physics Playground and stairs | Completed | `/?level=2`; gap, ascent/descent, ledge fall, and geometry/collision checks recorded. |
+| 1. Connected corridor and classroom | Completed | `/?level=3`; traversable doorway, collision beside opening, and reset verified. |
+| Development level picker | Completed | `/levels/` lists available levels. |
+| 2. Interactive door | Completed | Open with E from either side; restart closes it; collision matches door state. |
+| 3. Two floors connected by stairs | Completed | Twelve data-defined steps; ascent/descent and landing tested. |
+| 4. Classroom objective prototype | Completed | Green-marker/E interaction validated in Room 101; superseded by milestone 7. |
+| 4. Classroom identity and arrival | Completed | Room 101 signage linked to a floor-specific arrival target, with E confirmation. |
+| 4.5. Visual foundations | Completed | Solid Corridor and Classroom view and V collision-outline toggle; geometry and controls checked. |
+| 5. Player schedule panel | Completed | Class, room, and scheduled start time displayed; 58 Node and 46 Chrome tests recorded. |
+| 6. Configurable controls and options | Completed | Two keyboard layouts, mouse settings, optional click-to-jump, saved preferences, defaults, menu; 65 Node and 50 Chrome tests recorded. |
+| [7. Automatic classroom arrival through the doorway](#7-automatic-classroom-arrival-through-the-doorway) | Completed | The scheduled room registers arrival after full doorway clearance. All 66 Node and 50 Chrome tests passed. Chrome verified threshold and floor bounds, correct and wrong rooms, and restart. |
+| [8. Accelerated school clock and deadline](#8-accelerated-school-clock-and-deadline) | Completed | At 60×, the prototype gives 60 active seconds before class. All 72 Node and 52 Chrome tests passed. Chrome verified a win, pause, the full timeout, and retry. |
 
-**Mouse controls**
-- Mouse movement controls camera yaw and pitch, never player translation.
-- Allow mouse look to be enabled or disabled.
-- Provide adjustable mouse sensitivity.
-- Provide an option to invert the vertical mouse axis.
-- Allow the left mouse button to be enabled as an additional jump input, alongside Space.
-- Preserve the existing camera rotation system: world-up Y, explicit yaw and pitch, zero roll, and pitch clamping.
+For historical change details and exact test evidence, see [CHANGELOG.md](CHANGELOG.md).
 
-**Options screen**
-- Add a dedicated Options screen accessible from the main menu.
-- Organize settings into Keyboard and Mouse sections.
-- Use clear labels and intuitive controls such as dropdowns, toggles, and sliders.
-- Provide a Restore Defaults button.
-- Provide a Back button returning to the main menu.
-- Save settings locally so they persist across browser reloads.
-- Ensure settings can be changed without modifying game code.
+### 7. Automatic classroom arrival through the doorway
 
-**Input architecture**
-- Centralize input mappings and settings rather than scattering key-specific logic throughout the Player class.
-- Separate gameplay actions (move, look, jump, interact) from physical keys and mouse buttons.
-- Allow keyboard camera controls and mouse look to operate simultaneously.
-- Prevent conflicting input assignments and unintended duplicate actions.
-- Ensure gameplay input does not interfere with menu interaction.
-- Keep the design simple and extensible for future control customization.
+**Status:** Completed
 
-**Default configuration**
+**Complexity:** Medium
 
-| Setting | Default |
-|---|---|
-| Keyboard layout | WASD movement, arrow-key camera |
-| Mouse look | Enabled |
-| Keyboard camera control | Enabled |
-| Mouse sensitivity | Existing game sensitivity |
-| Keyboard camera speed | Sensible default matching existing behavior |
-| Invert mouse Y axis | Disabled |
-| Jump | Space |
-| Additional jump with left mouse button | Disabled |
-| Interact | E |
+**Objective:** Replace the E-to-complete arrival mechanic with physically entering the scheduled classroom.
 
-**Dependencies** Existing Player input handling, camera rotation system, and main menu. No dependency on classroom identity or schedule functionality.
+**Contribution to the vision:** Makes finding and entering the correct room the central objective.
 
-**Acceptance criteria**
+**Scope:**
 
-- The player can switch between the Standard and Swapped keyboard layouts.
-- WASD and arrow keys correctly perform their assigned roles in either layout.
-- Keyboard camera control and mouse look can be used simultaneously.
-- Disabling keyboard camera control does not disable keyboard movement.
-- Disabling mouse look does not disable keyboard camera control.
-- Mouse sensitivity changes are applied correctly.
-- Invert-Y changes only the vertical direction of mouse look.
-- Mouse movement never translates the player.
-- Space always initiates jumping when the player is grounded.
-- Left mouse button also initiates jumping when the option is enabled.
-- Left-clicking menu controls never causes a jump or other gameplay action.
-- The E key continues to interact with doors and classroom objectives.
-- The Options screen is accessible from the main menu.
-- The Back button returns to the main menu without starting a game.
-- Restore Defaults restores all documented default settings.
-- Settings persist across page reloads using browser-local storage.
-- Camera rotation remains free of roll, flipping, or pitch snapping.
-- Existing movement, jumping, collisions, and interactions remain unchanged except for the explicitly configurable behavior.
-- Automated tests cover both keyboard layouts, input toggles, mouse sensitivity, inverted Y, jumping, settings persistence, and reset-to-default behavior.
-- Browser testing verifies menu navigation and actual player controls.
+- Define classroom boundaries/arrival volumes, room IDs, and door-to-room associations in level JSON, reusing existing definitions where possible.
+- E still opens interactive doors. Crossing into the correct classroom completes the objective automatically, without an arrival keypress or green destination marker.
+- Match the entered room to the scheduled `roomId`; do not hardcode Room 101 or arrival coordinates in Game.
+- Use three-dimensional room containment with floor-height validation. Simply standing by a closed door, touching the threshold while still outside, or standing on another floor does not count.
+- Entering another classroom must not finish the level. Preserve door, collision, camera, stair, and reset behavior.
 
-**Constraints**
+**Dependencies:** Completed classroom identity, connected-room geometry, interactive doors, and schedule panel (milestones 2, 4, and 5).
 
-- Do not implement joystick-like movement using mouse displacement.
-- Do not introduce gamepad support as part of this milestone.
-- Do not introduce a general-purpose key-remapping interface yet.
-- Do not change movement physics, level geometry, or gameplay objectives.
-- Do not add external input-management libraries unless clearly necessary.
-- Follow AGENTS.md and update CHANGELOG.md.
-- Do not commit or push automatically.
+**Acceptance criteria:**
 
-**Complexity** Medium
+- Open the scheduled classroom's door with E and walk inside to win automatically; no separate E press to complete.
+- Outside the room, at the doorway but still outside, or on another floor does not count.
+- Changing the scheduled room identifier in level data changes which room qualifies; a wrong-room entry does not win.
+- Restart resets doors and the objective. Existing tests pass and new Node/browser tests verify spatial entry and boundary conditions.
 
-### 7. In-game clock and deadline
+**Constraints:** No clock, deadline, new school layout, or additional features in this milestone. Follow AGENTS.md and update CHANGELOG.md. Do not commit or push automatically.
 
-**Status** Proposed
+### 8. Accelerated school clock and deadline
 
-**Objective** Advance an in-game clock and evaluate arrival against the scheduled start time.
+**Status:** Completed
 
-**Contribution to the vision** Add time management to the room-finding loop.
+**Complexity:** Medium
 
-**Scope** One clock and one scheduled deadline. Record arrival time and distinguish on-time and late arrivals. The clock presentation, pause behavior, and consequences of lateness require separate design decisions within their respective scopes.
+**Objective:** Run a simulated school clock at a configurable speed, default **60×**, and end the level in failure if the player has not entered the correct classroom before class starts.
 
-**Dependencies** Milestones 4 and 5.
+**Contribution to the vision:** Introduces the game's defining time pressure, with a clear success or failure outcome.
 
-**Acceptance criteria**
+**Scope:**
 
-- The clock advances under the approved run rules and can be read against the deadline.
-- Arrival at the correct room before class starts is on time. Arrival at or after the scheduled start is late.
-- Tests cover the deadline boundary and restart, including restoration of the configured start time and a fresh arrival result.
+- Put the starting school time, clock speed, scheduled class name, destination room ID, and class start time in level JSON. Reuse the existing schedule schema instead of keeping duplicates. One illustrative shape is:
 
-### 8. Multiple numbered classrooms
+  ```json
+  {
+    "clock": { "startTime": "08:00", "timeScale": 60 },
+    "schedule": {
+      "className": "Mathematics",
+      "roomId": "101",
+      "startTime": "09:00"
+    }
+  }
+  ```
 
-**Status** Proposed
+- The current school time is prominently visible alongside the existing schedule information. The displayed time and deadline logic share one authoritative simulation clock, independent of the system clock.
+- Advance time based on active gameplay elapsed time, independent of frame rate. At 60×, one real second equals one school minute and one real minute equals one school hour.
+- Pause simulated time whenever gameplay is paused/suspended, including menu and focus/pointer-lock interruption, without unintended time loss or gain.
+- Entering the correct room **strictly before** class starts wins. Reaching the class time without arrival immediately loses and displays an unmistakable **You're Late!** result with a Retry button.
+- Once won or lost, freeze the outcome; retry restores spawn, clock, doors, scheduled objective, and other initial level state.
 
-**Objective** Let the player distinguish the scheduled classroom from other reachable rooms.
+**Dependencies:** Milestone 5 schedule display and **milestone 7 automatic classroom arrival**; existing pause/restart lifecycle.
 
-**Contribution to the vision** Make finding the correct classroom a navigation problem with a meaningful choice of destination.
+**Acceptance criteria:**
 
-**Scope** Add a small set of reachable, distinctly numbered classrooms to one connected development layout. Keep a single scheduled class for the run.
+- With start 08:00, class 09:00, and timeScale 60, the deadline occurs after exactly 60 seconds of active real time. After 10 seconds, school time is 08:10.
+- Entering the correct classroom before the deadline wins; at the deadline, it loses. Failure is automatic without a keypress.
+- The clock pauses and resumes correctly; reload/retry starts from the configured state. A final result cannot be reversed by later input.
+- Changing the level JSON's start time, class time, class name, destination room, or multiplier updates game behavior and display without code changes.
+- Tests cover time scaling, frame-rate independence, pause/resume, exact deadline boundaries, success, failure, and reset. A browser playthrough demonstrates a win and a timeout loss.
 
-**Dependencies** Milestone 4 for room identity and milestone 5 for the scheduled target.
+**Constraints:** One class and one deadline per run. No scoring, multi-class progression, new geometry, or art redesign. Preserve debug view and current controls. Follow AGENTS.md and update CHANGELOG.md. Do not commit or push automatically.
 
-**Acceptance criteria**
+## Current limitations
 
-- Each classroom has a unique identifier in level data and a corresponding visible label.
-- The rooms are reachable using the existing corridor, doorway, and stair controls where applicable.
-- Entering another classroom leaves the scheduled objective active. The correct room is accepted, and changing the scheduled room changes which destination qualifies.
+- The timed prototype uses one classroom and one same-day deadline in Corridor and Classroom.
+- Multiple reachable classroom choices and a discoverable numbering system are not yet in place.
+- The visual foundation is solid but the final art direction is undecided. Wireframe/debug development levels should remain available.
+- The earlier pitch-snap bug has regression coverage; the previously reported intermittent sideways roll was not reproduced in the cited hallway investigation.
+- The browser build requires WebGL, Pointer Lock, and access to the Three.js CDN.
 
-### 9. Discoverable room-numbering logic
+## Proposed milestones — priority order
 
-**Status** Proposed
+### 9. Multiple numbered classrooms
 
-**Objective** Give the classroom identifiers a consistent relationship to the school layout.
+**Status:** Proposed  
+**Complexity:** Medium
 
-**Contribution to the vision** Let the player learn the building and use that knowledge to infer where a classroom is.
+**Objective:** Make the scheduled destination one of several reachable, visibly numbered classrooms.
 
-**Scope** Apply one product-owner-approved numbering pattern to the small classroom set from milestone 7. Use the layout and visible room labels to communicate it.
+**Contribution to the vision:** Introduces meaningful destination choices rather than a single obvious room.
 
-**Dependencies** Milestone 8 and approval of the numbering pattern.
+**Scope:** Extend one connected school layout with a small set of data-defined classrooms, each with a unique visible ID and valid arrival volume. Preserve existing doors and floors; one scheduled class remains active.
 
-**Acceptance criteria**
+**Dependencies:** Milestone 7 automatic arrival, milestone 5 schedule, and milestone 8 deadline for a timed playtest.
 
-- Room labels and placement consistently follow the approved pattern.
-- A browser walkthrough shows examples of the pattern and demonstrates how they identify a route to a scheduled room.
-- Room identity and arrival checks still recognize the scheduled room after the layout and labels are updated.
+**Acceptance criteria:** Every classroom is reachable and correctly labeled; wrong-room entry leaves the objective active; changing the scheduled `roomId` changes the winning room; the timer continues normally; navigation and collision tests pass.
 
-### 10. First complete playable class-navigation challenge
+### 10. Discoverable room-numbering logic
 
-**Status** Proposed
+**Status:** Proposed  
+**Complexity:** Medium
 
-**Objective** Combine the schedule, room-choice route, clock, and arrival evaluation in one playable run.
+**Objective:** Give classroom identifiers a learnable relationship to the school's physical layout.
 
-**Contribution to the vision** Validate the full loop from receiving a schedule to finding the room and learning whether the player made it on time.
+**Contribution to the vision:** Makes navigation a pattern-discovery challenge rather than trial and error.
 
-**Scope** One class, one connected layout with multiple rooms, and one deadline. Use the approved arrival feedback and restart flow for this prototype.
+**Scope:** Agree on one numbering scheme with the product owner, apply it consistently to the rooms from milestone 9, and communicate the pattern through room labels and environmental layout. Do not add automatic navigation aids without approval.
 
-**Dependencies** Milestones 4 through 8 and approval of the prototype's arrival feedback.
+**Dependencies:** Milestone 9 and explicit approval of the numbering pattern.
 
-**Acceptance criteria**
+**Acceptance criteria:** The numbering convention is consistent; a player can infer locations using it; a browser walkthrough demonstrates the inference; scheduled-room entry remains correct after relabeling.
 
-- A player can read the schedule, use the room-numbering pattern to navigate, and reach the correct classroom.
-- An end-to-end playthrough verifies an on-time arrival, a late arrival, and a visit to an incorrect classroom.
-- Restart restores the schedule, clock, and objective for a new run. Automated checks cover the core outcomes.
+### 11. First complete playable class-navigation challenge
 
-### 11. Art direction and visual design prototype
+**Status:** Proposed  
+**Complexity:** Medium
 
-**Status** Proposed
+**Objective:** Validate the complete gameplay loop: read the schedule, navigate a school, choose a room, and arrive on time or lose.
 
-**Objective** Explore and evaluate a coherent, product-owner-approved visual identity for the school after the first complete gameplay challenge works.
+**Contribution to the vision:** Produces a small but complete playable LateForClass challenge.
 
-**Contribution to the vision** Make school navigation visually engaging and readable, with an artistic direction that supports rather than obscures room identification, route finding, and time pressure.
+**Scope:** Integrate existing schedule, timed clock, automatic arrival, several numbered rooms, and a discoverable numbering pattern into one run. Keep success/failure feedback and restart clear.
 
-**Scope** Build a focused art-direction prototype on part of the playable route, using the solid-rendering and debug foundation established in milestone 4.5. Compare selected materials, color language, lighting, signage, and limited environmental detail. The final choice of style remains a product-owner decision.
+**Dependencies:** Milestones 7–10 and approval of any remaining game-design details needed for the prototype.
 
-**Dependencies** Milestones 4.5 and 10, plus approval of the visual direction to prototype.
+**Acceptance criteria:** End-to-end browser runs demonstrate an on-time arrival, a timeout loss, and visiting an incorrect room; restarting resets all state; tests cover the outcomes and room mapping.
 
-**Acceptance criteria**
+### 12. Art direction and visual design prototype
 
-- A playable browser sample demonstrates one approved artistic treatment across a corridor, classroom, door, stair route, and room signage.
-- Room identifiers, doorways, and route cues remain readable while the player moves; the schedule and timed objective remain usable.
-- Collision, movement, and arrival behavior remain unchanged, with debug visualization still available.
-- The prototype documents tradeoffs in readability, performance, and production effort and provides enough evidence for the product owner to approve or revise the broader art direction.
+**Status:** Proposed  
+**Complexity:** Medium
+
+**Objective:** Evaluate a coherent visual identity for the school without sacrificing navigational clarity.
+
+**Contribution to the vision:** Turns the functional school into a more compelling and readable game world.
+
+**Scope:** On part of the playable route, prototype a product-owner-approved combination of materials, colors, lighting, signage, and restrained environmental detail using the solid/debug foundation from milestone 4.5.
+
+**Dependencies:** Milestone 4.5, milestone 11, and approval of the visual treatment to prototype.
+
+**Acceptance criteria:** A playable sample covers corridor, door, classroom, stairway, and readable room signage; movement, clock, interactions, and collisions still work; debug diagnostics remain available; readability, performance, and implementation effort are documented for a design decision.
+
+## Approval and maintenance
+
+- The list above is a proposal, **not blanket approval**. The product owner may reorder, modify, reject, or approve any single milestone.
+- Codex may make routine implementation decisions inside an approved scope but must stop for significant changes to the vision or milestone scope.
+- After each completed milestone, record implementation and test evidence in [CHANGELOG.md](CHANGELOG.md), update status here, and propose the next milestone without beginning it.
+- No commits or pushes without explicit authorization.

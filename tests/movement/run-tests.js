@@ -209,7 +209,8 @@ const gameScripts = readScriptSources(GAME_PAGE);
 test('the game and test pages load dependencies in order with exact filename casing', () => {
     const [library, ...gameFiles] = gameScripts;
     assert.match(library, /^https:\/\/.*\/three\.min\.js$/);
-    const dependencies = ['assets/gameConfig.js', 'js/Wall.js', 'js/Level.js', 'js/Player.js'];
+    const dependencies = ['assets/gameConfig.js', 'js/controls.js', 'js/Wall.js', 'js/Level.js', 'js/Player.js',
+        'js/SchoolClock.js'];
     assert.deepEqual(gameFiles, [...dependencies, 'js/Game.js', 'js/main.js']);
     assert.equal(browserTestScripts[0], library);
     assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js']);
@@ -220,6 +221,11 @@ test('the game and test pages load dependencies in order with exact filename cas
 
 class Element extends EventTarget {
     children = [];
+    focus() {}
+
+    get valueAsNumber() {
+        return Number(this.value);
+    }
 
     appendChild(child) {
         this.children.push(child);
@@ -274,31 +280,46 @@ test('the level picker reports empty and unavailable level data', async () => {
     assert.match(failure.errors[0][1].message, /404/);
 });
 
-async function loadGame(response, search = '') {
+async function loadGame(response, search = '', storage = new Map()) {
     const elements = new Map();
     for (const [, tag, id] of gameHtml.matchAll(/(<[^>]*\bid="([^"]+)"[^>]*>)/g)) {
         const element = new Element();
         element.disabled = /\bdisabled\b/.test(tag);
+        element.hidden = /\bhidden\b/.test(tag);
         elements.set(id, element);
     }
+    const fields = new Map();
+    for (const [, tag, name] of gameHtml.matchAll(/(<(?:input|select)\b[^>]*\bname="([^"]+)"[^>]*>)/g)) {
+        const id = tag.match(/\bid="([^"]+)"/)?.[1];
+        fields.set(name, elements.get(id) ?? new Element());
+    }
+    elements.get('control-form').elements = { namedItem: name => fields.get(name) };
 
     let hasFocus = true;
     const document = Object.assign(new EventTarget(), {
         getElementById: id => elements.get(id) ?? null,
         createElement: createCanvas,
         hasFocus: () => hasFocus,
+        hidden: false,
         pointerLockElement: null,
         exitPointerLock() {
             this.pointerLockElement = null;
             this.dispatchEvent(new Event('pointerlockchange'));
         }
     });
-    const window = Object.assign(new EventTarget(), { innerWidth: 800, innerHeight: 600, location: { search } });
+    const window = Object.assign(new EventTarget(), {
+        innerWidth: 800,
+        innerHeight: 600,
+        location: { search },
+        localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }
+    });
     window.addEventListener('blur', () => { hasFocus = false; });
     window.addEventListener('focus', () => { hasFocus = true; });
     const frames = [];
     const renderers = [];
     const errors = [];
+    let now = 0;
+    const advanceTime = milliseconds => { now += milliseconds; };
 
     class Renderer {
         domElement = new Element();
@@ -331,7 +352,11 @@ async function loadGame(response, search = '') {
             assert.equal(url, 'assets/levels.json');
             return response;
         },
-        requestAnimationFrame: callback => frames.push(callback),
+        performance: { now: () => now },
+        requestAnimationFrame: callback => frames.push((milliseconds = 100) => {
+            advanceTime(milliseconds);
+            callback(now);
+        }),
         console: { error: (...args) => errors.push(args) },
         THREE: {
             ...THREE,
@@ -347,7 +372,7 @@ async function loadGame(response, search = '') {
     for (const file of gameScripts.slice(1)) {
         await vm.runInContext(read(file), page, { filename: file });
     }
-    return { document, window, elements, frames, renderers, errors };
+    return { document, window, elements, frames, renderers, errors, advanceTime };
 }
 
 test('the page boots one game and routes start, movement, resize, pause, and restart', async () => {
@@ -369,6 +394,7 @@ test('the page boots one game and routes start, movement, resize, pause, and res
     startButton.dispatchEvent(new Event('click'));
     assert.equal(document.pointerLockElement, domElement);
     assert.equal(screen.hidden, true);
+    assert.equal(elements.get('schedule-panel').hidden, true);
     const input = (type, code) => document.dispatchEvent(Object.assign(new Event(type), { code }));
     input('keydown', 'KeyW');
     frames.shift()();
@@ -421,7 +447,7 @@ test('the game routes Space and clears movement on blur and pointer unlock', asy
     press('KeyW');
     frames.shift()();
     assert.equal(camera.position.z, forwardZ);
-    assert.ok(camera.position.y > firstJumpY);
+    assert.equal(camera.position.y, firstJumpY);
 
     window.dispatchEvent(new Event('focus'));
     press('KeyW');
@@ -435,6 +461,124 @@ test('the game routes Space and clears movement on blur and pointer unlock', asy
     frames.shift()();
     assert.ok(camera.position.y > pausedY);
     assert.equal(camera.position.z, forwardZ);
+});
+
+test('the school clock uses active time across pause, focus, visibility, and pointer lock changes', async () => {
+    const { document, window, elements, frames, renderers, advanceTime } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const time = elements.get('school-time');
+    const start = elements.get('start-button');
+    const press = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
+    const frame = milliseconds => frames.shift()(milliseconds);
+    const setHidden = hidden => {
+        document.hidden = hidden;
+        document.dispatchEvent(new Event('visibilitychange'));
+    };
+    frame(60000);
+    assert.equal(time.textContent, '08:00');
+    const { domElement } = renderers[0];
+    const requestLock = domElement.requestPointerLock;
+    domElement.requestPointerLock = () => {};
+    start.dispatchEvent(new Event('click'));
+    frame(60000);
+    assert.equal(time.textContent, '08:00');
+    domElement.requestPointerLock = requestLock;
+    requestLock();
+    frame(10000);
+    assert.equal(time.textContent, '08:10');
+    advanceTime(750);
+    press('Escape');
+    frame(100000);
+    assert.equal(time.textContent, '08:10');
+    elements.get('options-button').dispatchEvent(new Event('click'));
+    frame(100000);
+    elements.get('options-back').dispatchEvent(new Event('click'));
+    start.dispatchEvent(new Event('click'));
+    frame(250);
+    assert.equal(time.textContent, '08:11');
+
+    window.dispatchEvent(new Event('blur'));
+    frame(100000);
+    assert.equal(time.textContent, '08:11');
+    setHidden(true);
+    window.dispatchEvent(new Event('focus'));
+    frame(100000);
+    assert.equal(time.textContent, '08:11');
+    setHidden(false);
+    frame(2000);
+    assert.equal(time.textContent, '08:13');
+    assert.equal(time.dateTime, '08:13');
+    press('KeyR');
+    assert.equal(time.textContent, '08:00');
+    frame(1000);
+    assert.equal(time.textContent, '08:01');
+});
+
+test('losing pointer lock at the deadline still records a timeout before the next frame', async () => {
+    const { document, elements, advanceTime } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const start = elements.get('start-button');
+    start.dispatchEvent(new Event('click'));
+    advanceTime(60000);
+    document.exitPointerLock();
+    assert.equal(elements.get('screen-title').textContent, 'You’re Late!');
+    assert.equal(elements.get('school-time').textContent, '09:00');
+    assert.equal(start.textContent, 'Retry');
+});
+
+test('crossing the classroom before the exact deadline wins and crossing at it times out', async () => {
+    for (const arrivalMs of [59999, 60000]) {
+        const { document, elements, frames, renderers } =
+            await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+        const [{ scene, camera }] = renderers;
+        const clickStart = () => elements.get('start-button').dispatchEvent(new Event('click'));
+        const press = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
+        const panel = () => scene.children.find(object => object.name === 'Classroom door');
+        clickStart();
+        press('KeyW');
+        for (let frame = 0; frame < 12; frame++) {
+            frames.shift()();
+        }
+        press('KeyE');
+        frames.shift()();
+        assert.equal(panel().rotation.y, -Math.PI / 2);
+        assert.equal(elements.get('start-screen').hidden, true);
+
+        frames.shift()(arrivalMs - 1300);
+        const onTime = arrivalMs < 60000;
+        assert.equal(elements.get('screen-title').textContent, onTime ? 'You made it to class!' : 'You’re Late!');
+        assert.equal(elements.get('start-button').textContent, onTime ? 'Play Again' : 'Retry');
+        assert.equal(elements.get('school-time').textContent, onTime ? '08:59' : '09:00');
+        assert.equal(document.pointerLockElement, null);
+        assert.equal(camera.position.z >= 0.425, onTime);
+        press('KeyE');
+        frames.shift()(120000);
+        assert.equal(elements.get('screen-title').textContent, onTime ? 'You made it to class!' : 'You’re Late!');
+
+        clickStart();
+        assert.equal(elements.get('start-screen').hidden, true);
+        assert.equal(camera.position.z, -6);
+        assert.equal(panel().rotation.y, 0);
+        assert.equal(elements.get('school-time').textContent, '08:00');
+        assert.equal(elements.get('objective').textContent, 'Find Room 101');
+    }
+});
+
+test('a configured school start and speed enforce the class time supplied by the schedule', async () => {
+    const schedule = { className: 'Art', roomId: 'A1', startTime: '14:01' };
+    const definitions = levels.map(level => level.id !== 3 ? level : {
+        ...level, clock: { startTime: '14:00', timeScale: 30 }, schedule
+    });
+    const { elements, frames } =
+        await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    frames.shift()(1999);
+    assert.equal(elements.get('school-time').textContent, '14:00');
+    assert.equal(elements.get('start-screen').hidden, true);
+    frames.shift()(1);
+    assert.equal(elements.get('school-time').textContent, '14:01');
+    assert.equal(elements.get('screen-message').textContent, 'Art started at 14:01 in Room A1.');
+    assert.equal(elements.get('start-button').textContent, 'Retry');
 });
 
 test('R restores the configured non-level camera orientation after mouse look', async () => {
@@ -455,6 +599,139 @@ test('R restores the configured non-level camera orientation after mouse look', 
     assert.equal(camera.rotation.z, 0);
     document.dispatchEvent(Object.assign(new Event('mousemove'), { movementX: 300, movementY: 0 }));
     assert.ok(Math.abs(direction().y - startingDirection.y) < 1e-9);
+});
+
+test('Options saves the selected controls, reloads them, and restores all defaults', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const storage = new Map();
+    const first = await loadGame(response, '?level=3', storage);
+    const { document, elements } = first;
+    const click = id => elements.get(id).dispatchEvent(new Event('click'));
+    const form = elements.get('control-form');
+    const readField = (fields, name, sample) => {
+        const field = fields.namedItem(name);
+        if (typeof sample === 'boolean') {
+            return field.checked;
+        }
+        return typeof sample === 'number' ? field.valueAsNumber : field.value;
+    };
+    const changed = {
+        keyboardLayout: 'swapped', keyboardLook: false, keyboardLookSpeed: 165,
+        mouseLook: false, mouseSensitivity: 2.5, invertMouseY: true, clickToJump: true
+    };
+    const defaults = {
+        keyboardLayout: 'standard', keyboardLook: true, keyboardLookSpeed: 120,
+        mouseLook: true, mouseSensitivity: 1, invertMouseY: false, clickToJump: false
+    };
+    assert.equal(elements.get('options-screen').hidden, true);
+    click('options-button');
+    assert.equal(elements.get('options-screen').hidden, false);
+    assert.equal(elements.get('start-screen').hidden, true);
+    for (const [name, value] of Object.entries(changed)) {
+        const field = form.elements.namedItem(name);
+        if (typeof value === 'boolean') {
+            field.checked = value;
+        } else {
+            field.value = String(value);
+        }
+        form.dispatchEvent(new Event('input'));
+    }
+    assert.equal(elements.get('keyboard-speed-value').textContent, '165°/s');
+    assert.equal(elements.get('mouse-sensitivity-value').textContent, '2.5×');
+    click('options-back');
+    assert.equal(elements.get('options-screen').hidden, true);
+    assert.equal(elements.get('start-screen').hidden, false);
+    assert.equal(elements.get('start-button').textContent, 'Start Game');
+    assert.equal(document.pointerLockElement, null);
+    assert.match(elements.get('instructions').textContent, /Arrow keys to move · Space or left click to jump/);
+
+    const reloaded = await loadGame(response, '?level=3', storage);
+    for (const [name, value] of Object.entries(changed)) {
+        assert.equal(readField(reloaded.elements.get('control-form').elements, name, value), value);
+    }
+    reloaded.elements.get('options-button').dispatchEvent(new Event('click'));
+    reloaded.elements.get('restore-controls').dispatchEvent(new Event('click'));
+    assert.equal(reloaded.elements.get('options-status').hidden, true);
+    const restored = await loadGame(response, '?level=3', storage);
+    for (const [name, value] of Object.entries(defaults)) {
+        assert.equal(readField(restored.elements.get('control-form').elements, name, value), value);
+    }
+});
+
+test('jump inputs respect the saved click setting, pointer lock, and held Space', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const { document, elements, frames, renderers } = await loadGame(response);
+    const { camera, domElement } = renderers[0];
+    const eyeHeight = camera.position.y;
+    const click = id => elements.get(id).dispatchEvent(new Event('click'));
+    const press = (code, repeat = false) => document.dispatchEvent(Object.assign(new Event('keydown'), { code, repeat }));
+    const mouseDown = button => domElement.dispatchEvent(Object.assign(new Event('mousedown'), { button }));
+    const frame = () => frames.shift()();
+    click('start-button');
+    mouseDown(0);
+    frame();
+    assert.equal(camera.position.y, eyeHeight);
+    press('Space');
+    frame();
+    assert.ok(camera.position.y > eyeHeight);
+    for (let step = 0; step < 12; step++) {
+        frame();
+    }
+    assert.equal(camera.position.y, eyeHeight);
+    press('Space', true);
+    frame();
+    assert.equal(camera.position.y, eyeHeight);
+    press('Escape');
+    click('options-button');
+    const form = elements.get('control-form');
+    form.elements.namedItem('clickToJump').checked = true;
+    form.dispatchEvent(new Event('input'));
+    mouseDown(0);
+    press('Space');
+    frame();
+    click('options-back');
+    click('start-button');
+    frame();
+    assert.equal(camera.position.y, eyeHeight);
+    mouseDown(2);
+    frame();
+    assert.equal(camera.position.y, eyeHeight);
+    mouseDown(0);
+    frame();
+    assert.ok(camera.position.y > eyeHeight);
+    press('KeyR');
+    press('Space');
+    frame();
+    assert.ok(camera.position.y > eyeHeight);
+});
+
+test('invalid or blocked local storage leaves Options usable', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const corrupted = new Map([['lateForClass.controls', JSON.stringify({
+        keyboardLayout: 'unknown', keyboardLook: false, keyboardLookSpeed: -500,
+        mouseLook: 'false', mouseSensitivity: 70
+    })]]);
+    const { elements } = await loadGame(response, '', corrupted);
+    const fields = elements.get('control-form').elements;
+    assert.equal(fields.namedItem('keyboardLayout').value, 'standard');
+    assert.equal(fields.namedItem('keyboardLook').checked, false);
+    assert.equal(fields.namedItem('keyboardLookSpeed').valueAsNumber, 30);
+    assert.equal(fields.namedItem('mouseLook').checked, true);
+    assert.equal(fields.namedItem('mouseSensitivity').valueAsNumber, 4);
+
+    const blocked = {
+        get() { throw new Error('Storage unavailable'); },
+        set() { throw new Error('Storage unavailable'); }
+    };
+    const session = await loadGame(response, '', blocked);
+    assert.deepEqual(session.errors, []);
+    const form = session.elements.get('control-form');
+    assert.equal(form.elements.namedItem('keyboardLayout').value, 'standard');
+    session.elements.get('options-button').dispatchEvent(new Event('click'));
+    form.elements.namedItem('keyboardLayout').value = 'swapped';
+    form.dispatchEvent(new Event('input'));
+    assert.equal(session.elements.get('options-status').hidden, false);
+    assert.match(session.elements.get('instructions').textContent, /Arrow keys to move/);
 });
 
 test('the level query selects the playground and restart keeps that level', async () => {
@@ -483,24 +760,24 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     const { document, elements, frames, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
     const [{ camera, scene }] = renderers;
-    const { playerStart, platforms, door, destinationRoomId } = levels.find(level => level.id === 3);
+    const { playerStart, platforms, door, schedule: { roomId } } = levels.find(level => level.id === 3);
     const startingPosition = camera.position.clone();
     const startingDirection = camera.getWorldDirection(new Vector3());
     const dispatch = (type, properties) => document.dispatchEvent(Object.assign(new Event(type), properties));
     assert.equal(elements.get('screen-title').textContent, 'Corridor and Classroom');
     assert.equal(camera.position.z, playerStart.z);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 2);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 1);
     const initialPanel = scene.children.find(object => object.name === door.name);
     assert.equal(initialPanel.rotation.y, 0);
-    const sign = scene.children.find(object => object.name === `Room ${destinationRoomId}`);
-    assert.equal(sign.material.map.image.text, `Room ${destinationRoomId}`);
+    const sign = scene.children.find(object => object.name === `Room ${roomId}`);
+    assert.equal(sign.material.map.image.text, `Room ${roomId}`);
     let textureDisposed = false;
     sign.material.map.addEventListener('dispose', () => { textureDisposed = true; });
 
     elements.get('start-button').dispatchEvent(new Event('click'));
     const objective = elements.get('objective');
     assert.equal(objective.hidden, false);
-    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
+    assert.equal(objective.textContent, `Find Room ${roomId}`);
     dispatch('keydown', { code: 'KeyE' });
     assert.equal(initialPanel.rotation.y, 0);
     dispatch('keydown', { code: 'KeyW' });
@@ -511,25 +788,51 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     assert.equal(objective.hidden, false);
     assert.equal(objective.textContent, 'Press E to open the door');
     dispatch('keydown', { code: 'KeyE' });
-    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
+    assert.equal(objective.textContent, `Find Room ${roomId}`);
     assert.equal(initialPanel.rotation.y, -Math.PI / 2);
-    for (let frame = 0; frame < 5; frame++) {
-        frames.shift()();
-    }
-    assert.ok(camera.position.z > 2);
     dispatch('mousemove', { movementX: 400, movementY: 200 });
     assert.notDeepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
     dispatch('keydown', { code: 'KeyR' });
     frames.shift()();
     assert.deepEqual(camera.position, startingPosition);
     assert.deepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 2);
+    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 1);
     const resetPanel = scene.children.find(object => object.name === door.name);
     assert.notEqual(resetPanel, initialPanel);
     assert.equal(scene.children.includes(initialPanel), false);
     assert.equal(resetPanel.rotation.y, 0);
     assert.equal(textureDisposed, true);
-    assert.equal(scene.children.filter(object => object.name === `Room ${destinationRoomId}`).length, 1);
+    assert.equal(scene.children.filter(object => object.name === `Room ${roomId}`).length, 1);
+});
+
+test('a configured schedule supplies the displayed class, room, start time, and objective', async () => {
+    const schedule = { className: 'Art & Design', roomId: 'A1', startTime: '13:45' };
+    const definitions = levels.map(level => level.id !== 3 ? level : {
+        ...level,
+        schedule,
+        door: { ...level.door, roomId: schedule.roomId },
+        classroom: { ...level.classroom, id: schedule.roomId }
+    });
+    const { document, elements, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
+    const panel = elements.get('schedule-panel');
+    const startButton = elements.get('start-button');
+    const time = elements.get('schedule-start-time');
+    assert.equal(panel.hidden, true);
+    startButton.dispatchEvent(new Event('click'));
+    assert.equal(panel.hidden, false);
+    assert.equal(elements.get('schedule-class-name').textContent, schedule.className);
+    assert.equal(elements.get('schedule-room').textContent, 'Room A1');
+    assert.equal(time.textContent, schedule.startTime);
+    assert.equal(time.dateTime, schedule.startTime);
+    assert.equal(elements.get('objective').textContent, 'Find Room A1');
+    const sign = renderers[0].scene.children.find(object => object.name === 'Room A1');
+    assert.equal(sign.material.map.image.text, 'Room A1');
+    document.exitPointerLock();
+    assert.equal(panel.hidden, true);
+    startButton.dispatchEvent(new Event('click'));
+    assert.equal(panel.hidden, false);
+    assert.equal(time.textContent, schedule.startTime);
 });
 
 test('classroom views switch before start, during play, and while paused', async () => {
@@ -584,13 +887,14 @@ test('classroom views switch before start, during play, and while paused', async
     assert.equal(scene.children.find(object => object.name === 'Classroom door').rotation.y, 0);
 });
 
-test('E completes the connected scene only inside the marker and R resets the run', async () => {
+test('walking fully into the scheduled room completes the level and R resets the run', async () => {
     const { document, elements, frames, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
     const [{ camera, scene }] = renderers;
-    const { destinationRoomId, door, playerStart } = levels.find(level => level.id === 3);
+    const { schedule: { roomId }, door, playerStart } = levels.find(level => level.id === 3);
     const startButton = elements.get('start-button');
     const objective = elements.get('objective');
+    const schedule = elements.get('schedule-panel');
     const input = (type, code) => document.dispatchEvent(Object.assign(new Event(type), { code }));
     const advanceFrames = count => {
         for (let frame = 0; frame < count; frame++) {
@@ -600,17 +904,21 @@ test('E completes the connected scene only inside the marker and R resets the ru
     startButton.dispatchEvent(new Event('click'));
     input('keydown', 'KeyW');
     advanceFrames(12);
+    assert.ok(camera.position.z < door.z);
+    assert.equal(elements.get('start-screen').hidden, true);
     input('keydown', 'KeyE');
-    advanceFrames(4);
+    advanceFrames(1);
+    assert.ok(camera.position.z > door.z && camera.position.z < 0.425);
     input('keydown', 'KeyE');
     assert.equal(elements.get('start-screen').hidden, true);
-    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
+    assert.equal(objective.textContent, `Find Room ${roomId}`);
+    assert.equal(schedule.hidden, false);
 
-    advanceFrames(5);
+    advanceFrames(1);
     input('keyup', 'KeyW');
-    assert.equal(objective.textContent, `Press E to confirm arrival at Room ${destinationRoomId}`);
-    input('keydown', 'KeyE');
-    assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${destinationRoomId}.`);
+    assert.ok(camera.position.z >= 0.425);
+    assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${roomId}.`);
+    assert.equal(schedule.hidden, true);
     assert.equal(startButton.textContent, 'Play Again');
     assert.equal(document.pointerLockElement, null);
 
@@ -619,7 +927,39 @@ test('E completes the connected scene only inside the marker and R resets the ru
     assert.equal(scene.children.find(object => object.name === door.name).rotation.y, 0);
     startButton.dispatchEvent(new Event('click'));
     assert.equal(elements.get('start-screen').hidden, true);
-    assert.equal(objective.textContent, `Find Room ${destinationRoomId}`);
+    assert.equal(objective.textContent, `Find Room ${roomId}`);
+    assert.equal(schedule.hidden, false);
+});
+
+test('changing the schedule decides whether entering a data-defined room completes the level', async () => {
+    const roomId = 'A1';
+    for (const scheduledRoomId of ['101', roomId]) {
+        const definitions = levels.map(level => level.id !== 3 ? level : {
+            ...level,
+            classroom: { ...level.classroom, id: roomId },
+            door: { ...level.door, roomId },
+            schedule: { ...level.schedule, roomId: scheduledRoomId }
+        });
+        const { document, elements, frames, renderers } =
+            await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
+        const input = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
+        elements.get('start-button').dispatchEvent(new Event('click'));
+        input('KeyW');
+        for (let frame = 0; frame < 12; frame++) {
+            frames.shift()();
+        }
+        input('KeyE');
+        for (let frame = 0; frame < 5; frame++) {
+            frames.shift()();
+        }
+        assert.ok(renderers[0].camera.position.z > 0.425);
+        assert.equal(elements.get('start-screen').hidden, scheduledRoomId !== roomId);
+        if (scheduledRoomId === roomId) {
+            assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${roomId}.`);
+        } else {
+            assert.equal(elements.get('objective').textContent, `Find Room ${scheduledRoomId}`);
+        }
+    }
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {

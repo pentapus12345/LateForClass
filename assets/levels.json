@@ -41,15 +41,16 @@
       "id": 3,
       "name": "Corridor and Classroom",
       "solidRendering": true,
-      "instructions": "Open the classroom door with E. At the green marker inside, press E to confirm arrival.",
+      "instructions": "Open the classroom door with E, then walk inside.",
       "playerStart": { "x": 0, "y": 0, "z": -6 },
       "playerLookAt": { "x": 0, "y": 1.6, "z": 2 },
-      "door": { "name": "Classroom door", "x": 0, "y": 0, "z": 0, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5 },
-      "destinationRoomId": "101",
+      "door": { "name": "Classroom door", "roomId": "101", "x": 0, "y": 0, "z": 0, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5 },
+      "clock": { "startTime": "08:00", "timeScale": 60 },
+      "schedule": { "className": "Mathematics", "roomId": "101", "startTime": "09:00" },
       "classroom": {
         "id": "101",
         "sign": { "x": 1.38, "y": 1.65, "z": -0.14 },
-        "zone": { "x": 0, "y": 0, "z": 5.25, "width": 2.4, "depth": 2, "color": "#82d8ac" }
+        "bounds": { "x": 0, "y": 0, "z": 4.0625, "width": 10, "height": 3.4, "depth": 7.875 }
       },
       "platforms": [
         { "name": "Corridor floor", "x": 0, "y": -0.25, "z": -5, "width": 4, "height": 0.25, "depth": 10, "color": "#7fbcdf", "surfaceColor": "#6e8999" },

@@ -1,19 +1,20 @@
-const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
-const MOUSE_SENSITIVITY = 0.002;
+const MOVEMENT_ACTIONS = ['moveForward', 'moveBack', 'moveLeft', 'moveRight'];
+const BASE_MOUSE_SENSITIVITY = 0.002;
 const MAX_PITCH = Math.PI / 2 - 0.01;
 const FULL_TURN = 2 * Math.PI;
 const MAX_PHYSICS_STEP = 1 / 120;
 
 class Player {
-    constructor(config) {
+    constructor(config, controlSettings = DEFAULT_CONTROL_SETTINGS) {
         this.config = config;
+        this.controlSettings = controlSettings;
         this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
         this.yaw = 0;
         this.pitch = 0;
         this.updateCameraRotation();
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3();
-        this.pressedKeys = new Set();
+        this.pressedActions = new Set();
         this.isGrounded = false;
     }
 
@@ -61,29 +62,54 @@ class Player {
     }
 
     clearInput() {
-        this.pressedKeys.clear();
+        this.pressedActions.clear();
         this.velocity.x = 0;
         this.velocity.z = 0;
     }
 
-    onKeyDown(event) {
-        if (MOVEMENT_KEYS.has(event.code)) {
-            this.pressedKeys.add(event.code);
-        } else if (event.code === 'Space' && !event.repeat && this.isGrounded) {
+    pressAction(action) {
+        if (action !== 'jump') {
+            this.pressedActions.add(action);
+        } else if (this.isGrounded) {
             const { gravity, jumpHeight } = this.config;
             this.velocity.y = Math.sqrt(2 * gravity * jumpHeight);
             this.isGrounded = false;
         }
     }
 
-    onKeyUp(event) {
-        this.pressedKeys.delete(event.code);
+    releaseAction(action) {
+        this.pressedActions.delete(action);
     }
 
     onMouseMove(event) {
-        this.yaw -= event.movementX * MOUSE_SENSITIVITY;
-        this.pitch -= event.movementY * MOUSE_SENSITIVITY;
+        const { mouseLook, mouseSensitivity, invertMouseY } = this.controlSettings;
+        if (mouseLook) {
+            const sensitivity = BASE_MOUSE_SENSITIVITY * mouseSensitivity;
+            this.turnCamera(-event.movementX * sensitivity, event.movementY * sensitivity * (invertMouseY ? 1 : -1));
+        }
+    }
+
+    turnCamera(yaw, pitch) {
+        this.yaw += yaw;
+        this.pitch += pitch;
         this.updateCameraRotation();
+    }
+
+    inputAxis(positive, negative) {
+        return Number(this.pressedActions.has(positive)) - Number(this.pressedActions.has(negative));
+    }
+
+    updateKeyboardLook(deltaTime) {
+        if (!this.controlSettings.keyboardLook) {
+            return 0;
+        }
+        const angle = this.controlSettings.keyboardLookSpeed * Math.PI / 180 * deltaTime;
+        const yaw = this.inputAxis('lookLeft', 'lookRight') * angle;
+        const pitch = this.inputAxis('lookUp', 'lookDown') * angle;
+        if (yaw || pitch) {
+            this.turnCamera(yaw, pitch);
+        }
+        return yaw;
     }
 
     update(deltaTime, level) {
@@ -91,14 +117,19 @@ class Player {
             return;
         }
 
-        const strafe = Number(this.pressedKeys.has('KeyD')) - Number(this.pressedKeys.has('KeyA'));
-        const forward = Number(this.pressedKeys.has('KeyW')) - Number(this.pressedKeys.has('KeyS'));
+        const yawChange = this.updateKeyboardLook(deltaTime);
+        const strafe = this.inputAxis('moveRight', 'moveLeft');
+        const forward = this.inputAxis('moveForward', 'moveBack');
         const inputLength = Math.hypot(strafe, forward);
-        const hasMovementInput = this.pressedKeys.size > 0;
+        const hasMovementInput = MOVEMENT_ACTIONS.some(action => this.pressedActions.has(action));
         if (inputLength > 0) {
             const speed = this.config.moveSpeed / inputLength;
-            this.velocity.x = (strafe * Math.cos(this.yaw) - forward * Math.sin(this.yaw)) * speed;
-            this.velocity.z = (-strafe * Math.sin(this.yaw) - forward * Math.cos(this.yaw)) * speed;
+            // Walk along the middle heading of a continuous keyboard turn.
+            const heading = this.yaw - yawChange / 2;
+            const sin = Math.sin(heading);
+            const cos = Math.cos(heading);
+            this.velocity.x = (strafe * cos - forward * sin) * speed;
+            this.velocity.z = (-strafe * sin - forward * cos) * speed;
         } else if (hasMovementInput) {
             this.velocity.x = 0;
             this.velocity.z = 0;

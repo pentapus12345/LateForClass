@@ -1,59 +1,73 @@
 # LateForClass product vision
 
-LateForClass is a first-person 3D school navigation game. The player must find the correct classroom before class begins. The main challenge is learning the building, using room-numbering patterns to choose a route, and managing the time available.
+LateForClass is a first-person 3D school-navigation game. The player must find the correct classroom before class begins. The challenge is learning the building, discovering room-numbering patterns, choosing a route, and managing limited time.
 
 ## Core gameplay requirements
 
-1. The player receives a class schedule showing the next class, its classroom identifier, and its scheduled start time.
-2. The player navigates the school to find that classroom.
-3. Classrooms have recognizable identifiers, such as numbers or letters.
-4. The building layout and classroom identifiers follow patterns the player can discover and use to navigate.
-5. The player identifies and reaches the scheduled classroom before the class start time.
-6. The game checks whether the classroom is correct and evaluates whether the arrival was on time.
+1. Each level gives the player a scheduled class, a classroom identifier, and a class start time.
+2. The player navigates interconnected school spaces and uses classroom labels and building patterns to find the destination.
+3. The player opens doors as necessary and **physically enters the correct classroom**. Merely approaching its door or pressing an arrival button does not count.
+4. Entering the correct classroom before class starts automatically wins the level. Entering another room does not.
+5. If the class start time is reached before a valid arrival, the player immediately loses the level.
+6. After a win or loss, the player can restart the level from its initial state.
 
-Walking, mouse look, jumping, gravity, and collisions support this loop. The game challenges the player through spatial navigation, understanding the building, discovering room patterns, and managing time.
+Walking, camera control, jumping, gravity, and collisions support this gameplay loop; they are not the primary challenge.
 
-## World and navigation requirements
+## Time and scheduling
 
-- The navigable school or campus includes interconnected corridors, classrooms, doors, staircases, and multiple floors.
-- Players can walk, look around, jump, navigate obstacles, and move between connected spaces.
-- Classroom identifiers are visible in the environment. Their relationship to the layout gives players a pattern they can learn and apply.
-- Objectives and navigation challenges support finding and reaching the scheduled classroom.
-- The game world should eventually feel like a recognizable, visually coherent school rather than an exposed wireframe model. The environment must remain readable from the player's first-person perspective, including with opaque walls.
+- Each level defines the **starting school time**, **class name**, **class start time**, **destination classroom identifier**, and **time multiplier** in structured level JSON.
+- Time is simulated, not taken from the computer's clock. The default multiplier is **60×**: one second of active real time advances school time by one minute; one real minute advances it by one school hour.
+- A readable in-game clock shows the current school time. The existing schedule display shows the next class, room, and start time. Both use the same authoritative data and simulated clock.
+- The clock advances only during active gameplay; pausing or suspending gameplay freezes simulated time. The deadline must not be bypassed or extended unintentionally by focus or pointer-lock changes.
+- Arrival **strictly before** the class start time counts as on time. At the deadline or later is late. The result is final until restart.
+- Restart restores the configured time, player spawn, doors, objective, and other level state. Time progression and deadline checks must be independent of frame rate.
+
+## World and navigation
+
+- The school or campus contains connected corridors, classrooms, interactive doors, stairs, and multiple floors.
+- Classroom identifiers are visible and follow discoverable patterns related to the layout. Players learn and use these patterns to navigate.
+- Room boundaries and arrival regions are defined in level data and evaluated in three dimensions: proximity outside the door, or being above or below a classroom, must not count as entry.
+- The school must be navigable and understandable from a first-person viewpoint, including when walls are opaque.
+
+## Player controls
+
+- Support first-person keyboard movement and mouse look with reliable yaw, pitch clamping, and zero camera roll.
+- Support both WASD-for-movement/arrow-keys-for-looking and the swapped keyboard layout; keyboard looking and mouse looking may be enabled independently.
+- Allow mouse sensitivity, vertical inversion, and keyboard look speed to be configured in an Options screen, with locally persisted settings and a restore-defaults action.
+- Space is the default jump input, with optional left-click jumping; E is the default interaction input for doors. Mouse motion controls looking, not walking.
 
 ## Visual presentation and development diagnostics
 
-- The finished game should be visually appealing and coherent, with solid geometry, materials, lighting, and legible environmental details. The final artistic style is not yet selected.
-- Support a **game view** for normal play and a **debug view** or overlay for development. Game view presents solid surfaces and navigational cues; debug view makes wireframes and useful collision information visible.
-- Both views must derive from the same level definitions. Changing visualization must not change physics, collision shapes, room identity, or gameplay outcomes.
-- Maintain readable room signage, doors, stairways, and route cues. Favor clarity, performance, and reliable navigation over decorative complexity.
-- Keep dedicated development scenes and wireframe diagnostic capabilities available even after normal gameplay uses solid rendering.
-- Establish a simple visual-rendering foundation early, but defer selection of the game's artistic identity and detailed environment dressing until the core gameplay loop can be evaluated.
+- The finished game should be a visually coherent, appealing 3D school, not merely a wireframe model. The final artistic style is not yet selected.
+- A **game view** provides solid surfaces, lighting, materials, readable classroom labels, and visible routes. A **debug view** or overlay exposes wireframes and useful collision diagnostics.
+- Both views derive from the same level geometry and must not change movement, collision, room identity, timing, or outcomes.
+- Prioritize spatial readability, signage, and performance over decoration. Retain the hallway and Physics Playground as development and diagnostic environments.
+- Establish solid rendering early; make the final artistic-direction decision after the complete gameplay loop is playable.
 
 ## Technical and architectural requirements
 
-- Author levels in structured data so geometry and layout can change independently of game code. Define rooms, routes, collision geometry, spawn points, and interaction placements in level data.
-- Keep room identity and schedule data explicit so the game can check a destination and deadline reliably.
-- Keep render geometry aligned with collision and preserve the tested first-person camera and movement behavior as levels grow.
-- Derive solid and debug presentations from shared level data rather than maintaining independent models of the environment.
-- Verify rooms, doors, stairs, and objectives in small scenes before combining them into a full school route. Keep development scenes for movement, physics, and interaction testing.
-- The current wireframe hallway is a development environment, not the intended final appearance.
+- Define levels using structured data, separating room layout, walls, doors, stairs, player spawn, collision/arrival volumes, schedule, and timing from the game code.
+- Use the scheduled room identifier to determine the valid arrival area; avoid hardcoded room coordinates or identifiers in the game controller.
+- Keep visual and collision geometry aligned and ensure both game and debug presentations use the same definitions.
+- Maintain clear responsibilities for Game (lifecycle, clock, outcomes), Player (input, motion, physics), Level (level definitions, room and collision queries), and Wall (wall geometry and associated bounds).
+- Preserve regression coverage for camera orientation, movement, doors, stairs, room entry, time boundaries, win/loss states, pause, and restart. Verify small test scenes before expanding to larger buildings.
+- Follow [AGENTS.md](AGENTS.md) for development conventions and milestone approval.
 
 ## Ideas requiring future approval
 
-- Displaying a countdown alongside the in-game clock or using narrative cues to convey urgency.
-- Adding directional signs, maps, route hints, or discoverable shortcuts.
-- Adding scoring, retries beyond the prototype restart, or progression across multiple classes.
-- Choosing a particular artistic style, color palette, material set, lighting treatment, environmental detail level, or sound direction.
+- An explicit countdown, warning sounds, or narrative cues to increase urgency.
+- Directional signs, maps, navigation hints, optional shortcuts, or assistance systems.
+- Scoring, difficulty modes, multi-class schedules, progression, and broader restart systems.
+- A specific art style, color palette, materials, furniture, sound direction, or environmental storytelling.
 
 ## Open design decisions
 
-- How large is the school or campus, and which room-numbering pattern will it use?
-- How should the schedule and time be presented, and how should the clock advance during play or pauses?
-- What happens after a late arrival, and should the player be able to continue after the deadline?
-- How many classes or challenges are included, and how does difficulty progress?
-- How much route choice and navigation assistance should the player have?
-- Who is the player, which doors are interactive, and how should those doors behave?
-- What visual style, tone, and sound direction fit the game? How much detail best supports navigation without obscuring routes?
+- How large should the school become, and what classroom-numbering system will it use?
+- How should the time display and schedule be visually integrated, and should there also be a countdown?
+- How should level difficulty increase, including the initial time allowance and complexity of routes?
+- What should win and loss screens say or show, and what happens narratively when the player is late?
+- How much route choice and navigational assistance should be available?
+- Who is the player, which doors are interactive, and how should those doors behave in later levels?
+- What visual and audio identity suits the game?
 
-The product owner decides these questions and approves changes to this vision. Development milestones and approval status are tracked in [ROADMAP.md](ROADMAP.md).
+The product owner controls this vision and approves changes to it. Progress and proposals are tracked in [ROADMAP.md](ROADMAP.md).

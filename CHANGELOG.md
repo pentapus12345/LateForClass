@@ -8,6 +8,28 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-23 — Add the accelerated school clock and deadline
+
+- Corridor and Classroom starts at 08:00 and advances one school minute per active second. The schedule shows the current time and the class start time. Pause, loss of focus, and loss of pointer lock freeze the clock.
+- Entering the scheduled classroom before class starts wins. At the deadline, **You’re Late!** ends the run and **Retry** restores the clock, spawn, and door. The starting time and speed are set in the level data.
+- All 72 Node tests and 52 Chrome regression tests passed. Chrome verified automatic arrival, 08:10 after ten active seconds, pausing in Options, a full 60-second timeout, and retry. Deterministic tests covered the exact deadline and focus and visibility transitions.
+
+### 2026-11-23 — Register classroom arrival at the doorway
+
+- Corridor and Classroom now completes when the player fully enters the scheduled room. E opens the door. The classroom volume and door association come from level data, and the green destination marker has been removed.
+- All 66 Node tests and 50 Chrome regression tests passed. A Chrome playthrough checked the closed door, partial threshold clearance, other floor heights, automatic Room 101 arrival, and restart. An alternate schedule verified that entering the wrong room leaves the objective active and the stairs traversable.
+
+### 2026-11-22 — Add configurable controls and an Options screen
+
+- Added Standard and Swapped keyboard layouts, independent keyboard and mouse look, adjustable keyboard camera speed and mouse sensitivity, inverted vertical mouse look, and optional left-click jumping. The Options screen is available before play and while paused. Changes save in the browser, and Restore Defaults resets all controls.
+- Physical inputs map to gameplay actions before reaching Player. Keyboard and mouse look share the existing yaw and pitch model, with zero roll. Keyboard look starts at 120°/s and the existing mouse sensitivity is 1×.
+- All 65 Node tests and 50 Chrome regression tests passed. A Chrome playthrough verified the Options screen, reload and restore, movement and camera controls in both layouts, Space and click jumping, the Room 101 route, and pause and restart.
+
+### 2026-11-22 — Add the player schedule panel
+
+- Added a **Next class** panel to Corridor and Classroom. The level data supplies the prototype entry, Mathematics in Room 101 at 09:00. The scheduled room drives the objective and arrival check. The start time is informational.
+- All 58 Node tests and 46 Chrome regression tests passed. Tests verified updated configuration values, room matching, and panel visibility. A Chrome playthrough verified that the panel fits alongside the objective and view hint at desktop and 360-pixel widths, and that it works with movement, the door, arrival, pause, resume, and restart.
+
 ### 2026-11-22 — Fix the view toggle before start and while paused
 
 - V previously required pointer lock. It now switches views in Corridor and Classroom before starting, during play, and while paused. The start and pause screens also have a button that switches views and redraws immediately.

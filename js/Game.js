@@ -8,9 +8,10 @@ class Game {
         this.config = config;
         this.clock = new THREE.Clock();
         this.started = false;
-        this.completed = false;
+        this.result = null;
         this.arrivedRoomId = null;
         this.pointerLockFailed = false;
+        this.optionsOpen = false;
     }
 
     async init() {
@@ -19,8 +20,14 @@ class Game {
         this.screenMessage = document.getElementById('screen-message');
         this.startButton = document.getElementById('start-button');
         this.objective = document.getElementById('objective');
+        this.schedulePanel = document.getElementById('schedule-panel');
+        this.schoolTime = document.getElementById('school-time');
         this.viewStatus = document.getElementById('view-status');
         this.viewToggle = document.getElementById('view-toggle');
+        this.optionsButton = document.getElementById('options-button');
+        this.optionsScreen = document.getElementById('options-screen');
+        this.controlForm = document.getElementById('control-form');
+        this.controlSettings = loadControlSettings();
         const container = document.getElementById('game-container');
 
         const response = await fetch(LEVELS_URL);
@@ -35,6 +42,10 @@ class Game {
         if (!levelDefinition) {
             throw new Error(`Level ${STARTING_LEVEL_ID} is missing`);
         }
+        this.schoolClock = levelDefinition.clock
+            ? new SchoolClock(levelDefinition.clock, levelDefinition.schedule?.startTime)
+            : null;
+        document.getElementById('school-clock').hidden = !this.schoolClock;
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(this.config.backgroundColor);
@@ -48,38 +59,48 @@ class Game {
         this.scene.add(directionalLight);
 
         this.level = new Level(levelDefinition, this.config);
-        if (levelDefinition.id !== STARTING_LEVEL_ID) {
-            const interaction = levelDefinition.door || levelDefinition.classroom ? ' · E to interact' : '';
-            const viewControl = levelDefinition.solidRendering ? ' · V to switch views' : '';
-            document.getElementById('instructions').textContent =
-                `WASD to move · Mouse to look · Space to jump${interaction}${viewControl} · Escape to pause · R to restart`;
-        }
-        this.player = new Player(this.config);
+        this.populateSchedule(levelDefinition.schedule);
+        this.syncControlForm();
+        this.updateInstructions();
+        this.player = new Player(this.config, this.controlSettings);
         this.resizeRenderer();
         this.restart();
         container.appendChild(this.renderer.domElement);
 
         this.startButton.addEventListener('click', () => this.start());
         this.viewToggle.addEventListener('click', () => this.toggleView());
+        this.optionsButton.addEventListener('click', () => this.setOptionsOpen(true));
+        document.getElementById('options-back').addEventListener('click', () => this.setOptionsOpen(false));
+        document.getElementById('restore-controls').addEventListener('click', () => {
+            this.applyControlSettings({ ...DEFAULT_CONTROL_SETTINGS });
+        });
+        this.controlForm.addEventListener('input', () => this.applyControlSettings(this.readControlForm()));
         document.addEventListener('keydown', event => this.onKeyDown(event));
-        document.addEventListener('keyup', event => this.player.onKeyUp(event));
+        document.addEventListener('keyup', event => {
+            this.player.releaseAction(getKeyboardAction(event.code, this.controlSettings.keyboardLayout));
+        });
         document.addEventListener('mousemove', event => {
             if (this.isPlaying() && document.hasFocus()) {
                 this.player.onMouseMove(event);
             }
         });
-        document.addEventListener('pointerlockchange', () => {
-            this.player.clearInput();
-            this.updateInterface();
+        this.renderer.domElement.addEventListener('mousedown', event => {
+            if (event.button === 0 && this.controlSettings.clickToJump && this.isPlaying() && document.hasFocus()) {
+                this.player.pressAction('jump');
+            }
         });
+        document.addEventListener('pointerlockchange', () => this.syncPlayState());
+        document.addEventListener('visibilitychange', () => this.syncPlayState());
         document.addEventListener('pointerlockerror', () => this.onPointerLockError());
-        window.addEventListener('blur', () => this.player.clearInput());
+        window.addEventListener('blur', () => this.syncPlayState());
+        window.addEventListener('focus', () => this.syncPlayState());
         window.addEventListener('resize', () => {
             this.resizeRenderer();
             this.render();
         });
 
         this.startButton.disabled = false;
+        this.optionsButton.disabled = false;
         this.animate();
     }
 
@@ -99,8 +120,26 @@ class Game {
         }
     }
 
+    get completed() {
+        return this.result !== null;
+    }
+
     isPlaying() {
-        return this.started && !this.completed && document.pointerLockElement === this.renderer.domElement;
+        return this.started && !this.completed && !this.optionsOpen && !document.hidden && document.hasFocus() &&
+            document.pointerLockElement === this.renderer.domElement;
+    }
+
+    syncPlayState() {
+        const now = performance.now();
+        const isPlaying = this.isPlaying();
+        const wasRunning = this.schoolClock?.isRunning;
+        this.schoolClock?.setRunning(isPlaying, now);
+        this.player.clearInput();
+        this.clock.getDelta();
+        if ((wasRunning || isPlaying) && this.checkDeadline(now)) {
+            return;
+        }
+        this.updateInterface(now);
     }
 
     onPointerLockError() {
@@ -111,58 +150,90 @@ class Game {
     restart() {
         this.level.build(this.scene);
         this.player.resetPosition(this.level.playerStart, this.level.playerLookAt, this.level);
-        this.completed = false;
+        this.result = null;
         this.arrivedRoomId = null;
         this.pointerLockFailed = false;
-        this.updateInterface();
+        this.schoolClock?.reset();
+        this.syncPlayState();
         this.render();
     }
 
     onKeyDown(event) {
-        if (event.repeat || !document.hasFocus()) {
+        const action = getKeyboardAction(event.code, this.controlSettings.keyboardLayout);
+        if (!action || !document.hasFocus()) {
+            return;
+        }
+        const isPlaying = this.isPlaying();
+        if (isPlaying) {
+            event.preventDefault();
+        }
+        if (event.repeat) {
+            return;
+        }
+        if (this.optionsOpen) {
+            if (action === 'pause') {
+                this.setOptionsOpen(false);
+            }
             return;
         }
 
-        if (event.code === 'KeyR' && this.started) {
-            this.restart();
+        if (action === 'restart') {
+            if (this.started) {
+                this.restart();
+            }
             return;
         }
-        if (event.code === 'KeyV') {
+        if (action === 'toggleView') {
             this.toggleView();
             return;
         }
-        if (!this.isPlaying()) {
+        if (!isPlaying) {
             return;
         }
 
-        if (event.code === 'Escape') {
+        if (action === 'pause') {
             document.exitPointerLock();
             return;
         }
-        if (event.code === 'KeyE') {
+        if (action === 'interact') {
             if (this.level.openDoor(this.player.position)) {
                 this.updateObjective();
                 return;
             }
-            if (this.level.canEnterClassroom(this.player.position)) {
-                this.completed = true;
-                this.arrivedRoomId = this.level.definition.destinationRoomId ?? null;
-                this.player.clearInput();
-                this.updateInterface();
-                document.exitPointerLock();
+            if (this.level.canConfirmArrival(this.player.position)) {
+                this.finishRun('arrived');
             }
             return;
         }
 
-        if (event.code === 'Space') {
-            event.preventDefault();
-        }
-        this.player.onKeyDown(event);
+        this.player.pressAction(action);
     }
 
-    updateInterface() {
+    checkDeadline(now) {
+        if (this.schoolClock?.hasReachedDeadline(now)) {
+            this.finishRun('late', null, now);
+            return true;
+        }
+        return false;
+    }
+
+    finishRun(result, roomId = null, now = performance.now()) {
+        this.result = result;
+        this.arrivedRoomId = roomId;
+        this.schoolClock?.setRunning(false, now);
+        this.player.clearInput();
+        this.updateInterface(now);
+        if (document.pointerLockElement === this.renderer.domElement) {
+            document.exitPointerLock();
+        }
+    }
+
+    updateInterface(now = performance.now()) {
         const isPlaying = this.isPlaying();
-        this.startScreen.hidden = isPlaying;
+        this.startScreen.hidden = isPlaying || this.optionsOpen;
+        this.optionsScreen.hidden = !this.optionsOpen;
+        this.schedulePanel.hidden = !isPlaying || !this.level.definition.schedule;
+        this.updateSchoolTime(now);
         this.updateViewStatus();
 
         if (isPlaying) {
@@ -171,7 +242,12 @@ class Game {
         }
         this.objective.hidden = true;
 
-        if (this.completed) {
+        if (this.result === 'late') {
+            const { schedule } = this.level.definition;
+            this.screenTitle.textContent = 'You’re Late!';
+            this.screenMessage.textContent = `${schedule.className} started at ${schedule.startTime} in Room ${schedule.roomId}.`;
+            this.startButton.textContent = 'Retry';
+        } else if (this.completed) {
             this.screenTitle.textContent = 'You made it to class!';
             this.screenMessage.textContent = this.arrivedRoomId
                 ? `You arrived at Room ${this.arrivedRoomId}.`
@@ -180,14 +256,100 @@ class Game {
         } else if (this.started) {
             this.screenTitle.textContent = 'Paused';
             this.screenMessage.textContent = this.pointerLockFailed
-                ? 'Mouse look could not start. Click Resume to try again.'
-                : 'Click Resume to regain mouse control.';
+                ? 'Could not capture the cursor. Click Resume to try again.'
+                : 'Click Resume to continue.';
             this.startButton.textContent = 'Resume';
         } else {
             const { id, name, instructions } = this.level.definition;
             this.screenTitle.textContent = id === STARTING_LEVEL_ID ? 'Late For Class' : name;
             this.screenMessage.textContent = instructions ?? `${HALLWAY_OBJECTIVE}.`;
             this.startButton.textContent = 'Start Game';
+        }
+    }
+
+    setOptionsOpen(open) {
+        this.optionsOpen = open;
+        this.syncPlayState();
+        if (open) {
+            this.controlForm.elements.namedItem('keyboardLayout').focus();
+        } else {
+            this.optionsButton.focus();
+        }
+    }
+
+    readControlForm() {
+        const settings = {};
+        for (const [name, fallback] of Object.entries(DEFAULT_CONTROL_SETTINGS)) {
+            const field = this.controlForm.elements.namedItem(name);
+            if (typeof fallback === 'boolean') {
+                settings[name] = field.checked;
+            } else {
+                settings[name] = typeof fallback === 'number' ? field.valueAsNumber : field.value;
+            }
+        }
+        return normalizeControlSettings(settings);
+    }
+
+    syncControlForm() {
+        for (const [name, value] of Object.entries(this.controlSettings)) {
+            const field = this.controlForm.elements.namedItem(name);
+            if (typeof value === 'boolean') {
+                field.checked = value;
+            } else {
+                field.value = String(value);
+            }
+        }
+        document.getElementById('keyboard-speed-value').textContent = `${this.controlSettings.keyboardLookSpeed}°/s`;
+        document.getElementById('mouse-sensitivity-value').textContent = `${this.controlSettings.mouseSensitivity}×`;
+    }
+
+    applyControlSettings(settings) {
+        this.controlSettings = settings;
+        this.player.controlSettings = settings;
+        this.player.clearInput();
+        this.syncControlForm();
+        this.updateInstructions();
+        document.getElementById('options-status').hidden = saveControlSettings(settings);
+    }
+
+    updateInstructions() {
+        const { keyboardLayout, keyboardLook, mouseLook, clickToJump } = this.controlSettings;
+        const { moveLabel, lookLabel } = KEYBOARD_LAYOUTS[keyboardLayout];
+        const instructions = [`${moveLabel} to move`];
+        const lookInputs = [mouseLook && 'Mouse', keyboardLook && lookLabel].filter(Boolean);
+        if (lookInputs.length) {
+            instructions.push(`${lookInputs.join(' or ')} to look`);
+        }
+        instructions.push(clickToJump ? 'Space or left click to jump' : 'Space to jump');
+        if (this.level.definition.door || this.level.definition.classroom) {
+            instructions.push('E to interact');
+        }
+        if (this.level.definition.solidRendering) {
+            instructions.push('V to switch views');
+        }
+        instructions.push('Escape to pause', 'R to restart');
+        document.getElementById('instructions').textContent = instructions.join(' · ');
+    }
+
+    populateSchedule(schedule) {
+        if (!schedule) {
+            return;
+        }
+
+        document.getElementById('schedule-class-name').textContent = schedule.className;
+        document.getElementById('schedule-room').textContent = `Room ${schedule.roomId}`;
+        const startTime = document.getElementById('schedule-start-time');
+        startTime.textContent = schedule.startTime;
+        startTime.dateTime = schedule.startTime;
+    }
+
+    updateSchoolTime(now) {
+        if (this.schoolClock) {
+            const time = this.schoolClock.formatTime(now);
+            if (this.schoolTime.textContent !== time) {
+                this.schoolTime.textContent = time;
+                this.schoolTime.dateTime = time;
+            }
         }
     }
 
@@ -211,20 +373,17 @@ class Game {
 
     updateObjective() {
         const { position } = this.player;
-        const { classroom, destinationRoomId } = this.level.definition;
+        const { classroom } = this.level.definition;
+        const { destinationRoomId } = this.level;
         let instruction = '';
         if (this.level.canOpenDoor(position)) {
             instruction = 'Press E to open the door';
+        } else if (destinationRoomId) {
+            instruction = `Find Room ${destinationRoomId}`;
         } else if (classroom) {
-            if (destinationRoomId) {
-                instruction = this.level.canEnterClassroom(position)
-                    ? `Press E to confirm arrival at Room ${destinationRoomId}`
-                    : `Find Room ${destinationRoomId}`;
-            } else {
-                instruction = this.level.canEnterClassroom(position)
-                    ? 'Press E to enter the classroom'
-                    : HALLWAY_OBJECTIVE;
-            }
+            instruction = this.level.canConfirmArrival(position)
+                ? 'Press E to enter the classroom'
+                : HALLWAY_OBJECTIVE;
         }
         this.objective.hidden = !instruction;
         if (this.objective.textContent !== instruction) {
@@ -246,9 +405,16 @@ class Game {
         requestAnimationFrame(() => this.animate());
         const deltaTime = Math.min(this.clock.getDelta(), MAX_FRAME_DELTA);
 
-        if (this.isPlaying()) {
+        const now = performance.now();
+        if (this.isPlaying() && !this.checkDeadline(now)) {
             this.player.update(deltaTime, this.level);
-            this.updateObjective();
+            const roomId = this.level.getEnteredRoomId(this.player.position);
+            if (roomId !== null && roomId === this.level.destinationRoomId) {
+                this.finishRun('arrived', roomId, now);
+            } else {
+                this.updateSchoolTime(now);
+                this.updateObjective();
+            }
             this.render();
         }
     }

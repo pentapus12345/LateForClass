@@ -29,13 +29,21 @@ function registerMovementTests(test, levels) {
         return camera.localToWorld(new THREE.Vector3(1, 0, 0)).sub(camera.position);
     }
 
-    function setup({ definition = levelData, platforms = definition.platforms, config = GAME_CONFIG } = {}) {
-        const player = new Player(config);
+    function setup({ definition = levelData, platforms = definition.platforms, config = GAME_CONFIG, controls } = {}) {
+        const player = new Player(config, controls);
         const level = new Level({ ...definition, platforms }, config);
         const scene = new THREE.Scene();
         level.build(scene);
         player.resetPosition(level.playerStart, level.playerLookAt, level);
         return { camera: player.camera, player, level, scene };
+    }
+
+    function pressKey(player, code) {
+        player.pressAction(getKeyboardAction(code, player.controlSettings.keyboardLayout));
+    }
+
+    function releaseKey(player, code) {
+        player.releaseAction(getKeyboardAction(code, player.controlSettings.keyboardLayout));
     }
 
     function advance(player, level, duration, framesPerSecond) {
@@ -56,13 +64,39 @@ function registerMovementTests(test, levels) {
         return setupState;
     }
 
+    test('school time scales active milliseconds and uses a strict deadline', () => {
+        const clock = new SchoolClock({ startTime: '08:00' }, '09:00');
+        clock.setRunning(true, 123);
+        equal(clock.formatTime(10123), '08:10');
+        equal(clock.hasReachedDeadline(60122.999), false);
+        equal(clock.hasReachedDeadline(60123), true);
+        equal(clock.formatTime(60123), '09:00');
+        equal(clock.formatTime(90123), '09:00');
+    });
+
+    test('school time is independent of sample frequency and excludes stopped intervals', () => {
+        const clock = new SchoolClock({ startTime: '08:00', timeScale: 30 }, '08:01');
+        for (const frameMs of [5, 16, 1000]) {
+            clock.reset();
+            clock.setRunning(true, 0);
+            for (let now = 0; now < 1000; now += frameMs) {
+                equal(clock.formatTime(now), '08:00');
+            }
+            clock.setRunning(false, 1000);
+            equal(clock.getElapsedMs(10000), 1000);
+            clock.setRunning(true, 20000);
+            equal(clock.hasReachedDeadline(20999), false);
+            equal(clock.hasReachedDeadline(21000), true);
+        }
+    });
+
     test('WASD moves in the expected directions relative to the starting view', () => {
         for (const [code, offsetX, offsetZ] of [
             ['KeyW', 0, 0.6], ['KeyS', 0, -0.6],
             ['KeyA', 0.6, 0], ['KeyD', -0.6, 0]
         ]) {
             const { player, level } = setup();
-            player.onKeyDown({ code });
+            pressKey(player, code);
             player.update(0.1, level);
             near(player.position.x, level.playerStart.x + offsetX);
             near(player.position.z, level.playerStart.z + offsetZ);
@@ -72,7 +106,7 @@ function registerMovementTests(test, levels) {
     test('one second of movement covers the same distance at 15, 30, 60, and 144 FPS', () => {
         for (const fps of [15, 30, 60, 144]) {
             const { player, level } = setup();
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'KeyW');
             for (let frame = 0; frame < fps; frame++) {
                 player.update(1 / fps, level);
             }
@@ -82,8 +116,8 @@ function registerMovementTests(test, levels) {
 
     test('diagonal movement is normalized and opposite inputs cancel', () => {
         const { player, level } = setup();
-        player.onKeyDown({ code: 'KeyW' });
-        player.onKeyDown({ code: 'KeyD' });
+        pressKey(player, 'KeyW');
+        pressKey(player, 'KeyD');
         player.update(0.1, level);
         const distance = Math.hypot(
             player.position.x - level.playerStart.x,
@@ -91,8 +125,8 @@ function registerMovementTests(test, levels) {
         );
         near(distance, 0.6);
 
-        player.onKeyDown({ code: 'KeyS' });
-        player.onKeyDown({ code: 'KeyA' });
+        pressKey(player, 'KeyS');
+        pressKey(player, 'KeyA');
         const stationary = player.position.clone();
         player.update(0.1, level);
         near(player.position.x, stationary.x);
@@ -102,16 +136,94 @@ function registerMovementTests(test, levels) {
     test('releasing a key slows the player consistently across frame rates', () => {
         for (const fps of [30, 60, 144]) {
             const { player, level } = setup();
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'KeyW');
             player.update(0.1, level);
             const releasePosition = player.position.z;
-            player.onKeyUp({ code: 'KeyW' });
+            releaseKey(player, 'KeyW');
             for (let frame = 0; frame < fps; frame++) {
                 player.update(1 / fps, level);
             }
             near(player.velocity.z, GAME_CONFIG.moveSpeed * Math.exp(-GAME_CONFIG.friction));
             const expectedCoast = GAME_CONFIG.moveSpeed * (1 - Math.exp(-GAME_CONFIG.friction)) / GAME_CONFIG.friction;
             near(player.position.z - releasePosition, expectedCoast);
+        }
+    });
+
+    test('both layouts map four movement directions and four independent look directions', () => {
+        const wasd = ['KeyW', 'KeyS', 'KeyA', 'KeyD'];
+        const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+        for (const [layout, moveKeys, lookKeys] of [['standard', wasd, arrows], ['swapped', arrows, wasd]]) {
+            const controls = { ...DEFAULT_CONTROL_SETTINGS, keyboardLayout: layout };
+            for (const [index, offset] of [[0, [0, 0.6]], [1, [0, -0.6]], [2, [0.6, 0]], [3, [-0.6, 0]]]) {
+                const { player, level } = setup({ controls });
+                const { yaw, pitch } = player;
+                pressKey(player, moveKeys[index]);
+                player.update(0.1, level);
+                near(player.position.x, level.playerStart.x + offset[0]);
+                near(player.position.z, level.playerStart.z + offset[1]);
+                near(player.yaw, yaw);
+                near(player.pitch, pitch);
+            }
+            const angle = Math.PI / 15;
+            for (const [index, yawDelta, pitchDelta] of [[0, 0, angle], [1, 0, -angle], [2, angle, 0], [3, -angle, 0]]) {
+                const { player, camera, level } = setup({ controls });
+                const { yaw, pitch } = player;
+                pressKey(player, lookKeys[index]);
+                player.update(0.1, level);
+                near(player.yaw, yaw + yawDelta);
+                near(player.pitch, pitch + pitchDelta);
+                nearVector(player.position, level.playerStart);
+                near(cameraRight(camera).y, 0);
+            }
+        }
+    });
+
+    test('keyboard look uses the configured speed at different frame rates and clamps pitch', () => {
+        for (const fps of [15, 30, 144]) {
+            const controls = { ...DEFAULT_CONTROL_SETTINGS, keyboardLookSpeed: 90, mouseLook: false };
+            const { camera, player, level } = setup({ controls });
+            player.resetPosition(level.playerStart, null, level);
+            player.onMouseMove({ movementX: 500, movementY: 200 });
+            pressKey(player, 'ArrowRight');
+            advance(player, level, 1, fps);
+            nearVector(cameraDirection(camera), { x: 1, y: 0, z: 0 });
+            pressKey(player, 'ArrowUp');
+            advance(player, level, 1.5, fps);
+            near(cameraDirection(camera).y, Math.cos(0.01));
+            near(cameraRight(camera).y, 0);
+            nearVector(player.position, level.playerStart);
+        }
+    });
+
+    test('holding movement and keyboard turn follows the same arc across frame rates', () => {
+        const samples = [15, 60, 144].map(fps => {
+            const { player, level } = setup();
+            pressKey(player, 'KeyW');
+            pressKey(player, 'ArrowRight');
+            advance(player, level, 0.75, fps);
+            return player.position;
+        });
+        for (const sample of samples.slice(1)) {
+            near(sample.x, samples[0].x, 0.005);
+            near(sample.z, samples[0].z, 0.005);
+        }
+    });
+
+    test('mouse sensitivity and inversion apply independently of keyboard look and movement', () => {
+        for (const keyboardLook of [false, true]) {
+            const controls = { ...DEFAULT_CONTROL_SETTINGS, keyboardLook, mouseSensitivity: 2, invertMouseY: true };
+            const { camera, player, level } = setup({ controls });
+            player.resetPosition(level.playerStart, null, level);
+            pressKey(player, 'ArrowLeft');
+            player.onMouseMove({ movementX: 100, movementY: 75 });
+            player.update(0.1, level);
+            near(player.yaw, -0.4 + (keyboardLook ? Math.PI / 15 : 0));
+            near(cameraDirection(camera).y, Math.sin(0.3));
+            near(cameraRight(camera).y, 0);
+            nearVector(player.position, level.playerStart);
+            pressKey(player, 'KeyW');
+            player.update(0.1, level);
+            near(Math.hypot(player.position.x - level.playerStart.x, player.position.z - level.playerStart.z), 0.6);
         }
     });
 
@@ -233,7 +345,7 @@ function registerMovementTests(test, levels) {
             const { x, z } = cameraDirection(camera);
             const horizontalLength = Math.hypot(x, z);
             const distance = 0.1 * GAME_CONFIG.moveSpeed;
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'KeyW');
             player.update(0.1, level);
             nearVector(player.position, {
                 x: level.playerStart.x + distance * x / horizontalLength,
@@ -247,7 +359,7 @@ function registerMovementTests(test, levels) {
         const { camera, player, level } = setup();
         player.resetPosition({ x: 0, y: 1, z: 0 }, null, level);
         equal(player.isGrounded, false);
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         player.update(0.2, level);
         near(player.position.y, 1 - GAME_CONFIG.gravity * 0.2 ** 2 / 2);
         near(player.velocity.y, -GAME_CONFIG.gravity * 0.2);
@@ -259,32 +371,27 @@ function registerMovementTests(test, levels) {
         near(camera.position.y, GAME_CONFIG.cameraHeight);
     });
 
-    test('Space jumps only from support and holding it does not jump again on landing', () => {
+    test('jump applies launch speed only from support', () => {
         const { player, level } = setup();
         equal(player.isGrounded, true);
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         equal(player.isGrounded, false);
         const launchSpeed = Math.sqrt(2 * GAME_CONFIG.gravity * GAME_CONFIG.jumpHeight);
         near(player.velocity.y, launchSpeed);
         player.update(0.2, level);
         const risingVelocity = player.velocity.y;
-        player.onKeyUp({ code: 'Space' });
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         near(player.velocity.y, risingVelocity);
         player.update(0.4, level);
         const fallingVelocity = player.velocity.y;
         equal(fallingVelocity < 0, true);
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         near(player.velocity.y, fallingVelocity);
 
         player.update(1, level);
         equal(player.isGrounded, true);
         equal(player.velocity.y, 0);
-        player.onKeyDown({ code: 'Space', repeat: true });
-        player.update(0.1, level);
-        equal(player.position.y, 0);
-        player.onKeyUp({ code: 'Space' });
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         near(player.velocity.y, launchSpeed);
     });
 
@@ -293,8 +400,8 @@ function registerMovementTests(test, levels) {
         const apexTime = Math.sqrt(2 * config.jumpHeight / config.gravity);
         for (const framesPerSecond of [15, 30, 60, 144]) {
             const { player, level } = setup({ config });
-            player.onKeyDown({ code: 'Space' });
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'Space');
+            pressKey(player, 'KeyW');
             advance(player, level, apexTime, framesPerSecond);
             near(player.position.y, config.jumpHeight);
             near(player.velocity.y, 0);
@@ -321,13 +428,13 @@ function registerMovementTests(test, levels) {
         equal(player.isGrounded, true);
         near(player.camera.position.y, platformTop + GAME_CONFIG.cameraHeight);
 
-        player.onKeyDown({ code: 'KeyD' });
+        pressKey(player, 'KeyD');
         player.update(0.1, level);
         equal(player.isGrounded, true);
         player.update(0.2, level);
         equal(player.isGrounded, false);
         equal(player.position.y < platformTop && player.velocity.y < 0, true);
-        player.onKeyUp({ code: 'KeyD' });
+        releaseKey(player, 'KeyD');
         player.update(1, level);
         equal(player.position.y, 0);
         equal(player.isGrounded, true);
@@ -337,13 +444,13 @@ function registerMovementTests(test, levels) {
         const platform = { ...ELEVATED_PLATFORM, y: 0.5, height: 0.1 };
         const { player, level } = setup({ platforms: [platform] });
         player.resetPosition({ x: -2.5, y: 0, z: 0 }, null, level);
-        player.onKeyDown({ code: 'KeyD' });
+        pressKey(player, 'KeyD');
         player.update(0.25, level);
         equal(player.position.x <= -1 - GAME_CONFIG.playerRadius, true);
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         player.update(0.5, level);
         equal(player.position.x > -1 && player.position.y > platform.y + platform.height, true);
-        player.onKeyUp({ code: 'KeyD' });
+        releaseKey(player, 'KeyD');
         player.update(0.4, level);
         equal(player.isGrounded, true);
         near(player.position.y, platform.y + platform.height);
@@ -366,7 +473,7 @@ function registerMovementTests(test, levels) {
         const clearance = surfaceY - config.playerHeight;
         const launchSpeed = Math.sqrt(2 * config.gravity * config.jumpHeight);
         const impactTime = 2 * clearance / (launchSpeed + Math.sqrt(launchSpeed ** 2 - 2 * config.gravity * clearance));
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         player.update(impactTime + 0.02, level);
         near(player.position.y, clearance - config.gravity * 0.02 ** 2 / 2);
         near(player.velocity.y, -config.gravity * 0.02);
@@ -392,7 +499,7 @@ function registerMovementTests(test, levels) {
         ]) {
             const { player, level } = setup();
             const insideEdge = Math.abs(boxEdge) - wallThickness / 2 - GAME_CONFIG.playerRadius;
-            player.onKeyDown({ code });
+            pressKey(player, code);
             player.update(9, level);
             near(player.position[axis], Math.sign(boxEdge) * insideEdge, 0.16);
             equal(Math.abs(player.position[axis]) <= insideEdge + 1e-9, true);
@@ -404,8 +511,8 @@ function registerMovementTests(test, levels) {
     test('the player slides along a wall while holding diagonal input', () => {
         const { player, level } = setup();
         player.resetPosition({ x: 4.15, y: 0, z: 0 }, { x: 4.15, y: GAME_CONFIG.cameraHeight, z: 1 }, level);
-        player.onKeyDown({ code: 'KeyW' });
-        player.onKeyDown({ code: 'KeyA' });
+        pressKey(player, 'KeyW');
+        pressKey(player, 'KeyA');
         player.update(0.5, level);
         equal(player.position.x <= 4.2, true);
         near(player.position.z, 3 / Math.sqrt(2));
@@ -414,14 +521,14 @@ function registerMovementTests(test, levels) {
     test('the playground gap drops walkers into the pit and can be cleared by jumping', () => {
         const start = { x: 0, y: 0, z: -6.4 };
         const walking = startPlayground(start);
-        walking.player.onKeyDown({ code: 'KeyW' });
+        pressKey(walking.player, 'KeyW');
         advance(walking.player, walking.level, 1.4, 60);
         near(walking.player.position.y, -2);
         equal(walking.player.position.z < -3.5, true);
 
         const { player, level } = startPlayground(start);
-        player.onKeyDown({ code: 'KeyW' });
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'KeyW');
+        pressKey(player, 'Space');
         advance(player, level, 0.27, 60);
         equal(player.position.z > -6 && player.position.z < -3.5, true);
         equal(player.position.y > 0 && !player.isGrounded, true);
@@ -435,7 +542,7 @@ function registerMovementTests(test, levels) {
         const walk = (code, rising) => {
             const visited = new Set();
             let previousY = player.position.y;
-            player.onKeyDown({ code });
+            pressKey(player, code);
             for (let frame = 0; frame < 57; frame++) {
                 player.update(1 / 60, level);
                 equal(player.isGrounded, true);
@@ -445,7 +552,7 @@ function registerMovementTests(test, levels) {
                 visited.add(player.position.y);
                 previousY = player.position.y;
             }
-            player.onKeyUp({ code });
+            releaseKey(player, code);
             return [...visited];
         };
         equal(walk('KeyW', true).join(','), '0,0.25,0.5,0.75,1,1.25,1.5');
@@ -458,7 +565,7 @@ function registerMovementTests(test, levels) {
         for (const maxStepHeight of [0.2, 0.25]) {
             const config = { ...GAME_CONFIG, maxStepHeight };
             const { player, level } = startPlayground({ x: 0, y: 0, z: 0.5 }, config);
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'KeyW');
             advance(player, level, 0.15, 60);
             near(player.position.y, maxStepHeight === 0.25 ? 0.25 : 0);
             equal(player.isGrounded, true);
@@ -469,16 +576,16 @@ function registerMovementTests(test, levels) {
     test('tall platform faces block walking but players can jump between raised platforms', () => {
         const start = { x: -4.5, y: 0.65, z: 1.7 };
         const walking = startPlayground(start);
-        walking.player.onKeyDown({ code: 'KeyW' });
+        pressKey(walking.player, 'KeyW');
         advance(walking.player, walking.level, 0.8, 60);
         equal(walking.player.position.z < 2.35, true);
         equal(walking.player.position.y < 1.3, true);
 
         const { player, level } = startPlayground(start);
-        player.onKeyDown({ code: 'KeyW' });
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'KeyW');
+        pressKey(player, 'Space');
         advance(player, level, 0.42, 60);
-        player.onKeyUp({ code: 'KeyW' });
+        releaseKey(player, 'KeyW');
         advance(player, level, 0.5, 60);
         near(player.position.y, 1.3);
         equal(player.isGrounded, true);
@@ -486,13 +593,13 @@ function registerMovementTests(test, levels) {
 
     test('walking off the elevated deck falls to the lower surface', () => {
         const { player, level } = startPlayground({ x: 0, y: 1.5, z: 7.5 });
-        player.onKeyDown({ code: 'KeyA' });
+        pressKey(player, 'KeyA');
         advance(player, level, 0.25, 60);
         near(player.position.y, 1.5);
         equal(player.isGrounded, true);
         advance(player, level, 0.16, 60);
         equal(player.position.y < 1.5 && player.velocity.y < 0 && !player.isGrounded, true);
-        player.onKeyUp({ code: 'KeyA' });
+        releaseKey(player, 'KeyA');
         advance(player, level, 0.7, 60);
         near(player.position.y, 0);
         equal(player.isGrounded, true);
@@ -501,7 +608,7 @@ function registerMovementTests(test, levels) {
     test('the low ceiling stops the player head at its visible underside', () => {
         const { player, level } = startPlayground({ x: 4.75, y: 0, z: 2.5 });
         const ceiling = playgroundData.platforms.find(platform => platform.name === 'Low ceiling');
-        player.onKeyDown({ code: 'Space' });
+        pressKey(player, 'Space');
         let peak = 0;
         for (let frame = 0; frame < 120; frame++) {
             player.update(1 / 120, level);
@@ -514,8 +621,8 @@ function registerMovementTests(test, levels) {
 
     test('diagonal input slides along high stair sides without clipping', () => {
         const { player, level } = startPlayground({ x: -2, y: 0, z: 3.625 });
-        player.onKeyDown({ code: 'KeyA' });
-        player.onKeyDown({ code: 'KeyW' });
+        pressKey(player, 'KeyA');
+        pressKey(player, 'KeyW');
         for (let frame = 0; frame < 20; frame++) {
             player.update(1 / 60, level);
             equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
@@ -531,7 +638,7 @@ function registerMovementTests(test, levels) {
             { x: 0, y: 2, z: 1.5, width: 2, height: 0.25, depth: 1.5 }
         ] });
         player.resetPosition({ x: 0, y: 0, z: 0 }, { x: 0, y: GAME_CONFIG.cameraHeight, z: 1 }, level);
-        player.onKeyDown({ code: 'KeyW' });
+        pressKey(player, 'KeyW');
         player.update(0.4, level);
         near(player.position.y, 0);
         equal(player.position.z <= 0.7 + 1e-9, true);
@@ -562,14 +669,14 @@ function registerMovementTests(test, levels) {
         const { player, level } = setup({ definition: classroomData });
         equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
         for (const [code, expectedZ] of [['KeyW', 3], ['KeyS', classroomData.playerStart.z]]) {
-            player.onKeyDown({ code });
+            pressKey(player, code);
             for (let frame = 0; frame < 90; frame++) {
                 player.update(1 / 60, level);
                 equal(player.isGrounded, true);
                 near(player.position.y, 0);
                 near(player.position.x, 0);
             }
-            player.onKeyUp({ code });
+            releaseKey(player, code);
             near(player.position.z, expectedZ);
         }
     });
@@ -582,7 +689,7 @@ function registerMovementTests(test, levels) {
                 player.resetPosition({ x, y: 0, z: side * 2 }, {
                     x, y: GAME_CONFIG.cameraHeight, z: 4
                 }, level);
-                player.onKeyDown({ code: side < 0 ? 'KeyW' : 'KeyS' });
+                pressKey(player, side < 0 ? 'KeyW' : 'KeyS');
                 advance(player, level, 0.6, 60);
                 const minimumClearance = 0.125 + GAME_CONFIG.playerRadius;
                 equal(side * player.position.z >= minimumClearance - 1e-9, true);
@@ -598,7 +705,7 @@ function registerMovementTests(test, levels) {
             const { player, level } = setup({ definition: classroomData });
             equal(level.openDoor({ x: 0, y: 0, z: -1 }), true);
             player.resetPosition({ x, y: 0, z: -2 }, { x, y: GAME_CONFIG.cameraHeight, z: 4 }, level);
-            player.onKeyDown({ code: 'KeyW' });
+            pressKey(player, 'KeyW');
             advance(player, level, 0.6, 60);
             equal(player.position.z > 0, fits);
             equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
@@ -616,7 +723,7 @@ function registerMovementTests(test, levels) {
             near(panel.rotation.y, 0);
             equal(level.canOpenDoor({ ...approach, z: definition.z + side * definition.interactionRadius }), true);
             player.resetPosition(approach, { ...approach, y: GAME_CONFIG.cameraHeight, z: 4 }, level);
-            player.onKeyDown({ code: side < 0 ? 'KeyW' : 'KeyS' });
+            pressKey(player, side < 0 ? 'KeyW' : 'KeyS');
             advance(player, level, 0.6, 60);
             equal(side * player.position.z >= definition.depth / 2 + playerRadius - 1e-9, true);
             equal(level.openDoor(player.position), true);
@@ -640,14 +747,14 @@ function registerMovementTests(test, levels) {
                 ['KeyS', [...expectedHeights].reverse(), classroomData.playerStart.z]
             ]) {
                 const visited = new Set([player.position.y]);
-                player.onKeyDown({ code });
+                pressKey(player, code);
                 for (let frame = 0; frame < 4 * framesPerSecond; frame++) {
                     player.update(1 / framesPerSecond, level);
                     equal(player.isGrounded, true);
                     equal(level.isBlocked(player.position, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
                     visited.add(player.position.y);
                 }
-                player.onKeyUp({ code });
+                releaseKey(player, code);
                 equal([...visited].join(','), heights.join(','));
                 near(player.position.z, targetZ);
             }
@@ -675,7 +782,7 @@ function registerMovementTests(test, levels) {
         const { playerRadius } = GAME_CONFIG;
         for (const [code, axis, edge] of [['KeyA', 'x', 1.75], ['KeyD', 'x', -1.75], ['KeyW', 'z', 19.5]]) {
             player.resetPosition({ x: 0, y: 3, z: 17.5 }, { x: 0, y: 4.6, z: 18.5 }, level);
-            player.onKeyDown({ code });
+            pressKey(player, code);
             advance(player, level, 0.7, 60);
             const side = Math.sign(edge);
             const limit = edge - side * playerRadius;
@@ -736,7 +843,7 @@ function registerMovementTests(test, levels) {
             disposals.set(resource, 0);
             resource.addEventListener('dispose', () => disposals.set(resource, disposals.get(resource) + 1));
         }
-        player.onKeyDown({ code: 'KeyW' });
+        pressKey(player, 'KeyW');
         player.update(0.2, level);
         level.build(scene);
         player.resetPosition(level.playerStart, level.playerLookAt, level);
@@ -750,18 +857,28 @@ function registerMovementTests(test, levels) {
         near(player.position.z, level.playerStart.z);
     });
 
-    test('the marked destination is walkable and only accepts the configured floor and footprint', () => {
+    test('the room registers a whole player inside its open doorway and vertical bounds', () => {
         const { level, scene } = setup({ definition: classroomData });
-        const { x, y, z, width, depth } = classroomData.classroom.zone;
+        const { id, bounds: { x, y, z, width, height, depth } } = classroomData.classroom;
+        const { playerRadius, playerHeight } = GAME_CONFIG;
         const center = { x, y, z };
-        equal(scene.children.some(object => object.name === 'Classroom destination'), true);
-        equal(level.canEnterClassroom(center), true);
-        equal(level.canEnterClassroom({ x: x + width / 2, y, z: z - depth / 2 }), true);
-        equal(level.canEnterClassroom({ ...center, x: x + width / 2 + 0.01 }), false);
-        equal(level.canEnterClassroom({ ...center, z: z + depth / 2 + 0.01 }), false);
-        equal(level.canEnterClassroom({ ...center, y: y + 3 }), false);
-        equal(level.canEnterClassroom({ x: 0, y: 3, z: 17.5 }), false);
-        equal(level.isBlocked(center, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
+        const entrance = z - depth / 2;
+        equal(scene.children.some(object => object.name === 'Classroom destination'), false);
+        equal(level.getEnteredRoomId(center), null);
+        equal(level.openDoor({ x, y, z: entrance - 1 }), true);
+        equal(level.getEnteredRoomId({ x, y, z: entrance }), null);
+        equal(level.getEnteredRoomId({ x, y, z: entrance + playerRadius - 0.01 }), null);
+        equal(level.getEnteredRoomId({ x, y, z: entrance + playerRadius }), id);
+        equal(level.getEnteredRoomId({ ...center, x: x + width / 2 - playerRadius + 0.01 }), null);
+        equal(level.getEnteredRoomId({ ...center, z: z + depth / 2 - playerRadius + 0.01 }), null);
+        equal(level.getEnteredRoomId({ ...center, y: y + height - playerHeight }), id);
+        equal(level.getEnteredRoomId({ ...center, y: y + height - playerHeight + 0.01 }), null);
+        equal(level.getEnteredRoomId({ ...center, y: y - 0.01 }), null);
+        equal(level.getEnteredRoomId({ x, y: 3, z: 17.5 }), null);
+        equal(level.canConfirmArrival(center), false);
+        equal(level.isBlocked(center, playerRadius, playerHeight), false);
+        level.build(scene);
+        equal(level.getEnteredRoomId(center), null);
     });
 
     test('classroom surfaces and debug outlines match their colliders without replacing them', () => {
@@ -817,27 +934,38 @@ function registerMovementTests(test, levels) {
         equal(scene.children.includes(panel), false);
     });
 
-    test('arrival requires the room identifier to match the selected destination', () => {
-        const { x, y, z } = classroomData.classroom.zone;
+    test('a room reports its own identifier independently of the scheduled destination', () => {
+        const { x, y, z } = classroomData.classroom.bounds;
         const position = { x, y, z };
         const { id } = classroomData.classroom;
-        equal(id, classroomData.destinationRoomId);
-        const otherDestination = setup({ definition: { ...classroomData, destinationRoomId: 'other' } });
-        equal(otherDestination.level.canEnterClassroom(position), false);
-        const renamed = setup({ definition: {
-            ...classroomData, destinationRoomId: 'A1', classroom: { ...classroomData.classroom, id: 'A1' }
+        equal(id, classroomData.schedule.roomId);
+        const otherDestination = setup({ definition: {
+            ...classroomData, schedule: { ...classroomData.schedule, roomId: 'other' }, destinationRoomId: id
         } });
-        equal(renamed.level.canEnterClassroom(position), true);
+        equal(otherDestination.level.destinationRoomId, 'other');
+        equal(otherDestination.level.openDoor(classroomData.door), true);
+        equal(otherDestination.level.getEnteredRoomId(position), id);
+        const renamed = setup({ definition: {
+            ...classroomData,
+            schedule: { ...classroomData.schedule, roomId: 'A1' },
+            door: { ...classroomData.door, roomId: 'A1' },
+            classroom: { ...classroomData.classroom, id: 'A1' }
+        } });
+        equal(renamed.level.openDoor(classroomData.door), true);
+        equal(renamed.level.getEnteredRoomId(position), 'A1');
         equal(renamed.scene.children.some(object => object.name === 'Room A1'), true);
+        const { schedule, ...unscheduled } = classroomData;
+        const legacy = setup({ definition: { ...unscheduled, destinationRoomId: schedule.roomId } });
+        equal(legacy.level.destinationRoomId, id);
     });
 
     test('classroom interaction is out of range at spawn and reachable inside the far wall', () => {
         const { player, level } = setup();
         const { x, z, interactionRadius } = levelData.classroom;
-        equal(level.canEnterClassroom(player.position), false);
-        equal(level.canEnterClassroom({ x, y: 0, z: z - interactionRadius - 0.01 }), false);
+        equal(level.canConfirmArrival(player.position), false);
+        equal(level.canConfirmArrival({ x, y: 0, z: z - interactionRadius - 0.01 }), false);
         const approach = { x, y: 0, z: z - interactionRadius + 0.01 };
-        equal(level.canEnterClassroom(approach), true);
+        equal(level.canConfirmArrival(approach), true);
         equal(level.isBlocked(approach, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), false);
     });
 }

@@ -12,12 +12,18 @@ To run the shared cases with Three.js, start the local server from the [project 
 
 The camera regressions check the world-space forward and right axes for independent yaw and pitch, a level horizon, pitch limits, repeated turns, and restoration of the configured spawn view. Run the browser suite to exercise these checks with Three.js.
 
+The controls regressions exercise every direction in both layouts, keyboard turn speed across frame rates, independent look toggles, mouse sensitivity and inversion, and camera roll. The offline runner also checks saved settings across reloads, Restore Defaults, unavailable storage, and jump input in and out of gameplay.
+
 The playground regressions check the level selector, gap jumping, stair ascent and descent, step limits, head clearance, ledge falls, and exact correspondence between the rendered box bounds and colliders. The game itself is available at `/?level=2`.
 
 The classroom regressions cover door range, blocked movement while closed, opening and traversal from both sides, and reset with R. Open `/?level=3` to try the door in the game.
 
 The two-floor route tests check grounded ascent and descent across all twelve treads at two frame rates, head clearance, and collision with the landing boundaries.
 
-The classroom objective tests check the marked area's footprint and floor height, the match between the target room and its identifier, the visible label, and arrival with E. Restart coverage checks that the door and objective reset and that the previous sign texture is disposed.
+The classroom objective tests check full doorway clearance, containment between the room's floor and ceiling, the room label, and automatic arrival in the scheduled room. Restart coverage checks that the door and objective reset and that the previous sign texture is disposed.
+
+The schedule tests replace the configured class, room, and start time and verify the displayed values and objective. They also check panel visibility on pause, resume, completion, and restart. A wrong-room entry leaves the scheduled objective active.
+
+The clock regressions check scaling across frame intervals, active time across focus and pointer-lock changes, the exact deadline, arrival before it, and result and clock reset on retry. The shared cases run against the same clock used by the game.
 
 Visual foundation tests verify that the solid surfaces and debug outlines match the colliders, that V preserves camera position, and that the debug outline follows the door as it opens. Both views use the same physics.

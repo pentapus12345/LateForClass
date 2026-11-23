@@ -14,14 +14,18 @@ Open <http://localhost:8090> in a desktop browser and click **Start Game**. The 
 
 Open the [level picker](http://localhost:8090/levels/) or click **Choose a level** from the game screen to browse all levels by name. The list comes from `assets/levels.json` and includes new levels automatically.
 
-## Controls
+## Controls and options
+
+Choose **Options** on the start or pause screen. The Standard layout uses WASD to move and the arrow keys to look. The Swapped layout reverses those roles. The Keyboard and Mouse sections let you turn each look input on or off, adjust camera speed and mouse sensitivity, invert vertical mouse look, and optionally jump with a left click.
+
+Changes apply when you play and are saved in this browser. **Back** returns to the menu, and **Restore Defaults** resets both sections. The default keyboard camera speed is 120°/s and mouse sensitivity is 1×.
 
 | Input | Action |
 | --- | --- |
 | WASD | Move relative to the camera |
-| Mouse | Look around |
+| Mouse or arrow keys | Look around |
 | Space | Jump from the ground or a platform |
-| E | Complete the level when the classroom prompt appears |
+| E | Open a door in range, or confirm the original Hallway objective |
 | Escape | Pause and release the mouse. Click Resume to continue. |
 | R | Restart the level |
 
@@ -33,13 +37,17 @@ Open <http://localhost:8090/?level=2> to load the development level. The blue de
 
 ## Corridor and Classroom
 
-Open <http://localhost:8090/?level=3> and find **Room 101**. Open the amber door with **E**, then stand inside the green marker and press **E** to confirm arrival. You can also use the stairs at the back of the classroom to explore the upper landing. Press **R** to reset arrival and close the door.
+Open <http://localhost:8090/?level=3> and find **Room 101**. Press **E** to open the amber door, then walk through it. The level completes as soon as you are fully inside the scheduled classroom. Press **R** or select **Play Again** to restore the starting position and close the door.
+
+The **Next class** panel shows the current school time and the scheduled class, room, and start time. The prototype starts at **08:00** and class begins at **09:00**. At 60× speed, that's 60 seconds of active play. Pause, loss of focus, or loss of pointer lock stops the clock. Enter Room 101 before 09:00 to win. At 09:00 the game shows **You’re Late!** and **Retry**. **Retry**, **Play Again**, and **R** all restore the starting time.
+
+The level's `schedule` entry in `assets/levels.json` supplies `className`, `roomId`, and the class `startTime`. Its `clock` entry supplies the initial `startTime` and a positive `timeScale` (60× by default). Both times use 24-hour `HH:MM` on the same school day, with the clock starting at or before class time. The scheduled room ID identifies the classroom with its sign and three-dimensional `bounds`. The door's `roomId` links it to the same classroom.
 
 Corridor and Classroom opens in solid view. Press **V** to switch between solid surfaces and wireframe collision outlines. You can also use the view button on the start and pause screens. The selected view stays active when you restart.
 
 ## Player physics
 
-Y is vertical and X/Z are horizontal. The player position tracks the feet, and the camera stays at eye height above them. WASD follows camera yaw, and mouse pitch leaves walking speed unchanged.
+Y is vertical and X/Z are horizontal. The player position tracks the feet, and the camera stays at eye height above them. Movement follows camera yaw, and camera pitch leaves walking speed unchanged.
 
 `assets/gameConfig.js` sets gravity to 9.8 world units per second squared and jump height to 1 world unit in open space. Its `maxStepHeight` of 0.35 world units limits automatic step-ups and ground following when stepping down. The player uses short time steps for wall sliding and checks the full vertical travel in each step for floors, ceilings, and platform faces.
 
@@ -49,6 +57,7 @@ Level definitions can include an optional `platforms` array of solid boxes. Each
 
 - [index.html](index.html) defines the game interface and loads the scripts in dependency order.
 - [js/main.js](js/main.js) starts `Game` with the shared settings in [assets/gameConfig.js](assets/gameConfig.js).
+- [js/controls.js](js/controls.js) defines the key layouts, control defaults, and browser storage.
 - [Game](js/Game.js) loads the level definition and coordinates the scene, renderer, input events, and game loop.
 - [Player](js/Player.js) owns movement, physics, and the camera. It asks `Level` about the environment and handles collision response.
 - [Level](js/Level.js) builds and clears the scene objects defined by [assets/levels.json](assets/levels.json). It uses [Wall](js/Wall.js) for perimeter collision queries.
