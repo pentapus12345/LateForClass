@@ -20,10 +20,13 @@ Use exact filename casing in every script reference and import. Prefer descripti
 
 ## Architecture rules
 
-- **Game** owns initialization, the scene, renderer, game loop and state. It loads the current level and coordinates components.
+- **Game** loads the current level and owns the scene, renderer, game loop, and browser input and Pointer Lock coordination. It reports play access to the session and supplies world observations and state to the appropriate component.
+- **GameSession** owns the run phase, active schedule, arrival result, and session reset. It evaluates the deadline before player movement and decides whether the room reported by `Level` satisfies the schedule. It uses **SchoolClock** for simulated time and pause accounting.
+- **GameUI** owns interface DOM references, form events, and presentation. It renders supplied state and sends menu actions back to `Game`.
 - **Player** owns player position and orientation, movement input, velocity, gravity, collision response, and the camera.
 - **Level** builds the objects defined in `assets/levels.json`. It owns walls, pillars, collision queries, environmental information, and cleanup.
 - **Wall** encapsulates one wall's dimensions, bounds, and collision query.
+- **controls.js** defines action mappings, settings defaults, normalization, and browser persistence.
 
 Give each class a clear responsibility. Extend the appropriate existing class first. Introduce a class only when its responsibility warrants it. Keep browser rendering, game state, player physics, and level data separate. Avoid circular dependencies and unnecessary global state.
 

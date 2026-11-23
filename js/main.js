@@ -1,10 +1,16 @@
 (async () => {
+    let ui;
     try {
-        const game = new Game(GAME_CONFIG);
+        ui = new GameUI(document);
+        const game = new Game(GAME_CONFIG, ui);
         await game.init();
     } catch (error) {
         console.error('Unable to start LateForClass', error);
-        document.getElementById('screen-message').textContent =
-            'Could not load the game. Check your connection and reload the page.';
+        const message = 'Could not load the game. Reload the page to try again.';
+        if (ui) {
+            ui.showLoadError(message);
+        } else {
+            document.getElementById('screen-message').textContent = message;
+        }
     }
 })();

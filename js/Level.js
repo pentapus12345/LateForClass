@@ -3,17 +3,27 @@ const CONTACT_TOLERANCE = 1e-9;
 const DEFAULT_SURFACE_COLOR = 0xb6c0c9;
 
 class Level {
-    constructor(definition, config) {
+    constructor(definition, config, models = new Map()) {
         this.definition = definition;
         this.config = config;
+        this.models = models;
         this.playerStart = definition.playerStart;
         this.playerLookAt = definition.playerLookAt;
-        this.classroomBounds = definition.classroom?.bounds ? new Wall(definition.classroom.bounds) : null;
+        const { classroom, door } = definition;
+        this.classrooms = (definition.classrooms ?? (classroom ? [classroom] : [])).map(room => ({
+            ...room,
+            bounds: room.bounds ? new Wall(room.bounds) : null
+        }));
+        this.doorDefinitions = definition.doors ?? (door ? [door] : []);
         this.solids = [];
         this.objects = [];
         this.renderPairs = [];
         this.debugView = false;
-        this.door = null;
+        this.doors = [];
+    }
+
+    async loadEnvironmentModels(levelsUrl, signal) {
+        this.models = await EnvironmentObjectFactory.loadModels(this.definition.environmentObjects ?? [], levelsUrl, signal);
     }
 
     build(scene) {
@@ -31,11 +41,20 @@ class Level {
         if (this.definition.pillars) {
             this.addPillars(scene);
         }
-        if (this.definition.door) {
-            this.addDoor(scene, this.definition.door);
+        for (const door of this.doorDefinitions) {
+            this.addDoor(scene, door);
         }
-        if (this.definition.classroom?.sign) {
-            this.addClassroomSign(scene, this.definition.classroom);
+        if (this.definition.environmentObjects?.length) {
+            this.addEnvironmentObjects(scene);
+        }
+        for (const classroom of this.classrooms) {
+            if (classroom.sign) {
+                const label = `Room ${classroom.id}`;
+                this.addSign(scene, { ...classroom.sign, name: label, lines: [label] });
+            }
+        }
+        for (const sign of this.definition.signs ?? []) {
+            this.addSign(scene, sign);
         }
     }
 
@@ -44,12 +63,34 @@ class Level {
         this.objects.push(object);
     }
 
+    addEnvironmentObjects(scene) {
+        const factory = new EnvironmentObjectFactory(this.models);
+        for (const placement of this.definition.environmentObjects) {
+            for (const { surface, bounds } of factory.create(placement)) {
+                this.addObject(scene, surface);
+                if (bounds) {
+                    this.solids.push(bounds);
+                    const outline = this.addWireframeBox(scene, bounds, undefined, `${surface.name} collision`);
+                    if (this.definition.solidRendering) {
+                        this.addRenderPair(surface, outline);
+                    } else {
+                        surface.visible = false;
+                    }
+                }
+            }
+        }
+    }
+
     clear(scene) {
         const geometries = new Set();
         const materials = new Set();
         const textures = new Set();
         for (const object of this.objects) {
             scene.remove(object);
+            // Model groups borrow their meshes from the level's model cache across builds.
+            if (object.isGroup) {
+                continue;
+            }
             geometries.add(object.geometry);
             materials.add(object.material);
             if (object.material.map) {
@@ -68,7 +109,7 @@ class Level {
         this.objects = [];
         this.solids = [];
         this.renderPairs = [];
-        this.door = null;
+        this.doors = [];
     }
 
     createHallway(scene) {
@@ -98,7 +139,8 @@ class Level {
         return frame;
     }
 
-    addPlatformVisuals(scene, bounds, { color, name, surfaceColor = DEFAULT_SURFACE_COLOR }) {
+    addPlatformVisuals(scene, bounds, { color, name, surfaceColor = DEFAULT_SURFACE_COLOR,
+        castShadow = false, receiveShadow = false }) {
         if (!this.definition.solidRendering) {
             this.addWireframeBox(scene, bounds, color, name);
             return;
@@ -106,9 +148,13 @@ class Level {
 
         const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
         const geometry = new THREE.BoxGeometry(maxX - minX, maxY - minY, maxZ - minZ);
-        const material = new THREE.MeshLambertMaterial({ color: surfaceColor });
+        const material = receiveShadow
+            ? new THREE.MeshPhongMaterial({ color: surfaceColor, specular: 0x000000 })
+            : new THREE.MeshLambertMaterial({ color: surfaceColor });
         const surface = new THREE.Mesh(geometry, material);
         surface.name = name;
+        surface.castShadow = castShadow;
+        surface.receiveShadow = receiveShadow;
         surface.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
         this.addObject(scene, surface);
         const wireframe = this.addWireframeBox(scene, bounds, color, `${name} collision`);
@@ -156,114 +202,147 @@ class Level {
         }
     }
 
-    get destinationRoomId() {
-        return this.definition.schedule?.roomId ?? this.definition.destinationRoomId;
-    }
-
     getEnteredRoomId(position) {
-        const roomId = this.definition.classroom?.id;
-        if (!roomId || !this.classroomBounds) {
-            return null;
-        }
-        if (this.definition.door?.roomId === roomId && !this.door?.isOpen) {
-            return null;
-        }
         // The player's full footprint must clear the doorway, and their body
         // must fit between this room's floor and ceiling.
         const { x, y, z } = position;
         const { playerRadius, playerHeight } = this.config;
-        const { minX, maxX, minY, maxY, minZ, maxZ } = this.classroomBounds;
-        const inside = x - playerRadius >= minX - CONTACT_TOLERANCE &&
-            x + playerRadius <= maxX + CONTACT_TOLERANCE &&
-            y >= minY - CONTACT_TOLERANCE && y + playerHeight <= maxY + CONTACT_TOLERANCE &&
-            z - playerRadius >= minZ - CONTACT_TOLERANCE &&
-            z + playerRadius <= maxZ + CONTACT_TOLERANCE;
-        return inside ? roomId : null;
+        for (const { id, bounds } of this.classrooms) {
+            if (!id || !bounds) {
+                continue;
+            }
+            const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
+            const inside = x - playerRadius >= minX - CONTACT_TOLERANCE &&
+                x + playerRadius <= maxX + CONTACT_TOLERANCE &&
+                y >= minY - CONTACT_TOLERANCE && y + playerHeight <= maxY + CONTACT_TOLERANCE &&
+                z - playerRadius >= minZ - CONTACT_TOLERANCE &&
+                z + playerRadius <= maxZ + CONTACT_TOLERANCE;
+            if (inside) {
+                const entrances = this.doors.filter(door => door.definition.roomId === id);
+                if (!entrances.length || entrances.some(door => door.isOpen)) {
+                    return id;
+                }
+            }
+        }
+        return null;
     }
 
     canConfirmArrival(position) {
         const classroom = this.definition.classroom;
-        if (this.classroomBounds || classroom?.interactionRadius === undefined) {
+        if (classroom?.bounds || classroom?.interactionRadius === undefined) {
             return false;
         }
         const distance = Math.hypot(position.x - classroom.x, position.z - classroom.z);
         return distance <= classroom.interactionRadius;
     }
 
-    addClassroomSign(scene, { id, sign }) {
+    addSign(scene, { name, lines, x, y, z, rotationY = 180, width = 0.88, height = 0.33,
+        backgroundColor = '#82d8ac' }) {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
-        canvas.height = 192;
+        canvas.height = Math.round(canvas.width * height / width);
         const context = canvas.getContext('2d');
-        context.fillStyle = '#82d8ac';
+        context.fillStyle = backgroundColor;
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.fillStyle = '#15202b';
-        context.font = 'bold 76px Arial';
+        const lineHeight = canvas.height / (lines.length + 1);
+        const fontSize = Math.min(76, Math.floor(lineHeight * 0.82));
+        context.font = `bold ${fontSize}px Arial`;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        const label = `Room ${id}`;
-        context.fillText(label, canvas.width / 2, canvas.height / 2, canvas.width - 32);
+        for (const [index, line] of lines.entries()) {
+            context.fillText(line, canvas.width / 2, (index + 1) * lineHeight, canvas.width - 32);
+        }
 
-        const geometry = new THREE.PlaneGeometry(0.88, 0.33);
+        const geometry = new THREE.PlaneGeometry(width, height);
         const texture = new THREE.CanvasTexture(canvas);
         const material = new THREE.MeshBasicMaterial({ map: texture });
         const plaque = new THREE.Mesh(geometry, material);
-        plaque.name = label;
-        plaque.position.set(sign.x, sign.y, sign.z);
-        // Plane geometry faces +Z by default. The corridor is on the -Z side.
-        plaque.rotation.y = Math.PI;
+        plaque.name = name;
+        plaque.position.set(x, y, z);
+        plaque.rotation.y = rotationY * Math.PI / 180;
         this.addObject(scene, plaque);
     }
 
     addDoor(scene, definition) {
-        const { x, y, z, width, height, depth, color, name } = definition;
+        const { x, z, width, height, depth, color, surfaceColor = color, name,
+            castShadow = false, receiveShadow = false } = definition;
         const geometry = new THREE.BoxGeometry(width, height, depth);
-        const material = this.definition.solidRendering
-            ? new THREE.MeshLambertMaterial({ color })
-            : new THREE.MeshBasicMaterial({ color, opacity: 0.65, transparent: true });
+        let material;
+        if (!this.definition.solidRendering) {
+            material = new THREE.MeshBasicMaterial({ color, opacity: 0.65, transparent: true });
+        } else if (receiveShadow) {
+            material = new THREE.MeshPhongMaterial({ color: surfaceColor, specular: 0x000000 });
+        } else {
+            material = new THREE.MeshLambertMaterial({ color: surfaceColor });
+        }
         const panel = new THREE.Mesh(geometry, material);
         panel.name = name;
-        panel.position.set(x, y + height / 2, z);
+        panel.castShadow = castShadow;
+        panel.receiveShadow = receiveShadow;
         let wireframe = null;
         if (this.definition.solidRendering) {
             wireframe = this.addWireframeBox(scene, new Wall({ x: 0, y: -height / 2, z: 0, width, height, depth }),
                 color, `${name} collision`);
-            wireframe.position.set(x, y + height / 2, z);
             this.addRenderPair(panel, wireframe);
         }
-        this.door = { panel, wireframe, solidIndex: this.solids.length, isOpen: false };
-        this.solids.push(new Wall(definition));
+        const door = { definition, panel, wireframe, solidIndex: this.solids.length, isOpen: false };
+        this.doors.push(door);
+        this.setDoorPose(door, x, z, definition.axis === 'x' ? Math.PI / 2 : 0);
         this.addObject(scene, panel);
     }
 
-    canOpenDoor(position) {
-        if (!this.door || this.door.isOpen) {
-            return false;
+    getNearbyDoor(position) {
+        let nearest = null;
+        let nearestDistance = Infinity;
+        for (const door of this.doors) {
+            if (door.isOpen) {
+                continue;
+            }
+            const { x, y, z, interactionRadius } = door.definition;
+            const distance = Math.hypot(position.x - x, position.y - y, position.z - z);
+            if (distance <= interactionRadius && distance < nearestDistance) {
+                nearest = door;
+                nearestDistance = distance;
+            }
         }
-        const { x, y, z, interactionRadius } = this.definition.door;
-        return Math.hypot(position.x - x, position.y - y, position.z - z) <= interactionRadius;
+        return nearest;
+    }
+
+    canOpenDoor(position) {
+        return this.getNearbyDoor(position) !== null;
     }
 
     openDoor(position) {
-        if (!this.canOpenDoor(position)) {
+        const door = this.getNearbyDoor(position);
+        if (!door) {
             return false;
         }
-        const { x, y, z, width, height, depth } = this.definition.door;
-        // Swing around the left jamb, away from the player.
-        const swing = position.z <= z ? 1 : -1;
-        const openX = x - width / 2;
-        const openZ = z + swing * width / 2;
-        this.door.panel.position.set(openX, y + height / 2, openZ);
-        this.door.panel.rotation.y = -swing * Math.PI / 2;
-        if (this.door.wireframe) {
-            this.door.wireframe.position.set(openX, y + height / 2, openZ);
-            this.door.wireframe.rotation.y = this.door.panel.rotation.y;
-        }
-        this.solids[this.door.solidIndex] = new Wall({
-            x: openX, y, z: openZ, width: depth, height, depth: width
-        });
-        this.door.isOpen = true;
+        const { x, z, width, axis } = door.definition;
+        const normalIsX = axis === 'x';
+        const normalDistance = normalIsX ? position.x - x : position.z - z;
+        const swing = normalDistance <= 0 ? 1 : -1;
+        const halfWidth = width / 2;
+        // Turn around the jamb at the negative end of the door's local width.
+        const openX = normalIsX ? x + swing * halfWidth : x - halfWidth;
+        const openZ = normalIsX ? z + halfWidth : z + swing * halfWidth;
+        this.setDoorPose(door, openX, openZ, ((normalIsX ? 1 : 0) - swing) * Math.PI / 2);
+        door.isOpen = true;
         return true;
+    }
+
+    setDoorPose(door, x, z, angle) {
+        const { y, width, height, depth } = door.definition;
+        door.panel.position.set(x, y + height / 2, z);
+        door.panel.rotation.y = angle;
+        if (door.wireframe) {
+            door.wireframe.position.set(x, y + height / 2, z);
+            door.wireframe.rotation.y = angle;
+        }
+        const widthAlongX = angle % Math.PI === 0;
+        this.solids[door.solidIndex] = new Wall({
+            x, y, z, width: widthAlongX ? width : depth, height, depth: widthAlongX ? depth : width
+        });
     }
 
     isBlocked(position, radius, height) {

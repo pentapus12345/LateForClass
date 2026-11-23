@@ -8,6 +8,68 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-23 — Load original GLB desks and chairs in Room 003
+
+- Added local Three.js r128 GLTFLoader and reused the furniture factory for two desks and two chairs. Model paths and rotations are configured in level JSON. Each model instance uses one fitted collision box shown in V view. Restart recreates the instances and wireframes while retaining shared model resources.
+- All 92 Node and 68 Chrome tests passed. The Chrome walkthrough verified two model requests, shared resources across restart, the classroom aisles, and automatic arrival in both the furnished classroom and the default upstairs destination.
+
+### 2026-11-23 — Prototype a visual style across both school floors
+
+- Applied warm off-white walls and matte finishes, with teal ground-floor and ochre first-floor accents on the corridors, doors and plaques. Added stair and upper corridor lights and a whiteboard in Room 102. Floor names and room numbers continue to provide directions in text.
+- All 90 Node and 67 Chrome regressions passed. The Chrome walkthrough verified signage on approach, visible stair treads, the collision view toggle, and timed arrival in Room 102.
+
+### 2026-11-23 — Furnish Room 003 and its corridor
+
+- Arranged eight desk-and-chair pairs in two rows, with a center aisle and a cross aisle. Added a teaching area at the far wall and grouped three lockers across from the corridor bench. Room 003 uses cool walls, warm furniture, and the existing soft shadows.
+- All 90 Node and 67 Chrome tests passed. A Chrome walkthrough verified aisle clearance, solid and collision views, automatic arrival, the route to Room 102, and cleanup on restart. At 1000×600 with GPU readback, the test machine recorded median render times of 1.10 ms without shadows and 1.41 ms with shadows. The prototype uses basic geometry and flat materials.
+
+### 2026-11-23 — Add configurable lighting and soft shadows
+
+- Added level-defined lighting, three visible ceiling fixtures, and one 512-pixel soft shadow map for Room 003 and its corridor. Selected furniture, walls, doors, and floors participate in shadows. Collision view suspends shadow mapping and hides the fixtures.
+- All 88 Node and 65 Chrome tests passed. Chrome confirmed visible door shadows in both positions, readable signs and stairs, resource disposal on restart, and the upstairs route. At 1000×600, median per-render time with GPU readback was 0.63 ms with shadows off and 0.77 ms with shadows on in the test session.
+
+### 2026-11-23 — Add reusable school furniture
+
+- Added student desks, student chairs, a teacher’s desk, a whiteboard, lockers, and benches as data-defined objects. The sample placements furnish Room 003 and the ground-floor corridor. Solid pieces use box colliders and appear in collision view. The whiteboard is decorative by default.
+- All 86 Node and 63 Chrome tests passed. Chrome verified locker and desk collision, rotated debug bounds, resource disposal on restart, and the existing upstairs challenge route.
+
+### 2026-11-23 — Close the rear wall of Room 003
+
+- Sealed the old opening from Room 003 to the stair vestibule with a full-width wall. The public passage provides access to the stairs.
+- All 83 Node and 60 Chrome tests passed. Chrome verified collision from both sides, the matching debug outline, and stair traversal through the public passage.
+
+### 2026-11-23 — Set up the first complete class-navigation challenge
+
+- The default schedule sends Mathematics to First-floor Room 102, with 60 seconds of active play from the existing ground-floor spawn. Ground Room 002 serves as an alternate test destination through the same schedule data.
+- All 82 Node and 59 Chrome regression tests passed. Chrome visited a wrong room, won the default upstairs run, won the alternate ground-floor run, waited out the stock deadline, and verified reset. First-time wayfinding remains to be observed during playtesting.
+
+### 2026-11-23 — Connect two playable floors
+
+- Renumbered the ground-floor classrooms 001–003 and added Rooms 101–103 upstairs. Mathematics remains in the same physical room as Room 003. Floor and direction signs connect the numbered corridors to the public west passage and stairwell.
+- Moved the existing twelve-tread flight and upper landing 2.5 world units along the stairwell to make room for a flat public approach. The upper landing opens into the new corridor. The rooms, signs, doors, and colliders come from level data.
+- All 82 Node tests and 59 Chrome regression tests passed. Chrome verified all three upstairs destinations, the default ground-floor arrival, a wrong-floor visit, stair ascent and descent, both render modes, timeout, Retry, and sign visibility. First-time player comprehension remains to be verified in playtesting.
+
+### 2026-11-23 — Fix the stuck loading screen
+
+- Versioned the updated startup scripts and made the bootstrap show an error when a required component fails to load. Level data is revalidated on startup, and a stalled request times out after ten seconds.
+- Included the existing Three.js r128 build and its license so the game and browser tests load it locally.
+- All 79 Node tests and 57 Chrome tests passed. Chrome reproduced the loading hang with a blocked startup script, then verified the visible error, the level request timeout, and gameplay with the CDN blocked.
+
+### 2026-11-23 — Establish discoverable room numbering
+
+- Numbered the existing corridor from a fixed origin. Room 101 is east, Room 102 is west, and Room 103 is at the far end. Floor and direction signs show the routes from both ends. The Mathematics schedule follows its original physical classroom to Room 103.
+- All 78 Node tests and 57 Chrome regression tests passed. Scripted Chrome routes verified Room 101 from the origin sign, Room 102 from the far-end sign, and Mathematics arrival in Room 103. First-time player comprehension remains to be verified during playtesting.
+
+### 2026-11-23 — Extract game session and interface components
+
+- Added `GameSession` as the owner of the run phase, schedule, and arrival result. It composes `SchoolClock` and applies the deadline before movement. `GameUI` owns the menus, options form, HUD, and result screens. `Game` coordinates rendering, browser input, and Pointer Lock.
+- All 77 Node tests and 56 Chrome regression tests passed. New tests exercise session transitions and the UI contract independently. Chrome verified startup, all three room routes, pause and resume, Options and Restore Defaults, debug view, the full 60-second timeout, and Retry.
+
+### 2026-11-23 — Add two numbered classrooms to the timed corridor
+
+- Added Rooms 102 and 103 off the existing corridor. Level data defines the three rooms' signs, door associations, and arrival volumes. The nearest closed door opens with E, and the schedule selects which room completes the run.
+- All 74 Node tests and 54 Chrome regression tests passed. Chrome verified the three signs in solid view, each room as a winning destination, the running clock after a wrong-room visit, and door reset. Tests also compared closed and open door panels and debug outlines with their colliders.
+
 ### 2026-11-23 — Add the accelerated school clock and deadline
 
 - Corridor and Classroom starts at 08:00 and advances one school minute per active second. The schedule shows the current time and the class start time. Pause, loss of focus, and loss of pointer lock freeze the clock.

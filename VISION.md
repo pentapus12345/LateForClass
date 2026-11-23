@@ -27,7 +27,15 @@ Walking, camera control, jumping, gravity, and collisions support this gameplay 
 - The school or campus contains connected corridors, classrooms, interactive doors, stairs, and multiple floors.
 - Classroom identifiers are visible and follow discoverable patterns related to the layout. Players learn and use these patterns to navigate.
 - Room boundaries and arrival regions are defined in level data and evaluated in three dimensions: proximity outside the door, or being above or below a classroom, must not count as entry.
-- The school must be navigable and understandable from a first-person viewpoint, including when walls are opaque.
+- The school must be navigable and understandable from a first-person viewpoint, including when walls are opaque. Room labels and environmental clues should make the numbering system learnable without requiring trial-and-error entry into every classroom.
+- The intended challenge is finding a plausible route from in-world information; it should not require the player to know the level in advance or follow a developer-only marker.
+
+## Challenge design and validation
+
+- Difficulty should come primarily from learning the building, understanding its room-numbering pattern, choosing routes, and managing the remaining time—not from obscure clues, hidden hitboxes, or precision movement.
+- The time allowance is set per level in JSON and should be balanced against route complexity and realistic player discovery time. The default 60× clock speed is independent of the amount of school time granted for a challenge.
+- Before adding substantial progression or complexity, validate a complete navigation challenge with someone unfamiliar with the layout. Observe navigation decisions, wrong turns, sign comprehension, and whether the deadline feels fair; adjust level data and clues accordingly.
+- Multiple playable classrooms must have consistent room identities across their signs, doors, spatial arrival regions, and schedule targets. Entering a wrong room does not cause an automatic win.
 
 ## Player controls
 
@@ -64,7 +72,7 @@ Walking, camera control, jumping, gravity, and collisions support this gameplay 
 
 - How large should the school become, and what classroom-numbering system will it use?
 - How should the time display and schedule be visually integrated, and should there also be a countdown?
-- How should level difficulty increase, including the initial time allowance and complexity of routes?
+- How should level difficulty increase, including the initial time allowance, complexity of routes, and the balance between exploration and time pressure?
 - What should win and loss screens say or show, and what happens narratively when the player is late?
 - How much route choice and navigational assistance should be available?
 - Who is the player, which doors are interactive, and how should those doors behave in later levels?

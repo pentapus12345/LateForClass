@@ -41,49 +41,235 @@
       "id": 3,
       "name": "Corridor and Classroom",
       "solidRendering": true,
-      "instructions": "Open the classroom door with E, then walk inside.",
+      "instructions": "Find your scheduled classroom before class starts. Use the room number and corridor signs to choose a floor, then press E to open the classroom door.",
       "playerStart": { "x": 0, "y": 0, "z": -6 },
       "playerLookAt": { "x": 0, "y": 1.6, "z": 2 },
-      "door": { "name": "Classroom door", "roomId": "101", "x": 0, "y": 0, "z": 0, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5 },
+      "doors": [
+        { "name": "Classroom door", "roomId": "003", "x": 0, "y": 0, "z": 0, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "castShadow": true, "receiveShadow": true, "surfaceColor": "#547971" },
+        { "name": "Room 001 door", "roomId": "001", "axis": "x", "x": 2.125, "y": 0, "z": -5, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "surfaceColor": "#547971" },
+        { "name": "Room 002 door", "roomId": "002", "axis": "x", "x": -2.125, "y": 0, "z": -5, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "surfaceColor": "#547971" },
+        { "name": "First-floor Room 103 door", "roomId": "103", "x": 0, "y": 3, "z": 32, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "surfaceColor": "#af8050" },
+        { "name": "First-floor Room 101 door", "roomId": "101", "axis": "x", "x": 2.125, "y": 3, "z": 27, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "surfaceColor": "#af8050" },
+        { "name": "First-floor Room 102 door", "roomId": "102", "axis": "x", "x": -2.125, "y": 3, "z": 27, "width": 1.8, "height": 2.25, "depth": 0.12, "color": "#e7bd76", "interactionRadius": 1.5, "surfaceColor": "#af8050" }
+      ],
       "clock": { "startTime": "08:00", "timeScale": 60 },
-      "schedule": { "className": "Mathematics", "roomId": "101", "startTime": "09:00" },
-      "classroom": {
-        "id": "101",
-        "sign": { "x": 1.38, "y": 1.65, "z": -0.14 },
-        "bounds": { "x": 0, "y": 0, "z": 4.0625, "width": 10, "height": 3.4, "depth": 7.875 }
+      "schedule": { "className": "Mathematics", "roomId": "102", "startTime": "09:00" },
+      "lighting": {
+        "lights": [
+          { "type": "hemisphere", "name": "School fill", "color": "#edf4ff", "groundColor": "#bdab97", "intensity": 0.66 },
+          { "type": "point", "name": "Ground corridor ceiling light", "color": "#fff2da", "intensity": 0.72, "position": { "x": 0, "y": 3.18, "z": -5.2 }, "distance": 10 },
+          {
+            "type": "directional", "name": "Room 003 shadow light", "color": "#fff0d3", "intensity": 0.82,
+            "position": { "x": 1.8, "y": 5.2, "z": -2 }, "target": { "x": 0.5, "y": 0, "z": 1.6 },
+            "shadow": { "mapSize": 512, "near": 0.18, "far": 15, "extent": 6, "bias": -0.00025, "normalBias": 0.018 }
+          },
+          { "type": "point", "name": "Room 003 rear ceiling light", "color": "#fff5e0", "intensity": 0.5, "position": { "x": -1.55, "y": 3.18, "z": 6 }, "distance": 8 },
+          { "type": "point", "name": "Stairwell ceiling light", "color": "#fff3dd", "intensity": 0.48, "position": { "x": 0, "y": 6.16, "z": 15.1 }, "distance": 11 },
+          { "type": "point", "name": "First-floor ceiling light", "color": "#fff4e2", "intensity": 0.58, "position": { "x": 0, "y": 6.18, "z": 26.2 }, "distance": 11 }
+        ],
+        "fixtures": [
+          { "name": "Corridor ceiling fixture", "x": 0, "y": 3.36, "z": -5.2, "width": 1.4, "depth": 0.48 },
+          { "name": "Room 003 entrance ceiling fixture", "x": 0.65, "y": 3.36, "z": -0.95 },
+          { "name": "Room 003 rear ceiling fixture", "x": -1.55, "y": 3.36, "z": 6 },
+          { "name": "Stairwell ceiling fixture", "x": 0, "y": 6.36, "z": 15.1, "width": 1.25 },
+          { "name": "First-floor corridor ceiling fixture", "x": 0, "y": 6.36, "z": 26.2, "width": 1.4 }
+        ]
       },
+      "classrooms": [
+        {
+          "id": "003",
+          "sign": { "x": 1.38, "y": 1.65, "z": -0.14, "backgroundColor": "#a6d4ca" },
+          "bounds": { "x": 0, "y": 0, "z": 4.0625, "width": 10, "height": 3.4, "depth": 7.875 }
+        },
+        {
+          "id": "001",
+          "sign": { "x": 1.99, "y": 1.65, "z": -3.62, "rotationY": -90, "backgroundColor": "#a6d4ca" },
+          "bounds": { "x": 4.75, "y": 0, "z": -5, "width": 5, "height": 3.4, "depth": 6 }
+        },
+        {
+          "id": "002",
+          "sign": { "x": -1.99, "y": 1.65, "z": -3.62, "rotationY": 90, "backgroundColor": "#a6d4ca" },
+          "bounds": { "x": -4.75, "y": 0, "z": -5, "width": 5, "height": 3.4, "depth": 6 }
+        },
+        {
+          "id": "103",
+          "sign": { "x": 1.38, "y": 4.65, "z": 31.86, "backgroundColor": "#f0d29b" },
+          "bounds": { "x": 0, "y": 3, "z": 35.0625, "width": 8, "height": 3.4, "depth": 5.875 }
+        },
+        {
+          "id": "101",
+          "sign": { "x": 1.99, "y": 4.65, "z": 28.38, "rotationY": -90, "backgroundColor": "#f0d29b" },
+          "bounds": { "x": 4.75, "y": 3, "z": 27, "width": 5, "height": 3.4, "depth": 6 }
+        },
+        {
+          "id": "102",
+          "sign": { "x": -1.99, "y": 4.65, "z": 28.38, "rotationY": 90, "backgroundColor": "#f0d29b" },
+          "bounds": { "x": -4.75, "y": 3, "z": 27, "width": 5, "height": 3.4, "depth": 6 }
+        }
+      ],
+      "signs": [
+        {
+          "name": "Corridor origin",
+          "x": 0, "y": 1.85, "z": -9.98, "rotationY": 0, "width": 2.65, "height": 1.28,
+          "backgroundColor": "#a6d4ca",
+          "lines": ["Ground floor · Corridor origin", "Face into the corridor", "001 left · 002 right", "003 straight ahead", "Stairs near 003"]
+        },
+        {
+          "name": "Corridor far end",
+          "x": 0, "y": 2.79, "z": -0.145, "rotationY": 180, "width": 1.72, "height": 1.04,
+          "backgroundColor": "#a6d4ca",
+          "lines": ["Ground floor · Far end", "Room 003 here", "Turn toward the origin", "002 left · 001 right"]
+        },
+        {
+          "name": "Stairs from ground corridor",
+          "x": -1.45, "y": 1.75, "z": -0.145, "rotationY": 180, "width": 0.85, "height": 0.55,
+          "backgroundColor": "#f0d29b",
+          "lines": ["First floor", "Stairs →"]
+        },
+        {
+          "name": "Stairs along west passage",
+          "x": -7.735, "y": 1.72, "z": -0.95, "rotationY": 90, "width": 1.1, "height": 0.55,
+          "backgroundColor": "#f0d29b",
+          "lines": ["First floor", "Stairs ←"]
+        },
+        {
+          "name": "Stairs at passage bend",
+          "x": -6.5, "y": 1.72, "z": 10.48, "rotationY": 180, "width": 1.1, "height": 0.55,
+          "backgroundColor": "#f0d29b",
+          "lines": ["First floor", "Stairs ←"]
+        },
+        {
+          "name": "Ground corridor at stair base",
+          "x": -2.8, "y": 1.72, "z": 8.27, "rotationY": 0, "width": 1.6, "height": 0.68,
+          "backgroundColor": "#a6d4ca",
+          "lines": ["Ground floor · Rooms 001–003", "Corridor ←"]
+        },
+        {
+          "name": "First-floor landing",
+          "x": 0, "y": 5.9, "z": 21.98, "rotationY": 180, "width": 2.2, "height": 0.95,
+          "backgroundColor": "#f0d29b",
+          "lines": ["First floor · Landing", "Face away from the stairs", "101 left · 102 right", "103 straight ahead"]
+        },
+        {
+          "name": "First-floor far end",
+          "x": 0, "y": 5.79, "z": 31.855, "rotationY": 180, "width": 1.72, "height": 1.04,
+          "backgroundColor": "#f0d29b",
+          "lines": ["First floor · Far end", "Room 103 here", "Turn toward the stairs", "102 left · 101 right"]
+        },
+        {
+          "name": "Stairs from first floor",
+          "x": 1.985, "y": 4.75, "z": 23.4, "rotationY": -90, "width": 1.72, "height": 0.7,
+          "backgroundColor": "#a6d4ca",
+          "lines": ["Ground floor · Rooms 001–003", "Stairs back toward landing"]
+        }
+      ],
+      "environmentObjects": [
+        { "type": "studentDesk", "name": "Room 003 front west outer desk", "x": -3.5, "z": 4.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 front west outer chair", "x": -3.5, "z": 4.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 front west inner desk", "x": -1.7, "z": 4.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 front west inner chair", "x": -1.7, "z": 4.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 front east inner desk", "x": 1.7, "z": 4.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 front east inner chair", "x": 1.7, "z": 4.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 front east outer desk", "x": 3.5, "z": 4.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 front east outer chair", "x": 3.5, "z": 4.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 back west outer desk", "model": "models/lfc_student_desk.glb", "x": -3.5, "z": 2.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 back west outer chair", "model": "models/lfc_student_chair.glb", "x": -3.5, "z": 2.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 back west inner desk", "x": -1.7, "z": 2.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 back west inner chair", "x": -1.7, "z": 2.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 back east inner desk", "x": 1.7, "z": 2.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 back east inner chair", "x": 1.7, "z": 2.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "studentDesk", "name": "Room 003 back east outer desk", "model": "models/lfc_student_desk.glb", "x": 3.5, "z": 2.95, "castShadow": true, "receiveShadow": true },
+        { "type": "studentChair", "name": "Room 003 back east outer chair", "model": "models/lfc_student_chair.glb", "x": 3.5, "z": 2.25, "rotationY": 180, "castShadow": true, "receiveShadow": true },
+        { "type": "teacherDesk", "name": "Room 003 teacher desk", "x": -2.6, "z": 6.8, "castShadow": true, "receiveShadow": true },
+        { "type": "whiteboard", "name": "Room 003 whiteboard", "x": 0, "y": 1.25, "z": 7.93 },
+        { "type": "whiteboard", "name": "Room 102 whiteboard", "x": -7.18, "y": 4.25, "z": 27, "rotationY": -90 },
+        { "type": "locker", "name": "Corridor locker 1", "x": 1.67, "z": -7.4, "rotationY": 90 },
+        { "type": "locker", "name": "Corridor locker 2", "x": 1.67, "z": -8.0, "rotationY": 90 },
+        { "type": "locker", "name": "Corridor locker 3", "x": 1.67, "z": -8.6, "rotationY": 90 },
+        { "type": "bench", "name": "Corridor bench", "x": -1.65, "z": -7.8, "rotationY": 90 }
+      ],
       "platforms": [
-        { "name": "Corridor floor", "x": 0, "y": -0.25, "z": -5, "width": 4, "height": 0.25, "depth": 10, "color": "#7fbcdf", "surfaceColor": "#6e8999" },
-        { "name": "Corridor ceiling", "x": 0, "y": 3.4, "z": -5, "width": 4, "height": 0.25, "depth": 10 },
-        { "name": "Corridor west wall", "x": -2.125, "y": 0, "z": -5, "width": 0.25, "height": 3.4, "depth": 10 },
-        { "name": "Corridor east wall", "x": 2.125, "y": 0, "z": -5, "width": 0.25, "height": 3.4, "depth": 10 },
-        { "name": "Corridor rear wall", "x": 0, "y": 0, "z": -10.125, "width": 4.5, "height": 3.4, "depth": 0.25 },
-        { "name": "Classroom floor", "x": 0, "y": -0.25, "z": 4, "width": 10, "height": 0.25, "depth": 8, "color": "#c2ace5", "surfaceColor": "#8e8275" },
-        { "name": "Classroom ceiling", "x": 0, "y": 3.4, "z": 4, "width": 10, "height": 0.25, "depth": 8 },
-        { "name": "Classroom west wall", "x": -5.125, "y": 0, "z": 4, "width": 0.25, "height": 3.4, "depth": 8 },
-        { "name": "Classroom east wall", "x": 5.125, "y": 0, "z": 4, "width": 0.25, "height": 3.4, "depth": 8 },
-        { "name": "Classroom rear west wall", "x": -3.5, "y": 0, "z": 8.125, "width": 3.5, "height": 3.4, "depth": 0.25 },
-        { "name": "Classroom rear east wall", "x": 3.5, "y": 0, "z": 8.125, "width": 3.5, "height": 3.4, "depth": 0.25 },
-        { "name": "Doorway west wall", "x": -3.075, "y": 0, "z": 0, "width": 4.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76" },
-        { "name": "Doorway east wall", "x": 3.075, "y": 0, "z": 0, "width": 4.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76" },
-        { "name": "Doorway lintel", "x": 0, "y": 2.25, "z": 0, "width": 1.8, "height": 1.15, "depth": 0.25, "color": "#e7bd76" },
-        { "name": "Stairwell west wall", "x": -1.875, "y": 0, "z": 13.75, "width": 0.25, "height": 6.4, "depth": 11.5 },
-        { "name": "Stairwell east wall", "x": 1.875, "y": 0, "z": 13.75, "width": 0.25, "height": 6.4, "depth": 11.5 },
-        { "name": "Stairwell ceiling", "x": 0, "y": 6.4, "z": 13.75, "width": 4, "height": 0.25, "depth": 11.5 },
-        { "name": "Classroom stair 1", "x": 0, "y": 0, "z": 8.3125, "width": 3.5, "height": 0.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 2", "x": 0, "y": 0, "z": 8.9375, "width": 3.5, "height": 0.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 3", "x": 0, "y": 0, "z": 9.5625, "width": 3.5, "height": 0.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 4", "x": 0, "y": 0, "z": 10.1875, "width": 3.5, "height": 1, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 5", "x": 0, "y": 0, "z": 10.8125, "width": 3.5, "height": 1.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 6", "x": 0, "y": 0, "z": 11.4375, "width": 3.5, "height": 1.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 7", "x": 0, "y": 0, "z": 12.0625, "width": 3.5, "height": 1.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 8", "x": 0, "y": 0, "z": 12.6875, "width": 3.5, "height": 2, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 9", "x": 0, "y": 0, "z": 13.3125, "width": 3.5, "height": 2.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 10", "x": 0, "y": 0, "z": 13.9375, "width": 3.5, "height": 2.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 11", "x": 0, "y": 0, "z": 14.5625, "width": 3.5, "height": 2.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Classroom stair 12", "x": 0, "y": 0, "z": 15.1875, "width": 3.5, "height": 3, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#978773" },
-        { "name": "Upper-floor landing", "x": 0, "y": 2.75, "z": 17.5, "width": 3.5, "height": 0.25, "depth": 4, "color": "#7fbcdf", "surfaceColor": "#6e8999" },
-        { "name": "Upper-floor end wall", "x": 0, "y": 0, "z": 19.625, "width": 4, "height": 6.4, "depth": 0.25 }
+        { "name": "Corridor floor", "x": 0, "y": -0.25, "z": -5, "width": 4, "height": 0.25, "depth": 10, "color": "#7fbcdf", "surfaceColor": "#587f79", "receiveShadow": true },
+        { "name": "Corridor ceiling", "x": 0, "y": 3.4, "z": -5, "width": 4, "height": 0.25, "depth": 10, "surfaceColor": "#eee5d0" },
+        { "name": "Corridor west wall behind doorway", "x": -2.125, "y": 0, "z": -7.95, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor west wall beyond doorway", "x": -2.125, "y": 0, "z": -2.925, "width": 0.25, "height": 3.4, "depth": 2.35, "receiveShadow": true, "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor west lintel", "x": -2.125, "y": 2.25, "z": -5, "width": 0.25, "height": 1.15, "depth": 1.8, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor east wall behind doorway", "x": 2.125, "y": 0, "z": -7.95, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor east wall beyond doorway", "x": 2.125, "y": 0, "z": -2.05, "width": 0.25, "height": 3.4, "depth": 4.1, "receiveShadow": true, "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor east lintel", "x": 2.125, "y": 2.25, "z": -5, "width": 0.25, "height": 1.15, "depth": 1.8, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "Corridor rear wall", "x": 0, "y": 0, "z": -10.125, "width": 4.5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 001 floor", "x": 4.625, "y": -0.25, "z": -5, "width": 5.25, "height": 0.25, "depth": 6, "color": "#c2ace5", "surfaceColor": "#a49783" },
+        { "name": "Room 001 ceiling", "x": 4.625, "y": 3.4, "z": -5, "width": 5.25, "height": 0.25, "depth": 6, "surfaceColor": "#eee5d0" },
+        { "name": "Room 001 outer wall", "x": 7.375, "y": 0, "z": -5, "width": 0.25, "height": 3.4, "depth": 6.5, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 001 rear wall", "x": 4.75, "y": 0, "z": -8.125, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 001 front wall", "x": 4.75, "y": 0, "z": -1.875, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 002 floor", "x": -4.625, "y": -0.25, "z": -5, "width": 5.25, "height": 0.25, "depth": 6, "color": "#c2ace5", "surfaceColor": "#a49783" },
+        { "name": "Room 002 ceiling", "x": -4.625, "y": 3.4, "z": -5, "width": 5.25, "height": 0.25, "depth": 6, "surfaceColor": "#eee5d0" },
+        { "name": "Room 002 outer wall", "x": -7.375, "y": 0, "z": -5, "width": 0.25, "height": 3.4, "depth": 6.5, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 002 rear wall", "x": -4.75, "y": 0, "z": -8.125, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Room 002 front wall", "x": -4.75, "y": 0, "z": -1.875, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Classroom floor", "x": 0, "y": -0.25, "z": 4, "width": 10, "height": 0.25, "depth": 8, "color": "#c2ace5", "surfaceColor": "#a49783", "receiveShadow": true },
+        { "name": "Classroom ceiling", "x": 0, "y": 3.4, "z": 4, "width": 10, "height": 0.25, "depth": 8, "surfaceColor": "#eee5d0" },
+        { "name": "Classroom west wall", "x": -5.125, "y": 0, "z": 4, "width": 0.25, "height": 3.4, "depth": 8, "surfaceColor": "#dfd6c6", "receiveShadow": true },
+        { "name": "Classroom east wall", "x": 5.125, "y": 0, "z": 4, "width": 0.25, "height": 3.4, "depth": 8, "surfaceColor": "#dfd6c6", "receiveShadow": true },
+        { "name": "Classroom rear wall", "x": 0, "y": 0, "z": 8.125, "width": 10.5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6", "receiveShadow": true },
+        { "name": "Doorway west wall", "x": -3.075, "y": 0, "z": 0, "width": 4.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76", "receiveShadow": true, "surfaceColor": "#dfd6c6" },
+        { "name": "Doorway east wall", "x": 3.075, "y": 0, "z": 0, "width": 4.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76", "receiveShadow": true, "surfaceColor": "#dfd6c6" },
+        { "name": "Doorway lintel", "x": 0, "y": 2.25, "z": 0, "width": 1.8, "height": 1.15, "depth": 0.25, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "Stairwell west wall", "x": -1.875, "y": 0, "z": 16.25, "width": 0.25, "height": 6.4, "depth": 11.5, "surfaceColor": "#dfd6c6" },
+        { "name": "Stairwell east wall", "x": 1.875, "y": 0, "z": 16.25, "width": 0.25, "height": 6.4, "depth": 11.5, "surfaceColor": "#dfd6c6" },
+        { "name": "Stairwell ceiling", "x": 0, "y": 6.4, "z": 16.25, "width": 4, "height": 0.25, "depth": 11.5, "surfaceColor": "#eee5d0" },
+        { "name": "Classroom stair 1", "x": 0, "y": 0, "z": 10.8125, "width": 3.5, "height": 0.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 2", "x": 0, "y": 0, "z": 11.4375, "width": 3.5, "height": 0.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 3", "x": 0, "y": 0, "z": 12.0625, "width": 3.5, "height": 0.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 4", "x": 0, "y": 0, "z": 12.6875, "width": 3.5, "height": 1, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 5", "x": 0, "y": 0, "z": 13.3125, "width": 3.5, "height": 1.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 6", "x": 0, "y": 0, "z": 13.9375, "width": 3.5, "height": 1.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 7", "x": 0, "y": 0, "z": 14.5625, "width": 3.5, "height": 1.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 8", "x": 0, "y": 0, "z": 15.1875, "width": 3.5, "height": 2, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 9", "x": 0, "y": 0, "z": 15.8125, "width": 3.5, "height": 2.25, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 10", "x": 0, "y": 0, "z": 16.4375, "width": 3.5, "height": 2.5, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 11", "x": 0, "y": 0, "z": 17.0625, "width": 3.5, "height": 2.75, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Classroom stair 12", "x": 0, "y": 0, "z": 17.6875, "width": 3.5, "height": 3, "depth": 0.625, "color": "#e7bd76", "surfaceColor": "#9f917f" },
+        { "name": "Upper-floor landing", "x": 0, "y": 2.75, "z": 20.0, "width": 3.5, "height": 0.25, "depth": 4, "color": "#7fbcdf", "surfaceColor": "#9b7a47" },
+        { "name": "Public passage branch floor", "x": -3.625, "y": -0.25, "z": -0.9375, "width": 3.25, "height": 0.25, "depth": 1.625, "color": "#7fbcdf", "surfaceColor": "#587f79" },
+        { "name": "Public passage branch ceiling", "x": -3.625, "y": 3.4, "z": -0.9375, "width": 3.25, "height": 0.25, "depth": 1.625, "surfaceColor": "#eee5d0" },
+        { "name": "Public west passage floor", "x": -6.5, "y": -0.25, "z": 4.375, "width": 2.5, "height": 0.25, "depth": 12.25, "color": "#7fbcdf", "surfaceColor": "#587f79" },
+        { "name": "Public west passage ceiling", "x": -6.5, "y": 3.4, "z": 4.375, "width": 2.5, "height": 0.25, "depth": 12.25, "surfaceColor": "#eee5d0" },
+        { "name": "Public stair approach floor", "x": -3.5, "y": -0.25, "z": 9.375, "width": 3.5, "height": 0.25, "depth": 2.25, "color": "#7fbcdf", "surfaceColor": "#587f79" },
+        { "name": "Public stair approach ceiling", "x": -3.5, "y": 3.4, "z": 9.375, "width": 3.5, "height": 0.25, "depth": 2.25, "surfaceColor": "#eee5d0" },
+        { "name": "Public stair vestibule floor", "x": 0, "y": -0.25, "z": 9.25, "width": 3.5, "height": 0.25, "depth": 2.5, "color": "#7fbcdf", "surfaceColor": "#587f79" },
+        { "name": "Public stair vestibule ceiling", "x": 0, "y": 3.4, "z": 9.25, "width": 3.5, "height": 0.25, "depth": 2.5, "surfaceColor": "#eee5d0" },
+        { "name": "Public passage outer west wall", "x": -7.875, "y": 0, "z": 4.375, "width": 0.25, "height": 3.4, "depth": 12.75, "surfaceColor": "#dfd6c6" },
+        { "name": "Public passage entrance end wall", "x": -6.5, "y": 0, "z": -1.875, "width": 2.5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Public passage far wall", "x": -4.75, "y": 0, "z": 10.625, "width": 6, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "Public stair vestibule east wall", "x": 1.875, "y": 0, "z": 9.25, "width": 0.25, "height": 3.4, "depth": 2.5, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor floor", "x": 0, "y": 2.75, "z": 27, "width": 4, "height": 0.25, "depth": 10, "color": "#7fbcdf", "surfaceColor": "#9b7a47" },
+        { "name": "First-floor Corridor ceiling", "x": 0, "y": 6.4, "z": 27, "width": 4, "height": 0.25, "depth": 10, "surfaceColor": "#eee5d0" },
+        { "name": "First-floor Corridor west wall behind doorway", "x": -2.125, "y": 3, "z": 24.05, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor west wall beyond doorway", "x": -2.125, "y": 3, "z": 29.95, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor west lintel", "x": -2.125, "y": 5.25, "z": 27, "width": 0.25, "height": 1.15, "depth": 1.8, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor east wall behind doorway", "x": 2.125, "y": 3, "z": 24.05, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor east wall beyond doorway", "x": 2.125, "y": 3, "z": 29.95, "width": 0.25, "height": 3.4, "depth": 4.1, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Corridor east lintel", "x": 2.125, "y": 5.25, "z": 27, "width": 0.25, "height": 1.15, "depth": 1.8, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 101 floor", "x": 4.625, "y": 2.75, "z": 27, "width": 5.25, "height": 0.25, "depth": 6, "color": "#c2ace5", "surfaceColor": "#a49783" },
+        { "name": "First-floor Room 101 ceiling", "x": 4.625, "y": 6.4, "z": 27, "width": 5.25, "height": 0.25, "depth": 6, "surfaceColor": "#eee5d0" },
+        { "name": "First-floor Room 101 outer wall", "x": 7.375, "y": 3, "z": 27, "width": 0.25, "height": 3.4, "depth": 6.5, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 101 rear wall", "x": 4.75, "y": 3, "z": 23.875, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 101 front wall", "x": 4.75, "y": 3, "z": 30.125, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 102 floor", "x": -4.625, "y": 2.75, "z": 27, "width": 5.25, "height": 0.25, "depth": 6, "color": "#c2ace5", "surfaceColor": "#a49783" },
+        { "name": "First-floor Room 102 ceiling", "x": -4.625, "y": 6.4, "z": 27, "width": 5.25, "height": 0.25, "depth": 6, "surfaceColor": "#eee5d0" },
+        { "name": "First-floor Room 102 outer wall", "x": -7.375, "y": 3, "z": 27, "width": 0.25, "height": 3.4, "depth": 6.5, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 102 rear wall", "x": -4.75, "y": 3, "z": 23.875, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 102 front wall", "x": -4.75, "y": 3, "z": 30.125, "width": 5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Doorway west wall", "x": -2.575, "y": 3, "z": 32, "width": 3.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Doorway east wall", "x": 2.575, "y": 3, "z": 32, "width": 3.35, "height": 3.4, "depth": 0.25, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Doorway lintel", "x": 0, "y": 5.25, "z": 32, "width": 1.8, "height": 1.15, "depth": 0.25, "color": "#e7bd76", "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 103 floor", "x": 0, "y": 2.75, "z": 35, "width": 8, "height": 0.25, "depth": 6, "color": "#c2ace5", "surfaceColor": "#a49783" },
+        { "name": "First-floor Room 103 ceiling", "x": 0, "y": 6.4, "z": 35, "width": 8, "height": 0.25, "depth": 6, "surfaceColor": "#eee5d0" },
+        { "name": "First-floor Room 103 west wall", "x": -4.125, "y": 3, "z": 35, "width": 0.25, "height": 3.4, "depth": 6, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 103 east wall", "x": 4.125, "y": 3, "z": 35, "width": 0.25, "height": 3.4, "depth": 6, "surfaceColor": "#dfd6c6" },
+        { "name": "First-floor Room 103 far wall", "x": 0, "y": 3, "z": 38.125, "width": 8.5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" }
       ]
     }
   ]

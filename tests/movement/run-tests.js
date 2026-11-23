@@ -7,10 +7,20 @@ const vm = require('node:vm');
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const GAME_PAGE = 'index.html';
 const BROWSER_TEST_PAGE = 'tests/movement/index.html';
+const THREE_LIBRARY = 'assets/vendor/three-r128/three.min.js';
+const GLTF_LOADER = 'assets/vendor/three-r128/GLTFLoader.js';
 const read = file => fs.readFileSync(path.join(PROJECT_ROOT, file), 'utf8');
 
+// Parse the real assets without a WebGL context, alongside the lightweight rendering stubs.
+const modelThree = require(path.join(PROJECT_ROOT, THREE_LIBRARY));
+vm.runInNewContext(read(GLTF_LOADER), { THREE: modelThree, ArrayBuffer, TextDecoder });
+function localModelResponse(url) {
+    const data = fs.readFileSync(path.join(PROJECT_ROOT, url));
+    return { ok: true, arrayBuffer: async () => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) };
+}
+
 function readScriptSources(page) {
-    return Array.from(read(page).matchAll(/<script src="([^"]+)"/g), ([, source]) => source);
+    return Array.from(read(page).matchAll(/<script src="([^"]+)"/g), ([, source]) => source.split('?')[0]);
 }
 
 function assertExactPath(file) {
@@ -151,8 +161,11 @@ class CanvasTexture extends Resource {
 function createCanvas() {
     const canvas = {
         getContext: () => ({
-            fillRect() {},
-            fillText(text) { canvas.text = text; }
+            fillRect() { canvas.backgroundColor = this.fillStyle; },
+            fillText(text) {
+                canvas.text = text;
+                (canvas.lines ??= []).push(text);
+            }
         })
     };
     return canvas;
@@ -171,9 +184,40 @@ class LineSegments extends Mesh {
     isLineSegments = true;
 }
 
+class Light {
+    constructor(color, intensity) {
+        this.color = color;
+        this.intensity = intensity;
+        this.position = new Vector3();
+    }
+}
+
+class HemisphereLight extends Light {
+    constructor(color, groundColor, intensity) {
+        super(color, intensity);
+        this.groundColor = groundColor;
+    }
+}
+
+class PointLight extends Light {
+    shadow = {
+        camera: new Camera(),
+        mapSize: new Vector3(),
+        dispose() { this.map?.dispose(); }
+    };
+}
+
+class TargetLight extends PointLight {
+    target = { position: new Vector3() };
+}
+
 const { levels } = JSON.parse(read('assets/levels.json'));
 const THREE = {
     Vector3,
+    Box3: modelThree.Box3,
+    Group: modelThree.Group,
+    LoaderUtils: modelThree.LoaderUtils,
+    GLTFLoader: modelThree.GLTFLoader,
     PerspectiveCamera: Camera,
     Scene,
     BufferGeometry,
@@ -183,38 +227,59 @@ const THREE = {
     CanvasTexture,
     MeshBasicMaterial: Material,
     MeshLambertMaterial: Material,
+    MeshPhongMaterial: Material,
     LineBasicMaterial: Material,
     LineSegments,
+    AmbientLight: Light,
+    HemisphereLight,
+    PointLight,
+    DirectionalLight: TargetLight,
+    SpotLight: TargetLight,
+    PCFSoftShadowMap: 2,
     Mesh
 };
+const models = new Map();
 const context = vm.createContext({
     THREE,
     document: { createElement: createCanvas },
     test,
-    levels
+    levels,
+    models,
+    fetch: async url => localModelResponse(url)
 });
 
 const browserTestScripts = readScriptSources(BROWSER_TEST_PAGE);
-const browserTestFiles = browserTestScripts.slice(1).map(source =>
+const browserTestFiles = browserTestScripts.slice(2).map(source =>
     path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), source)
 );
 for (const file of browserTestFiles) {
     vm.runInContext(read(file), context, { filename: file });
 }
-vm.runInContext('registerMovementTests(test, levels)', context);
+test.before(async () => {
+    const loaded = await vm.runInContext(
+        'EnvironmentObjectFactory.loadModels(levels[2].environmentObjects, "assets/levels.json")', context
+    );
+    for (const [model, template] of loaded) {
+        models.set(model, template);
+    }
+});
+vm.runInContext('registerMovementTests(test, levels, models)', context);
 
 const gameHtml = read(GAME_PAGE);
 const gameScripts = readScriptSources(GAME_PAGE);
 
 test('the game and test pages load dependencies in order with exact filename casing', () => {
-    const [library, ...gameFiles] = gameScripts;
-    assert.match(library, /^https:\/\/.*\/three\.min\.js$/);
-    const dependencies = ['assets/gameConfig.js', 'js/controls.js', 'js/Wall.js', 'js/Level.js', 'js/Player.js',
-        'js/SchoolClock.js'];
-    assert.deepEqual(gameFiles, [...dependencies, 'js/Game.js', 'js/main.js']);
-    assert.equal(browserTestScripts[0], library);
+    const [library, loader, ...gameFiles] = gameScripts;
+    assert.equal(library, THREE_LIBRARY);
+    assert.equal(loader, GLTF_LOADER);
+    assertExactPath('assets/vendor/three-r128/LICENSE');
+    const dependencies = ['assets/gameConfig.js', 'js/controls.js', 'js/Wall.js', 'js/EnvironmentObjectFactory.js',
+        'js/LightingManager.js', 'js/Level.js', 'js/Player.js', 'js/SchoolClock.js', 'js/GameSession.js'];
+    assert.deepEqual(gameFiles, [...dependencies, 'js/GameUI.js', 'js/Game.js', 'js/main.js']);
+    assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[0]), library);
+    assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[1]), loader);
     assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js']);
-    for (const file of [...gameFiles, ...browserTestFiles, 'assets/levels.json']) {
+    for (const file of [library, loader, ...gameFiles, ...browserTestFiles, 'assets/levels.json']) {
         assertExactPath(file);
     }
 });
@@ -280,7 +345,7 @@ test('the level picker reports empty and unavailable level data', async () => {
     assert.match(failure.errors[0][1].message, /404/);
 });
 
-async function loadGame(response, search = '', storage = new Map()) {
+function createGameElements() {
     const elements = new Map();
     for (const [, tag, id] of gameHtml.matchAll(/(<[^>]*\bid="([^"]+)"[^>]*>)/g)) {
         const element = new Element();
@@ -294,7 +359,11 @@ async function loadGame(response, search = '', storage = new Map()) {
         fields.set(name, elements.get(id) ?? new Element());
     }
     elements.get('control-form').elements = { namedItem: name => fields.get(name) };
+    return elements;
+}
 
+async function loadGame(response, search = '', storage = new Map(), loadModel = localModelResponse) {
+    const elements = createGameElements();
     let hasFocus = true;
     const document = Object.assign(new EventTarget(), {
         getElementById: id => elements.get(id) ?? null,
@@ -318,11 +387,13 @@ async function loadGame(response, search = '', storage = new Map()) {
     const frames = [];
     const renderers = [];
     const errors = [];
+    const modelRequests = [];
     let now = 0;
     const advanceTime = milliseconds => { now += milliseconds; };
 
     class Renderer {
         domElement = new Element();
+        shadowMap = {};
         renderCount = 0;
 
         constructor() {
@@ -348,8 +419,18 @@ async function loadGame(response, search = '', storage = new Map()) {
         document,
         window,
         URLSearchParams,
-        fetch: async url => {
+        AbortSignal,
+        fetch: async (url, { cache, signal }) => {
+            assert.ok(signal instanceof AbortSignal);
+            if (url.startsWith('assets/models/')) {
+                modelRequests.push(url);
+                return loadModel(url);
+            }
             assert.equal(url, 'assets/levels.json');
+            assert.equal(cache, 'no-cache');
+            if (response instanceof Error) {
+                throw response;
+            }
             return response;
         },
         performance: { now: () => now },
@@ -363,17 +444,65 @@ async function loadGame(response, search = '', storage = new Map()) {
             Clock: class { getDelta() { return 0.1; } },
             Color: class {},
             Fog: class {},
-            AmbientLight: class {},
-            DirectionalLight: class { position = new Vector3(); },
             WebGLRenderer: Renderer
         }
     });
 
-    for (const file of gameScripts.slice(1)) {
+    for (const file of gameScripts.slice(2)) {
         await vm.runInContext(read(file), page, { filename: file });
     }
-    return { document, window, elements, frames, renderers, errors, advanceTime };
+    return { document, window, elements, frames, renderers, errors, advanceTime, modelRequests };
 }
+
+test('GameUI presents supplied session state and sends menu actions through callbacks', () => {
+    const elements = createGameElements();
+    const page = vm.createContext({ document: { getElementById: id => elements.get(id) } });
+    for (const file of ['js/controls.js', 'js/GameUI.js']) {
+        vm.runInContext(read(file), page, { filename: file });
+    }
+    const ui = vm.runInContext('new GameUI(document)', page);
+    const schedule = { className: 'Art', roomId: '102', startTime: '08:30' };
+    ui.configure({ title: 'School', message: 'Find your room.', schedule, hasClock: true, supportsViewToggle: true });
+    ui.renderSession({ phase: 'ready', schedule, schoolTime: '08:00' });
+    assert.equal(elements.get('screen-title').textContent, 'School');
+    assert.equal(elements.get('schedule-panel').hidden, true);
+    assert.equal(elements.get('schedule-room').textContent, 'Room 102');
+
+    ui.renderSession({ phase: 'running', schedule, schoolTime: '08:30' });
+    ui.renderObjective('Find Room 102');
+    ui.renderView(true, true);
+    assert.equal(elements.get('start-screen').hidden, true);
+    assert.equal(elements.get('schedule-panel').hidden, false);
+    assert.equal(elements.get('school-time').dateTime, '08:30');
+    assert.equal(elements.get('objective').textContent, 'Find Room 102');
+    assert.equal(elements.get('view-status').textContent, 'V · Return to solid view');
+
+    ui.renderSession({ phase: 'paused', schedule, schoolTime: '08:30' }, true);
+    assert.match(elements.get('screen-message').textContent, /Could not capture the cursor/);
+    ui.renderSession({ phase: 'late', schedule, schoolTime: '08:30' });
+    assert.equal(elements.get('start-button').textContent, 'Retry');
+    assert.equal(elements.get('objective').hidden, true);
+    assert.equal(elements.get('screen-message').textContent, 'Art started at 08:30 in Room 102.');
+
+    const actions = [];
+    ui.bindActions({
+        start: () => actions.push('start'),
+        toggleView: () => actions.push('view'),
+        setOptionsOpen: open => actions.push(open),
+        applyControls: settings => actions.push(settings.keyboardLayout)
+    });
+    elements.get('control-form').elements.namedItem('keyboardLayout').value = 'swapped';
+    for (const id of ['start-button', 'view-toggle', 'options-button', 'options-back', 'restore-controls']) {
+        elements.get(id).dispatchEvent(new Event('click'));
+    }
+    elements.get('control-form').dispatchEvent(new Event('input'));
+    assert.deepEqual(actions, ['start', 'view', true, false, 'standard', 'swapped']);
+    ui.setEnabled(true);
+    ui.showLoadError('Could not load the game. Reload the page to try again.');
+    assert.equal(elements.get('start-button').disabled, true);
+    assert.equal(elements.get('options-button').disabled, true);
+    assert.match(elements.get('screen-message').textContent, /Could not load the game/);
+});
 
 test('the page boots one game and routes start, movement, resize, pause, and restart', async () => {
     const { document, window, elements, frames, renderers, errors } =
@@ -527,9 +656,12 @@ test('losing pointer lock at the deadline still records a timeout before the nex
 });
 
 test('crossing the classroom before the exact deadline wins and crossing at it times out', async () => {
+    const definitions = levels.map(level => level.id !== 3 ? level : {
+        ...level, schedule: { ...level.schedule, roomId: '003' }
+    });
     for (const arrivalMs of [59999, 60000]) {
         const { document, elements, frames, renderers } =
-            await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+            await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
         const [{ scene, camera }] = renderers;
         const clickStart = () => elements.get('start-button').dispatchEvent(new Event('click'));
         const press = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
@@ -560,7 +692,7 @@ test('crossing the classroom before the exact deadline wins and crossing at it t
         assert.equal(camera.position.z, -6);
         assert.equal(panel().rotation.y, 0);
         assert.equal(elements.get('school-time').textContent, '08:00');
-        assert.equal(elements.get('objective').textContent, 'Find Room 101');
+        assert.equal(elements.get('objective').textContent, 'Find Room 003');
     }
 });
 
@@ -756,23 +888,64 @@ test('the level query selects the playground and restart keeps that level', asyn
     assert.equal(fallback.renderers[0].camera.position.z, levels[0].playerStart.z);
 });
 
+test('startup loads each furniture asset once and reports a failed asset request', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const game = await loadGame(response, '?level=3');
+    assert.equal(game.elements.get('start-button').disabled, false);
+    assert.deepEqual([...game.modelRequests].sort(), [
+        'assets/models/lfc_student_chair.glb', 'assets/models/lfc_student_desk.glb'
+    ]);
+    const desk = () => game.renderers[0].scene.children.find(object => object.name === 'Room 003 back east outer desk');
+    const original = desk();
+    game.elements.get('start-button').dispatchEvent(new Event('click'));
+    game.document.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyR' }));
+    assert.ok(desk());
+    assert.notEqual(desk(), original);
+    assert.equal(game.modelRequests.length, 2);
+
+    const failure = await loadGame(response, '?level=3', new Map(), () => ({ ok: false, status: 404 }));
+    assert.equal(failure.elements.get('start-button').disabled, true);
+    assert.equal(failure.renderers.length, 0);
+    assert.match(failure.elements.get('screen-message').textContent, /Could not load/);
+    assert.match(failure.errors[0][1].message, /Failed to load furniture model assets\/models\//);
+    assert.match(failure.errors[0][1].cause.message, /404/);
+});
+
 test('the classroom prompts for E in range and R restores its closed door, spawn, and view', async () => {
     const { document, elements, frames, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
     const [{ camera, scene }] = renderers;
-    const { playerStart, platforms, door, schedule: { roomId } } = levels.find(level => level.id === 3);
+    const { playerStart, platforms, doors, schedule: { roomId } } = levels.find(level => level.id === 3);
+    const [door] = doors;
     const startingPosition = camera.position.clone();
     const startingDirection = camera.getWorldDirection(new Vector3());
     const dispatch = (type, properties) => document.dispatchEvent(Object.assign(new Event(type), properties));
     assert.equal(elements.get('screen-title').textContent, 'Corridor and Classroom');
     assert.equal(camera.position.z, playerStart.z);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 1);
+    const geometryNames = new Set([...platforms, ...doors].map(object => `${object.name} collision`));
+    const countStructuralOutlines = () => scene.children.filter(object => geometryNames.has(object.name)).length;
+    assert.equal(countStructuralOutlines(), platforms.length + doors.length);
     const initialPanel = scene.children.find(object => object.name === door.name);
     assert.equal(initialPanel.rotation.y, 0);
+    assert.equal(initialPanel.material.color, door.surfaceColor);
+    assert.equal(scene.children.find(object => object.name === `${door.name} collision`).material.color, door.color);
     const sign = scene.children.find(object => object.name === `Room ${roomId}`);
     assert.equal(sign.material.map.image.text, `Room ${roomId}`);
+    const origin = scene.children.find(object => object.name === 'Corridor origin');
+    const farEnd = scene.children.find(object => object.name === 'Corridor far end');
+    assert.equal(origin.material.map.image.backgroundColor, '#a6d4ca');
+    assert.equal(sign.material.map.image.backgroundColor, '#f0d29b');
+    assert.deepEqual(origin.material.map.image.lines, [
+        'Ground floor · Corridor origin', 'Face into the corridor', '001 left · 002 right', '003 straight ahead',
+        'Stairs near 003'
+    ]);
+    assert.deepEqual(farEnd.material.map.image.lines, [
+        'Ground floor · Far end', 'Room 003 here', 'Turn toward the origin', '002 left · 001 right'
+    ]);
     let textureDisposed = false;
+    let originDisposed = false;
     sign.material.map.addEventListener('dispose', () => { textureDisposed = true; });
+    origin.material.map.addEventListener('dispose', () => { originDisposed = true; });
 
     elements.get('start-button').dispatchEvent(new Event('click'));
     const objective = elements.get('objective');
@@ -796,12 +969,13 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     frames.shift()();
     assert.deepEqual(camera.position, startingPosition);
     assert.deepEqual(camera.getWorldDirection(new Vector3()), startingDirection);
-    assert.equal(scene.children.filter(object => object.isLineSegments).length, platforms.length + 1);
+    assert.equal(countStructuralOutlines(), platforms.length + doors.length);
     const resetPanel = scene.children.find(object => object.name === door.name);
     assert.notEqual(resetPanel, initialPanel);
     assert.equal(scene.children.includes(initialPanel), false);
     assert.equal(resetPanel.rotation.y, 0);
     assert.equal(textureDisposed, true);
+    assert.equal(originDisposed, true);
     assert.equal(scene.children.filter(object => object.name === `Room ${roomId}`).length, 1);
 });
 
@@ -810,8 +984,8 @@ test('a configured schedule supplies the displayed class, room, start time, and 
     const definitions = levels.map(level => level.id !== 3 ? level : {
         ...level,
         schedule,
-        door: { ...level.door, roomId: schedule.roomId },
-        classroom: { ...level.classroom, id: schedule.roomId }
+        doors: level.doors.map(door => door.roomId === level.schedule.roomId ? { ...door, roomId: schedule.roomId } : door),
+        classrooms: level.classrooms.map(room => room.id === level.schedule.roomId ? { ...room, id: schedule.roomId } : room)
     });
     const { document, elements, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
@@ -888,10 +1062,13 @@ test('classroom views switch before start, during play, and while paused', async
 });
 
 test('walking fully into the scheduled room completes the level and R resets the run', async () => {
+    const definitions = levels.map(level => level.id !== 3 ? level : {
+        ...level, schedule: { ...level.schedule, roomId: '003' }
+    });
     const { document, elements, frames, renderers } =
-        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+        await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
     const [{ camera, scene }] = renderers;
-    const { schedule: { roomId }, door, playerStart } = levels.find(level => level.id === 3);
+    const { schedule: { roomId }, doors: [door], playerStart } = definitions.find(level => level.id === 3);
     const startButton = elements.get('start-button');
     const objective = elements.get('objective');
     const schedule = elements.get('schedule-panel');
@@ -931,41 +1108,105 @@ test('walking fully into the scheduled room completes the level and R resets the
     assert.equal(schedule.hidden, false);
 });
 
-test('changing the schedule decides whether entering a data-defined room completes the level', async () => {
-    const roomId = 'A1';
-    for (const scheduledRoomId of ['101', roomId]) {
+test('wrong classrooms leave the clock running and the schedule selects which room wins', async () => {
+    for (const [roomId, towardTarget, towardWrongRoom] of [['001', 'KeyA', 'KeyD'], ['002', 'KeyD', 'KeyA']]) {
         const definitions = levels.map(level => level.id !== 3 ? level : {
-            ...level,
-            classroom: { ...level.classroom, id: roomId },
-            door: { ...level.door, roomId },
-            schedule: { ...level.schedule, roomId: scheduledRoomId }
+            ...level, schedule: { ...level.schedule, roomId }
         });
         const { document, elements, frames, renderers } =
             await loadGame({ ok: true, json: async () => ({ levels: definitions }) }, '?level=3');
-        const input = code => document.dispatchEvent(Object.assign(new Event('keydown'), { code }));
-        elements.get('start-button').dispatchEvent(new Event('click'));
-        input('KeyW');
-        for (let frame = 0; frame < 12; frame++) {
-            frames.shift()();
-        }
-        input('KeyE');
-        for (let frame = 0; frame < 5; frame++) {
-            frames.shift()();
-        }
-        assert.ok(renderers[0].camera.position.z > 0.425);
-        assert.equal(elements.get('start-screen').hidden, scheduledRoomId !== roomId);
-        if (scheduledRoomId === roomId) {
-            assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${roomId}.`);
-        } else {
-            assert.equal(elements.get('objective').textContent, `Find Room ${scheduledRoomId}`);
+        const [{ camera, scene }] = renderers;
+        const start = elements.get('start-button');
+        const clock = elements.get('school-time');
+        const press = (code, type = 'keydown') => document.dispatchEvent(Object.assign(new Event(type), { code }));
+        const advance = steps => {
+            for (let frame = 0; frame < steps; frame++) {
+                frames.shift()();
+            }
+        };
+
+        start.dispatchEvent(new Event('click'));
+        press('KeyW');
+        advance(1);
+        press('KeyW', 'keyup');
+        advance(4);
+        press(towardWrongRoom);
+        advance(6);
+        press('KeyE');
+        advance(4);
+        press(towardWrongRoom, 'keyup');
+        assert.ok(Math.abs(camera.position.x) > 2.55);
+        assert.equal(elements.get('start-screen').hidden, true);
+        assert.equal(elements.get('objective').textContent, `Find Room ${roomId}`);
+        const beforeWait = clock.textContent;
+        frames.shift()(1000);
+        assert.notEqual(clock.textContent, beforeWait);
+
+        press(towardTarget);
+        advance(20);
+        assert.equal(elements.get('objective').textContent, 'Press E to open the door');
+        press('KeyE');
+        advance(6);
+        assert.equal(elements.get('screen-message').textContent, `You arrived at Room ${roomId}.`);
+        assert.equal(document.pointerLockElement, null);
+
+        start.dispatchEvent(new Event('click'));
+        assert.equal(camera.position.x, 0);
+        assert.equal(camera.position.z, -6);
+        assert.equal(clock.textContent, '08:00');
+        for (const door of definitions[2].doors) {
+            const panel = scene.children.find(object => object.name === door.name);
+            assert.equal(panel.rotation.y, door.axis === 'x' ? Math.PI / 2 : 0);
         }
     }
+});
+
+test('the default challenge rejects Ground Room 003 and wins in Room 102 after walking the public stairs', async () => {
+    const { document, elements, frames, renderers } =
+        await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
+    const [{ camera }] = renderers;
+    const press = (code, type = 'keydown') => document.dispatchEvent(Object.assign(new Event(type), { code }));
+    function walkUntil(code, reached) {
+        press(code);
+        for (let step = 0; step < 45 && !reached(); step++) {
+            frames.shift()();
+        }
+        press(code, 'keyup');
+        assert.ok(reached(), `Could not complete route segment using ${code}`);
+    }
+
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    walkUntil('KeyW', () => camera.position.z > -1);
+    press('KeyE');
+    walkUntil('KeyW', () => camera.position.z > 1);
+    assert.equal(elements.get('start-screen').hidden, true);
+    assert.equal(elements.get('objective').textContent, 'Find Room 102');
+    const time = elements.get('school-time').textContent;
+    frames.shift()(1000);
+    assert.notEqual(elements.get('school-time').textContent, time);
+
+    walkUntil('KeyS', () => camera.position.z <= -0.85);
+    walkUntil('KeyD', () => camera.position.x < -6.1);
+    walkUntil('KeyW', () => camera.position.z > 9.1);
+    walkUntil('KeyA', () => camera.position.x >= 0);
+    walkUntil('KeyW', () => camera.position.z > 26.5);
+    assert.equal(camera.position.y, 4.6);
+    walkUntil('KeyD', () => camera.position.x < -1.65);
+    press('KeyE');
+    walkUntil('KeyD', () => !elements.get('start-screen').hidden);
+    assert.equal(elements.get('screen-message').textContent, 'You arrived at Room 102.');
+
+    press('KeyR');
+    assert.equal(camera.position.y, 1.6);
+    assert.equal(camera.position.z, -6);
+    assert.equal(elements.get('school-time').textContent, '08:00');
 });
 
 test('failed or missing level data leaves the game disabled and shows an error', async () => {
     for (const [response, message] of [
         [{ ok: false, status: 404 }, /Failed to load levels.json: 404/],
-        [{ ok: true, json: async () => ({ levels: [] }) }, /Level 1 is missing/]
+        [{ ok: true, json: async () => ({ levels: [] }) }, /Level 1 is missing/],
+        [new DOMException('Level request timed out', 'TimeoutError'), /request timed out/]
     ]) {
         const { elements, frames, renderers, errors } = await loadGame(response);
         assert.equal(elements.get('start-button').disabled, true);
@@ -975,4 +1216,18 @@ test('failed or missing level data leaves the game disabled and shows an error',
         assert.equal(errors.length, 1);
         assert.match(errors[0][1].message, message);
     }
+});
+
+test('the bootstrap shows a load error when GameUI is unavailable', async () => {
+    const elements = createGameElements();
+    const errors = [];
+    const page = vm.createContext({
+        document: { getElementById: id => elements.get(id) },
+        console: { error: (...args) => errors.push(args) }
+    });
+    await vm.runInContext(read('js/main.js'), page);
+    assert.equal(elements.get('start-button').disabled, true);
+    assert.equal(elements.get('options-button').disabled, true);
+    assert.match(elements.get('screen-message').textContent, /Could not load the game/);
+    assert.match(errors[0][1].message, /GameUI is not defined/);
 });
