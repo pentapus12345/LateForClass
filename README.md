@@ -37,7 +37,11 @@ Open <http://localhost:8090/?level=2> to load the development level. The blue de
 
 ## Corridor and Classroom
 
-Open <http://localhost:8090/?level=3> and check the schedule. Rooms **001–003** are on the ground floor and **101–103** are upstairs. The default challenge is **Mathematics in Room 102**. Follow the signed passage beside Room 003 to the public staircase. Match the scheduled room number to its door plaque, press **E** to open the door, and walk through it. Visiting another room keeps the clock running. Press **R** or select **Play Again** to restore the starting position and close every door.
+Open <http://localhost:8090/?level=3> and check the schedule. Rooms **001–003** are on the ground floor and **101–103** are upstairs. The default challenge is **Mathematics in Room 102**. You can explore Room 101 while the clock runs. Follow the signed passage beside Room 003 to the public staircase. Match the scheduled room number to its door plaque, press **E** to open the door, and walk through it. Press **R** or select **Play Again** to restore the starting position and close every door.
+
+The public stairs, vaulted hall, and Room 101 showcase the historic-school finishes. [First-person screenshots and browser measurements](docs/historic-slice.md)
+
+Look into the quadrangle from the corridor window near Room 103 or from inside Room 101. [Courtyard views](docs/courtyard-window-review.md)
 
 The **Next class** panel shows the current school time and the scheduled class, room, and start time. The prototype starts at **08:00** and class begins at **09:00**. At 60× speed, that's 60 seconds of active play. Pause, loss of focus, or loss of pointer lock stops the clock. Enter your scheduled room before 09:00 to win. At 09:00 the game shows **You’re Late!** and **Retry**. **Retry**, **Play Again**, and **R** all restore the starting time.
 
@@ -47,7 +51,9 @@ The level's `signs` entries place floor and direction signs. The approved two-fl
 
 Room 003 and the ground-floor corridor contain sample furniture. Each `environmentObjects` entry selects a `type` and an `x`, `y`, and `z` placement. Optional `rotationY` is in degrees around world-up Y, `color` overrides colors on procedural furniture, and `collidable` controls whether the object blocks movement. The whiteboard is decorative by default.
 
-Set `model` to a GLB path relative to `assets/levels.json`, such as `models/lfc_student_desk.glb`, to use an imported visual for a placement. The bundled r128 GLTFLoader reads each distinct model at startup. Imported furniture uses its authored scale and materials, keeps its horizontal origin, and aligns its lowest point with the placement's `y` (default 0). Each solid model gets one world-aligned box enclosing its rotated geometry. Press **V** to see the collider. Restart rebuilds the instances and outlines, with geometries and materials shared through the selected level's model cache.
+Set `asset` to a name from the level's `modelCatalog` to use an imported visual. A placement can also specify a GLB path relative to `assets/levels.json` with `model`. The bundled r128 GLTFLoader reads each distinct path at startup. Imported models keep their authored materials and horizontal origin, with the lowest point aligned to placement `y` (default 0). Each solid model gets one world-aligned box enclosing its rotated geometry. Press **V** to see the collider. Restart rebuilds the instances and outlines and retains the shared geometries and materials.
+
+The six classroom GLBs retain the source geometry and materials with textures reduced to a maximum edge of 1024 pixels. The shelf copy uses seven books arranged to fit between its dividers. The imported chair's facing correction is set in the catalog. The first-floor hall uses two reusable rib-vault bays, textured masonry, flagstones, and a pointed stair portal. The existing oak leaves swing within deeper classroom reveals. See the [historic asset kit](docs/historic-asset-kit.md) for placement conventions and offline build commands.
 
 The level’s `lighting` entry holds `lights` and visible ceiling `fixtures`. Light types are `ambient`, `hemisphere`, `directional`, `point`, and `spot`. Directional and spot lights can specify `position` and `target`. Add a `shadow` configuration to an eligible source, then use `castShadow` and `receiveShadow` on platform, door, and furniture entries to select the surfaces involved. Room 003 uses one 512-pixel soft shadow map. Collision view hides the fixtures and suspends shadow mapping.
 

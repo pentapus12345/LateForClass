@@ -39,7 +39,7 @@ Each entry records the result and verification for its milestone.
 | 9.5. Encapsulate game session and user interface | Completed | `GameSession` owns run state and `GameUI` owns presentation. All 77 Node and 56 Chrome tests passed. Chrome verified all three rooms, Options, debug view, pause, the full timeout, and Retry. |
 | [10. Discoverable room-numbering logic](#10-discoverable-room-numbering-logic) | Completed | Approved corridor map and signs implemented. All 78 Node and 57 Chrome tests passed. Scripted routes used both approaches and verified all three room IDs. First-time player comprehension remains a playtesting item. |
 | [10.5. Multi-floor school prototype](#105-multi-floor-school-prototype) | Completed | Six classrooms connect through a signed public stair route. All 82 Node and 59 Chrome tests passed. Browser walkthroughs verified destinations on both floors, wrong-floor entry, timeout, and Retry. |
-| [11. First complete playable class-navigation challenge](#11-first-complete-playable-class-navigation-challenge) | Completed | Room 102 is the default challenge, with Room 002 as the alternate test target. All 82 Node and 59 Chrome tests passed. Chrome verified both routes, a wrong-room visit, the stock timeout, and reset. |
+| [11. First complete playable class-navigation challenge](#11-first-complete-playable-class-navigation-challenge) | Completed | The initial default challenge used Room 102, with Room 002 as the alternate test target. All 82 Node and 59 Chrome tests passed. Chrome verified both routes, a wrong-room visit, the stock timeout, and reset. |
 | [11.5. Reusable environmental objects and furniture](#115-reusable-environmental-objects-and-furniture) | Completed | Six types load from level data and appear in Room 003 and the ground-floor corridor. All 86 Node and 63 Chrome tests passed, including solid collisions, debug outlines, rebuild cleanup, and the upstairs route. |
 | [11.6. Lighting and shadow foundation](#116-lighting-and-shadow-foundation) | Completed | One shadow-casting directional light and three fixtures demonstrate the configurable system. All 88 Node and 65 Chrome tests passed. Chrome verified moving door shadows, readable routes, debug mode, and restart cleanup. |
 
@@ -554,27 +554,244 @@ The public passage branches west before Room 003 and wraps behind it to the stai
 - All 92 Node and 68 Chrome tests passed. Chrome verified one request per asset, V collision outlines, shared resources after restart, automatic arrival with Room 003 scheduled, and a win via the public stairs with Room 102 scheduled.
 - At 1000×600 in Chrome with GPU readback, median render time rose from 0.66 to 0.84 ms in the classroom view and from 0.55 to 0.64 ms in the closer view of one pair. This measures two fixed views on the test machine. Each imported item uses one enclosing collider, including the space between its legs.
 
+### 15. Furnish the destination classroom
+
+**Status:** Completed
+
+**Objective:** Make Room 102 immediately recognizable as a classroom when the player arrives.
+
+**Scope:** Use the existing furniture and lighting systems to add two student desk-and-chair pairs, a teacher’s desk, a standing chalkboard, and wooden shelves with books. Preserve the entrance and arrival region.
+
+**Dependencies:** Milestones 11.7, 13, and 14.
+
+**Acceptance criteria:** The default route still wins on entry. The furniture placement leaves the doorway and aisles clear, with verified debug outlines and measured render cost.
+
+**Verification**
+
+- Corrected the imported chair’s 180° facing change in Room 003. Room 102’s two pairs face the teaching area. The solid furniture uses one collision box per item. The seven books are decorative and fit between the shelf dividers.
+- All 93 Node and 69 Chrome tests passed. The Chrome walkthrough verified doorway and aisle clearance, valid arrival on the default timed route, the V collision view, and asset reuse on restart.
+- The six game GLBs total 13.0 MiB, down from 345.6 MiB for the corresponding source files. With the browser cache disabled on localhost, the game was ready about 0.27–0.66 seconds into the two walkthroughs. At 1000×600 with GPU readback on the test machine, median render time was 0.57–0.89 ms at the entrance and 0.52–0.53 ms facing the shelves, from about 0.40 ms in both views before furnishing. Startup measurements cover a local server.
+
+### 16. Historic-school visual direction and reference benchmark
+
+**Status:** Completed
+
+**Complexity:** Small–Medium
+
+**Objective:** Establish an approved visual reference and realistic performance budget for an old-English-university-inspired LateForClass environment.
+
+**Scope:** Assemble a concise visual style guide for one corridor, one classroom, a stairwell, a window, and an exterior courtyard view. Specify architectural proportions, historic stone and timber, door and arch styles, floor materials, age and wear, lighting moods, and signage. Select a small number of consistent reference images and evaluate available GLB assets and their licenses. Define a representative browser target and measurable frame-time, download-size, and memory budgets. Keep the earlier teal/ochre prototype available as a baseline rather than treating it as the final style.
+
+**Dependencies:** Milestones 11.6, 13–15; product-owner approval of reference direction.
+
+**Acceptance criteria:** The product owner approves a visual reference sheet, an initial reusable asset shortlist, a representative test scene, and measurable browser performance targets. The milestone documents an asset licensing/attribution register. No gameplay, geometry, or engine changes are required.
+
+**Constraints:** No full school redesign or bulk asset import. No commitment to photorealism. Follow AGENTS.md; no automatic commits or pushes.
+
+**Verification:** The product owner approved the [reference sheet and benchmark](docs/historic-school-reference.md), including the initial asset shortlist, the representative route, and the browser budgets. The reference sheet records asset provenance and measurements from desktop Chrome at 1080p. All 93 Node and 69 Chrome tests passed during the Room 101 baseline verification.
+
+### 17. Asset catalog, reproducible model pipeline, and historic architectural kit
+
+**Status:** Completed
+
+**Complexity:** Medium–Large
+
+**Objective:** Extend the existing GLB asset integration into a scalable, reproducible system for building a large, visually coherent historic school, without rebuilding the furniture factory or duplicating completed optimization work.
+
+**Contribution to the vision:** Make it practical to furnish and construct many distinctive rooms and corridors using consistent, performant assets while retaining the ability to replace models and adjust the school's appearance without rewriting level placements.
+
+**Existing foundation (do not reimplement):**
+
+- `EnvironmentObjectFactory` already supports procedural furniture and imported GLBs, with shared loading, instances, fitted collision boxes, and debug visualization.
+- Milestone 15 completed the Room 102 furniture integration (student desks/chairs, teacher's desk, standing chalkboard, wooden shelves and books), corrected the imported student's chair 180° facing change, and verified the timed route and resource reuse.
+- The six optimized game GLBs used for that milestone total **13.0 MiB**, compared with **345.6 MiB** for their corresponding originals. This is a recorded prototype result, not proof that a complete asset pipeline or catalog exists.
+- Existing lighting, shadows, materials, and scene lifecycle should be audited and reused.
+
+**Scope:**
+
+1. **Audit before editing.** Inspect the current factory, actual level placements, optimized GLBs, model-loading paths, disposal behavior, conversion tooling, and material handling. Document what is already working, what is manual, and the smallest gaps that must be closed. Do not mark Codex's work as unfinished without evidence.
+2. **Reproducible asset pipeline.** Define a source-original versus game-ready asset layout; retain originals unmodified; document or script the repeatable conversion/optimization steps, including texture resolution, compression choices supported by the current Three.js version, coordinate orientation, scale, origin, naming, and quality checks. Avoid requiring Blender at game runtime.
+3. **Logical model catalog.** Map meaningful object types (for example `studentChair`, `teacherDesk`, `standingChalkboard`, `woodenDisplayShelf`) to default optimized GLBs and optional asset-specific scale, rotation offset, material options, and collider definitions. Allow explicit overrides, and keep procedural versions available when useful. Existing level placements must remain compatible or be migrated narrowly and demonstrably safely.
+4. **Focused factory integration.** Reuse `EnvironmentObjectFactory` and shared asset loading. Resolve logical object types through the catalog instead of repeating model paths across many level placements. Preserve safe resource sharing, cloning, collision bounds, restart behavior, and the `V` debug view. Extend collision configuration only where simple enclosing boxes materially interfere with navigation; do not introduce a new physics engine.
+5. **Small historic architectural kit.** Curate or create a consistent, license-checked starter set of modular stone wall/arch pieces, timber doors and frames, window frames/sills, columns, trim, floors, and stairs or railings. Establish compatible dimensions and placement conventions. Prefer suitable downloaded assets; do not bulk-import models merely because they are available.
+6. **Performance and visual validation.** Demonstrate the catalog and kit in a compact playable test scene using repeated instances. Report optimized download sizes, texture dimensions, loading times, frame times, and memory usage where browser measurements are reliable. Keep the reference visuals from milestone 16 in view.
+
+**Dependencies:** Milestones 14–16; existing `EnvironmentObjectFactory`, imported-model support, lighting and debug systems.
+
+**Acceptance criteria:**
+
+- The audit explicitly distinguishes pre-existing functionality from additions made under this milestone.
+- Source originals and game-ready assets have an intentional, documented organization, and at least one existing model can be rebuilt into its game-ready GLB reproducibly.
+- At least four existing furniture/prop types are mapped through the logical catalog; model replacement can be performed by editing the catalog without changing each placement.
+- The corrected student chair faces the right direction wherever its logical type is used, without changing procedural chair orientation or requiring per-instance 180° fixes.
+- At least one reusable stone architectural component, one historic door/frame component, and one window-related component can be placed at consistent scale from level data.
+- Repeated assets share loadable resources where appropriate; restart does not duplicate meshes or leak shared resources.
+- Navigation, model/collision alignment, debug outlines, opening doors, scheduled room arrival, stairs, timeouts, and existing Node and Chrome regression tests remain correct.
+- The representative browser scene includes screenshots and measured loading/render performance, with asset licenses recorded.
+
+**Constraints:**
+
+- Preserve vanilla JavaScript, the current factory, current Three.js version, and the existing no-build workflow unless a separately approved change requires otherwise.
+- A Three.js upgrade, complex collision system, complete school rebuild, and bulk asset import are **out of scope**.
+- Do not redo milestone 15's model optimization, furniture placement, or chair fix; investigate them only to establish reusable conventions.
+
+**Implementation note:** Begin with an audit and a small catalog prototype using the models already in the repository. Add architectural assets only after verifying the reuse and conversion workflow. The intended result is a thin extension of proven systems, not a new asset-management framework for its own sake.
+
+**Starter-kit verification:** The [historic asset kit](docs/historic-asset-kit.md) records the audit, catalog and door conventions, source and runtime build commands, and screenshots. The conversion script rebuilt the student chair byte-for-byte. All six classroom GLBs now resolve through the catalog. Six original architecture GLBs demonstrate repeated limestone arches, moving oak doors with frames, and a wall-backed window sample. All 95 Node and 71 Chrome tests passed. Three Chrome runs at 1080p met the approved startup, frame interval, download, and estimated memory ceilings.
+
+**Revised architectural acceptance criteria**
+
+- A single representative area reads as an old English university with no furniture or decorative props. Show substantial masonry, worn historic flooring, a high vaulted ceiling, and arches formed by the architecture.
+- Ceiling, wall, arch, and floor components are reusable through level data. Preserve the existing model catalog, optimized GLBs, orientation corrections, resource reuse, and collision system.
+- Show first-person views of the entrance and vault and compare them with the approved references. Keep the timed route, controls, stairs, doors, and room identities usable. The sample stays within the approved browser budgets.
+
+**Wall and door mounting**
+
+Keep usable wall faces near entrances and route decisions, retain the existing navigation signs, and preserve the moving door panel as the attachment point for future door-mounted objects. The [kit’s mounting conventions](docs/historic-asset-kit.md#wall-and-door-mounting) record how level data, room IDs, and shared frame models can support this work in milestone 18, subject to approval.
+
+**Revised implementation and verification:** The [vaulted hall sample](docs/historic-asset-kit.md#revised-architectural-sample) demonstrates two adjoining 5-unit bays with a 6.5-unit crown, 0.8-unit masonry walls, and recessed entrances. All 95 Node and 71 Chrome tests passed. The Room 101 route met the four browser limits in three 1080p runs.
+
+**Implemented refinement · Arched masonry doorways and fitted oak leaves**
+
+Convert the three upstairs classroom entrances within the vaulted hall using a shared pointed profile. Keep the 1.8-unit clear width and the existing 2.25-unit height at the spring line, then shape the arch above it. Use the hall's textured masonry, deep reveals, and dark oak. Generate the opening through the thickness of the wall and shape the oak leaf from the same profile. Use catalog entries and level data for both parts. Reuse the door's existing hinge, interaction range, and room-arrival logic. Retain rectangular door support for other placements.
+
+**Additional acceptance criteria for milestone 17**
+
+- A repeated pointed opening is built through the masonry in both a side entrance and the end entrance. The matching oak leaf closes with an even seam and no visible gaps through the assembly or overlaps with the reveal. Show the closed fit from each side and the opened leaf in first-person views.
+- **E** opens the arched leaf using the existing hinge and swing. The closed leaf still blocks passage, and after opening the lower doorway retains the previous width and head clearance. The visual opening, collision, and **V** outlines stay aligned through both door states.
+- Both arched and rectangular doors work in the same level. Test traversal, restart and model reuse, entry into furnished Room 102 as a wrong room, and automatic arrival in scheduled Room 101. Run the Node and Chrome regressions and check the approved browser budgets.
+
+**Doorway verification:** The [first-person arched-door views](docs/historic-asset-kit.md#arched-classroom-doorways) show the fitted leaf from both sides and the open poses. All 96 Node and 72 Chrome tests passed. Three timed runs met the browser budgets.
+
+**Completion:** The product owner accepted milestone 17 on 2026-11-24. The final furniture check passed all 97 Node and 73 Chrome tests, including hallway clearance and the fitted chair collision outline. The furnished sample measured 15.96 MiB at startup against a 16 MiB budget. See the [changelog](CHANGELOG.md#2026-11-24--complete-milestone-17).
+
+### 18. Historic corridor and classroom visual-quality slice
+
+**Status:** Completed
+
+**Complexity:** Large
+
+**Objective:** Turn one representative classroom, corridor and stair approach into a convincing historic school scene at first-person scale.
+
+**Scope:** Apply the architectural kit to one compact playable route. Incorporate old stone walls, convincing doors and framing, historic flooring, ceiling details, trim, appropriate furniture and legible signs; use physically based materials where supported. Compare in-game screenshots with the approved references and iterate on proportions, lighting and material richness. Keep the room and route fully playable.
+
+**Dependencies:** Milestones 16–17, and existing classroom/lighting systems.
+
+**Acceptance criteria:** An approved first-person screenshot comparison demonstrates the intended old-college atmosphere. The player can navigate, open the door, reach the scheduled room and use debug view without mismatched collisions. Record frame time, scene asset size and visual trade-offs on the target browser.
+
+**Constraints:** One visual-quality slice only. No new wings, gameplay features or final school-wide replacement.
+
+**Implementation and visual review:** The sample runs from the public stairs through the vaulted hall to Room 101. It adds pale stair treads, warm lanterns, timber trim, an oak classroom floor, and brass room plaques generated from classroom IDs. The corridor iteration adds lime plaster, low oak paneling, a worn oak floor, a portrait, and a noticeboard within the existing bays. Room 101 uses the student-chair model, and the Room 102 objective lets players explore Room 101 along the way. [Collegiate corridor comparison](docs/historic-slice.md#collegiate-corridor-review)
+
+**Completion:** The product owner accepted the visual slice on 2026-11-24. The final seating check passed all 99 Node and 75 Chrome tests and verified a timed run through Room 101 to Room 102. The corridor benchmark met all four browser budgets. [Verification record](CHANGELOG.md#2026-11-24--complete-milestone-18)
+
+### 19. Windows, daylight, and visible exterior courtyard
+
+**Status:** Completed
+
+**Complexity:** Medium–Large
+
+**Objective:** Create convincing windows looking onto an outdoor setting, including daylight and shadows, without sacrificing indoor performance.
+
+**Scope:** Build actual window openings and frames in selected walls, appropriate glass/transparency where useful, and a compact courtyard with adjacent old-school facades, sky and landscape visible through the windows. Reuse the current lighting system; establish different daylight and dim-interior moods. Keep the outdoor vista initially non-traversable; ensure the walls and window openings have correct collision. Use a modest number of shadow-casting lights and minimize expensive transparent materials.
+
+**Dependencies:** Milestones 17–18 and existing lighting/shadow foundation.
+
+**Acceptance criteria:** From one corridor and one classroom, a player can clearly see a coherent courtyard beyond windows. Daylight and interior light read naturally; nearby entrances, windows and walls have correct collision; the route, signage and deadline remain usable. Browser performance and visual evidence are recorded; regression tests pass.
+
+**Constraints:** No explorable football pitch or entire campus yet. This is an indoor/outdoor rendering proof, not a full exterior level.
+
+**Verification:** The corridor near Room 103 and Room 101 look onto the same quadrangle. Chrome verified the sightlines and interior daylight. The glazing blocks jumps through both openings and appears in V. All 100 Node and 76 Chrome tests passed. Three timed Room 102 runs met the four browser budgets. [First-person views and measurements](docs/courtyard-window-review.md)
+
 ## Current limitations
 
-- The timed school uses six classrooms and one same-day deadline. First-time player comprehension and time allowance remain playtesting items.
-- Furniture uses placeholder geometry and world-aligned box colliders. Quarter turns fit the boxes exactly. Other angles use enclosing bounds.
-- The two-floor route demonstrates the proposed visual style. Room 003 remains the fully furnished classroom, and the final art direction is open.
+- The timed school uses six classrooms and one same-day deadline. The current default is Mathematics in Room 102, so Room 101 is available to explore during the run. First-time player comprehension and time allowance remain playtesting items.
+- Furniture mixes procedural placeholders and imported models. Solid models use enclosing collision boxes.
+- Much of the two-floor route still uses prototype finishes. The quadrangle is visible through two windows, and Room 102 still has the earlier wall-backed sample.
 - The earlier pitch-snap bug has regression coverage; the previously reported intermittent sideways roll was not reproduced in the cited hallway investigation.
 - The browser build requires WebGL and Pointer Lock. The repository serves its pinned Three.js build locally.
 
 ## Proposed milestones — priority order
 
-### 15. Furnish the destination classroom
+### 20. Large-school area and connection architecture
 
 **Status:** Proposed
 
-**Objective:** Make Room 102 immediately recognizable as a classroom when the player arrives.
+**Complexity:** Large
 
-**Scope:** Use the existing furniture and lighting systems to place a small seating area in Room 102 and preserve its entrance and arrival region.
+**Objective:** Support the sensation of an overwhelmingly large school without loading and maintaining the entire world as one simultaneous scene.
 
-**Dependencies:** Milestones 11.7, 13, and 14.
+**Scope:** Design explicit area definitions, doors/stairs/passages as connections, and transitions between connected areas while maintaining stable identities for rooms and signs. Prototype loading and releasing an adjacent area on demand, preserving cached reusable assets and required session state. Test seamless physical routes first; leave impossible or non-aligned transitions to a later milestone. Introduce measured visibility/culling strategies only as needed. Protect scheduled-room reachability and preserve clock behavior through transitions.
 
-**Acceptance criteria:** The default route still wins on entry. The furniture placement leaves the doorway and aisles clear, with verified debug outlines and measured render cost.
+**Dependencies:** Milestones 17–19, current Game/Level/GameSession architecture.
+
+**Acceptance criteria:** The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
+
+**Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
+
+### 21. Beyond classrooms: service routes and playable exterior
+
+**Status:** Proposed
+
+**Complexity:** Large
+
+**Objective:** Make the school feel like a functioning institution with discoverable, purpose-built routes beyond academic corridors.
+
+**Scope:** Add a connected set of distinctive locations, chosen and approved individually from a maintenance room/passage, cafeteria kitchen, changing room/showers, courtyard, and football-field path. Start with one indoor service shortcut and one traversable exterior route; use the approved architectural assets and lighting styles. Give each route visual clues and navigational purpose rather than treating it as decoration. Preserve room numbering, scheduling and fair deadlines.
+
+**Dependencies:** Milestones 18–20, plus approved route layout and individual environment choices.
+
+**Acceptance criteria:** One challenge has at least two meaningful routes, including an optional service or outdoor passage. The player can infer and traverse them using in-world clues; doors, floors, exits, collision, lighting and level transitions function. The route is tested for fairness and browser performance.
+
+**Constraints:** Do not construct every desired location at once; grow the world through separately reviewable pieces.
+
+### 22. Persistent discovery and subtle school changes
+
+**Status:** Proposed
+
+**Complexity:** Large
+
+**Objective:** Make learned knowledge valuable while occasionally changing familiar routes in intentional, surprising, fair ways.
+
+**Scope:** Separate fixed area/connection definitions from active school state and the player's discovery history. Prototype one recognizable shortcut that is learned, later changes while the player is elsewhere or between classes, and presents a clue plus a viable alternative. Preserve change state across the relevant game sessions; specify exact persistence and reset behavior before coding. Verify changes cannot make a scheduled destination unreachable or produce unfair automatic timeout.
+
+**Dependencies:** Milestones 20–21 and separately approved persistence/progression semantics.
+
+**Acceptance criteria:** A scripted multi-visit scenario shows the same familiar area before and after one controlled change; the player can discover what happened and adapt without guessing randomly. Time, navigation, transitions and saved state remain consistent, with automated connectivity checks and browser walkthroughs.
+
+**Constraints:** No random mid-run maze reshuffling; no seamless impossible portals yet.
+
+### 23. Strange wings and impossible connections
+
+**Status:** Proposed
+
+**Complexity:** Large
+
+**Objective:** Begin the gradual transition from a believable historic school to an internally understandable but architecturally absurd institution.
+
+**Scope:** Design and seek approval for one unusual wing with a distinct, learnable rule. Prototype a doorway or staircase transition to an area whose spatial relationship cannot fit the ordinary world layout. Preserve continuity of player controls, scheduled objective, discoverability, loading and timing. Use the familiar school as an anchor and introduce the absurdity sparingly.
+
+**Dependencies:** Milestones 20 and 22; approved unusual-wing design.
+
+**Acceptance criteria:** The strange area has an understandable navigational rule, at least one reliable return route, and a playable scheduled-room challenge. No soft-locks or impossible deadline states occur. A first-time playtest demonstrates that the surprise is interesting rather than arbitrary.
+
+**Constraints:** Basic area transitions are acceptable; seamless portals are an optional future project, not a requirement.
+
+### 24. Ambient school life and character feasibility trial
+
+**Status:** Proposed
+
+**Complexity:** Medium–Large
+
+**Objective:** Evaluate whether animated students, staff and environmental audio improve the sense of a living school without compromising browser performance or navigation.
+
+**Scope:** Prototype a small number of approved rigged GLB characters using animation clips and simple waypoint navigation in one test area, alongside discreet ambient sound and footsteps. Keep collision, occlusion, and visibility policies simple. Measure animation, rendering, and asset-loading costs. Decide whether characters should remain decorative or later become interactive.
+
+**Dependencies:** Milestones 18–20; approved character assets and licenses.
+
+**Acceptance criteria:** A small group of characters walk believable routes without blocking essential navigation or materially disrupting the school clock. Assets load/reuse/cleanup correctly; the browser meets the agreed performance target; an observed playtest supports a decision to expand, revise or defer NPCs.
+
+**Constraints:** No large autonomous crowd, conversations, dialogue AI or complex behavior trees in this trial.
 
 ## Deferred milestones
 

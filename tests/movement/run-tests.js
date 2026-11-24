@@ -11,9 +11,25 @@ const THREE_LIBRARY = 'assets/vendor/three-r128/three.min.js';
 const GLTF_LOADER = 'assets/vendor/three-r128/GLTFLoader.js';
 const read = file => fs.readFileSync(path.join(PROJECT_ROOT, file), 'utf8');
 
-// Parse the real assets without a WebGL context, alongside the lightweight rendering stubs.
+// Parse real mesh data offline. The browser suite decodes the embedded textures.
 const modelThree = require(path.join(PROJECT_ROOT, THREE_LIBRARY));
-vm.runInNewContext(read(GLTF_LOADER), { THREE: modelThree, ArrayBuffer, TextDecoder });
+class OfflineImageLoader extends modelThree.Loader {
+    isImageBitmapLoader = true;
+
+    load(url, onLoad) {
+        onLoad({ width: 1, height: 1 });
+    }
+}
+const loaderThree = { ...modelThree, ImageBitmapLoader: OfflineImageLoader };
+vm.runInNewContext(read(GLTF_LOADER), {
+    THREE: loaderThree,
+    ArrayBuffer,
+    Blob,
+    TextDecoder,
+    self: { URL },
+    navigator: { userAgent: 'Node.js' },
+    createImageBitmap: true
+});
 function localModelResponse(url) {
     const data = fs.readFileSync(path.join(PROJECT_ROOT, url));
     return { ok: true, arrayBuffer: async () => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) };
@@ -142,6 +158,15 @@ class BoxGeometry extends Resource {
         super();
         this.parameters = { width, height, depth };
     }
+
+    getAttribute(name) {
+        this.geometry ??= new modelThree.BoxGeometry(...Object.values(this.parameters));
+        return this.geometry.getAttribute(name);
+    }
+
+    computeTangents() {
+        this.geometry.computeTangents();
+    }
 }
 
 class Material extends Resource {
@@ -177,6 +202,11 @@ class Mesh {
         this.material = material;
         this.position = new Vector3();
         this.rotation = new Vector3();
+        this.children = [];
+    }
+
+    add(child) {
+        this.children.push(child);
     }
 }
 
@@ -217,7 +247,7 @@ const THREE = {
     Box3: modelThree.Box3,
     Group: modelThree.Group,
     LoaderUtils: modelThree.LoaderUtils,
-    GLTFLoader: modelThree.GLTFLoader,
+    GLTFLoader: loaderThree.GLTFLoader,
     PerspectiveCamera: Camera,
     Scene,
     BufferGeometry,
@@ -256,9 +286,10 @@ for (const file of browserTestFiles) {
     vm.runInContext(read(file), context, { filename: file });
 }
 test.before(async () => {
-    const loaded = await vm.runInContext(
-        'EnvironmentObjectFactory.loadModels(levels[2].environmentObjects, "assets/levels.json")', context
-    );
+    const loaded = await vm.runInContext(`
+        const classroom = new Level(levels[2], GAME_CONFIG);
+        classroom.loadEnvironmentModels('assets/levels.json').then(() => classroom.models);
+    `, context);
     for (const [model, template] of loaded) {
         models.set(model, template);
     }
@@ -892,16 +923,15 @@ test('startup loads each furniture asset once and reports a failed asset request
     const response = { ok: true, json: async () => ({ levels }) };
     const game = await loadGame(response, '?level=3');
     assert.equal(game.elements.get('start-button').disabled, false);
-    assert.deepEqual([...game.modelRequests].sort(), [
-        'assets/models/lfc_student_chair.glb', 'assets/models/lfc_student_desk.glb'
-    ]);
+    const expectedModels = Object.values(levels[2].modelCatalog).map(({ model }) => `assets/${model}`).sort();
+    assert.deepEqual([...game.modelRequests].sort(), expectedModels);
     const desk = () => game.renderers[0].scene.children.find(object => object.name === 'Room 003 back east outer desk');
     const original = desk();
     game.elements.get('start-button').dispatchEvent(new Event('click'));
     game.document.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyR' }));
     assert.ok(desk());
     assert.notEqual(desk(), original);
-    assert.equal(game.modelRequests.length, 2);
+    assert.equal(game.modelRequests.length, expectedModels.length);
 
     const failure = await loadGame(response, '?level=3', new Map(), () => ({ ok: false, status: 404 }));
     assert.equal(failure.elements.get('start-button').disabled, true);
@@ -934,7 +964,10 @@ test('the classroom prompts for E in range and R restores its closed door, spawn
     const origin = scene.children.find(object => object.name === 'Corridor origin');
     const farEnd = scene.children.find(object => object.name === 'Corridor far end');
     assert.equal(origin.material.map.image.backgroundColor, '#a6d4ca');
-    assert.equal(sign.material.map.image.backgroundColor, '#f0d29b');
+    assert.equal(sign.material.map.image.backgroundColor, '#c79b53');
+    const landingSign = scene.children.find(object => object.name === 'First-floor landing');
+    assert.equal(landingSign.material.map.image.backgroundColor, '#38261b');
+    assert.deepEqual(landingSign.material.map.image.lines, levels[2].signs.find(sign => sign.name === landingSign.name).lines);
     assert.deepEqual(origin.material.map.image.lines, [
         'Ground floor · Corridor origin', 'Face into the corridor', '001 left · 002 right', '003 straight ahead',
         'Stairs near 003'
@@ -1161,7 +1194,7 @@ test('wrong classrooms leave the clock running and the schedule selects which ro
     }
 });
 
-test('the default challenge rejects Ground Room 003 and wins in Room 102 after walking the public stairs', async () => {
+test('the default challenge allows a visit to Rooms 003 and 101 before winning in Room 102', async () => {
     const { document, elements, frames, renderers } =
         await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3');
     const [{ camera }] = renderers;
@@ -1191,6 +1224,14 @@ test('the default challenge rejects Ground Room 003 and wins in Room 102 after w
     walkUntil('KeyA', () => camera.position.x >= 0);
     walkUntil('KeyW', () => camera.position.z > 26.5);
     assert.equal(camera.position.y, 4.6);
+    walkUntil('KeyA', () => camera.position.x > 1.65);
+    press('KeyE');
+    walkUntil('KeyA', () => camera.position.x > 3);
+    assert.equal(elements.get('start-screen').hidden, true);
+    assert.equal(elements.get('objective').textContent, 'Find Room 102');
+    const roomVisitTime = elements.get('school-time').textContent;
+    frames.shift()(1000);
+    assert.notEqual(elements.get('school-time').textContent, roomVisitTime);
     walkUntil('KeyD', () => camera.position.x < -1.65);
     press('KeyE');
     walkUntil('KeyD', () => !elements.get('start-screen').hidden);

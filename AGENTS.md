@@ -55,7 +55,7 @@ Report load failures to the player and retain the underlying error in the consol
 - An approval applies only to the specific proposed milestone and its agreed scope. Wait for explicit approval before implementing a proposal. The product owner may reject, change, or reprioritize any proposal.
 - Stop and ask the product owner if implementation raises a significant new design decision or scope change. Resume once that decision has been made.
 - When the product owner asks “What's next?”, review the vision, roadmap, source, and current state. Present the highest-priority milestone, why it matters, and its acceptance criteria. Wait for approval.
-- When the product owner says “Approved”, implement only the unambiguously identified milestone. Update its roadmap status, run the relevant tests, and fix regressions. After verification, update `CHANGELOG.md` and `ROADMAP.md`, report what changed and what was verified, and propose exactly one next milestone. Stop and wait for approval before starting it.
+- When the product owner says “Approved”, implement only the unambiguously identified milestone. Update its roadmap status, run the relevant tests, and fix regressions. After verification, update `CHANGELOG.md` and the roadmap, report what changed and what was verified, and propose exactly one next milestone. Stop and wait for approval before starting it.
 - When the product owner rejects or changes a proposal, revise the proposal and wait for approval before coding. Ask for clarification if approval could refer to more than one proposal.
 - Commit or push only with explicit authorization to do so.
 

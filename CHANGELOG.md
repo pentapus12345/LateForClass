@@ -8,6 +8,75 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-24 — Add courtyard windows and daylight
+
+- Opened the vaulted corridor near Room 103 and Room 101’s outer wall with matching mullioned windows onto a shared quadrangle. Added local daylight and thin blocking glazing with V outlines. The courtyard uses repeated stone bays, paved walks, and a central lawn.
+- All 100 Node and 76 Chrome tests passed. Three timed Room 102 runs met the browser budgets, with 15.978 MiB at startup and a worst-run 95th-percentile frame interval of 9.3 ms. [First-person views and benchmark](docs/courtyard-window-review.md)
+
+### 2026-11-24 — Complete milestone 18
+
+- The product owner accepted the historic visual slice, including the collegiate corridor and Room 101’s student seating. The final implementation passed all 99 Node and 75 Chrome tests. [Screenshots and performance results](docs/historic-slice.md#collegiate-corridor-review)
+
+### 2026-11-24 — Use student chairs in Room 101
+
+- Room 101’s two desks now use the cataloged student-chair model, with both seats facing the chalkboard. All 99 Node and 75 Chrome tests passed, including a playthrough through Room 101 to the scheduled Room 102.
+
+### 2026-11-24 — Refine the vaulted hall as a collegiate corridor
+
+- Added pale, aged plaster above oak wainscoting, replaced the two corridor slabs with worn oak at the same finished floor height, and mounted a portrait and college noticeboard. Exposed stone marks the vault, arches, and thresholds.
+- All 99 Node and 75 Chrome tests passed. Three timed runs visited Room 101 and finished in Room 102 within all four browser budgets. Startup used 15.93 MiB. [First-person comparison and benchmark](docs/historic-slice.md#collegiate-corridor-review)
+
+### 2026-11-24 — Schedule Mathematics in Room 102
+
+- Room 102 is now the default destination, so players can explore the historic Room 101 while the clock runs. The default-route regression verifies that visiting Room 101 keeps the game active and reaching Room 102 completes the run.
+- All 98 Node and 74 Chrome tests passed. A Chrome playthrough explored Room 101 and finished in Room 102.
+
+### 2026-11-24 — Finish the historic stair-to-classroom route
+
+- Added textured stone stairs and walls, warm lanterns, and wooden signs along the vaulted route. Room 101 now has worn oak boards, timber beams, reused furniture, and a limewashed teaching wall. The brass-style classroom plaques draw their labels from room IDs.
+- All 98 Node and 74 Chrome tests passed. Three timed runs finished in Room 101 and met all four browser budgets. Startup used 15.995 MiB of the 16 MiB budget. The first-person comparison is ready for visual acceptance. [Screenshots and benchmarks](docs/historic-slice.md)
+
+### 2026-11-24 — Complete milestone 17
+
+- The product owner accepted the historic architectural kit, including the vaulted hall, integrated masonry arches, and fitted oak doors. The final furniture and collision checks passed all 97 Node and 73 Chrome tests. [Roadmap](ROADMAP.md#17-asset-catalog-reproducible-model-pipeline-and-historic-architectural-kit)
+
+### 2026-11-24 — Adjust the green hallway chair scale
+
+- Enlarged the green hallway chair by 25% so it sits in better proportion to the console. Shifted it slightly away from the wall to fit the larger footprint while keeping the sign and walking route clear.
+- All 97 Node and 73 Chrome tests passed. Checked the new proportions in first person and verified the fitted collision outline in V view.
+
+### 2026-11-24 — Try the console and green chair in the vaulted hall
+
+- Placed the imported hallway console and green chair along the first-floor wall, beside the stairs sign. Both have fitted colliders, with the center route and classroom thresholds clear.
+- Corrected the chair source filename to `lfc_green_hallway_chair.glb`. The game loads two cataloged runtime copies with textures capped at 288 pixels, totaling about 0.79 MiB.
+- All 97 Node and 73 Chrome tests passed. Three 1080p walkthroughs finished in Room 101 within the approved browser budgets. The startup download measured 15.96 MiB.
+
+### 2026-11-24 — Fit oak leaves into pointed masonry openings
+
+- Cut the same pointed profile through the three upstairs classroom openings and shaped their oak leaves from it. The existing E interaction, hinge poses, and room-arrival logic still apply. V shows the fitted collision sections. Rectangular doors remain supported.
+- All 96 Node and 72 Chrome tests passed. Three 1080p runs met the browser budgets. Chrome also checked the closed fit from each side, both swing directions, and shared geometry after restart.
+
+### 2026-11-24 — Rebuild the upstairs hall as a vaulted stone interior
+
+- Replaced the flat first-floor corridor with two catalog-defined rib-vault bays, a pointed masonry portal at the stairs, deep classroom reveals, and worn flagstones. The corridor crown is about 6.5 units above the floor.
+- All 95 Node and 71 Chrome tests passed. The existing Room 101 route met all four browser budgets in three 1080p runs. The kit documentation records the first-person views and comparison with the approved visual references.
+
+### 2026-11-24 — Catalog classroom GLBs and add a historic starter kit
+
+- Added level-data aliases for all six classroom GLBs, with the imported chair’s facing correction stored in the catalog. Added offline build commands and verified a byte-for-byte rebuild of the student chair.
+- Added original limestone arches, oak doors and frames, and mullioned window samples to the upstairs benchmark route. Oak leaves use the existing door hinge and collision. Window frames are backed by the existing wall.
+- All 95 Node and 71 Chrome tests passed. Three 1080p timed routes stayed within the approved browser budgets and finished in Room 101. The asset kit notes record screenshots and benchmark results.
+
+### 2026-11-24 — Target Room 101 and prepare the historic school reference
+
+- Mathematics now starts in Room 101. The route regression visits Rooms 003 and 102 before winning in Room 101. All 93 Node and 69 Chrome tests passed.
+- Prepared a photographic reference sheet, an asset attribution register, and a desktop Chrome benchmark for the historic school. The product owner approved the reference direction, shortlist, benchmark route, and browser budgets.
+
+### 2026-11-24 — Furnish Room 102 and correct imported chair facing
+
+- Room 102 has two student desk-and-chair pairs, the teacher’s desk, a standing chalkboard, and wooden display shelves with seven decorative books. The two imported chairs in Room 003 now face their desks after the source model’s orientation change.
+- The game uses six lighter GLB copies totaling 13.0 MiB. All 93 Node and 69 Chrome tests passed, including aisle clearance, collision view, model reuse across restart, and automatic arrival on the default timed route. Startup timing was measured on localhost.
+
 ### 2026-11-23 — Load original GLB desks and chairs in Room 003
 
 - Added local Three.js r128 GLTFLoader and reused the furniture factory for two desks and two chairs. Model paths and rotations are configured in level JSON. Each model instance uses one fitted collision box shown in V view. Restart recreates the instances and wireframes while retaining shared model resources.

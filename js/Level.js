@@ -1,12 +1,17 @@
 const PILLAR_RADIAL_SEGMENTS = 16;
 const CONTACT_TOLERANCE = 1e-9;
 const DEFAULT_SURFACE_COLOR = 0xb6c0c9;
+const SIGN_STYLES = {
+    brass: { edge: '#48321c', border: '#f0cf82', face: '#c79b53', ink: '#24180e', font: 'Georgia' },
+    oak: { edge: '#241811', face: '#38261b', ink: '#f3dec0', font: 'Georgia' }
+};
 
 class Level {
     constructor(definition, config, models = new Map()) {
         this.definition = definition;
         this.config = config;
         this.models = models;
+        this.finishMaterials = new Map();
         this.playerStart = definition.playerStart;
         this.playerLookAt = definition.playerLookAt;
         const { classroom, door } = definition;
@@ -18,34 +23,44 @@ class Level {
         this.solids = [];
         this.objects = [];
         this.renderPairs = [];
+        this.scenery = [];
         this.debugView = false;
         this.doors = [];
     }
 
     async loadEnvironmentModels(levelsUrl, signal) {
-        this.models = await EnvironmentObjectFactory.loadModels(this.definition.environmentObjects ?? [], levelsUrl, signal);
+        const { environmentObjects = [], modelCatalog, surfaceFinishes = {} } = this.definition;
+        const placements = this.definition.solidRendering
+            ? [...environmentObjects, ...this.doorDefinitions, ...Object.values(surfaceFinishes)]
+            : environmentObjects;
+        this.models = await EnvironmentObjectFactory.loadModels(placements, levelsUrl, signal, modelCatalog);
     }
 
     build(scene) {
         this.clear(scene);
+        const factory = new EnvironmentObjectFactory(this.models, this.definition.modelCatalog);
         if (this.definition.hallway) {
             this.createHallway(scene);
             this.createHallwayColliders();
         }
         for (const platform of this.definition.platforms ?? []) {
-            const solid = new Wall(platform);
-            this.solids.push(solid);
-            this.addPlatformVisuals(scene, solid, platform);
+            const bounds = new Wall(platform);
+            const sections = platform.windowOpening ? this.windowOpeningWalls(platform.windowOpening, bounds) : [bounds];
+            for (const [index, section] of sections.entries()) {
+                this.solids.push(section);
+                const name = index ? `${platform.name} section ${index + 1}` : platform.name;
+                this.addPlatformVisuals(scene, section, { ...platform, name });
+            }
         }
 
         if (this.definition.pillars) {
             this.addPillars(scene);
         }
         for (const door of this.doorDefinitions) {
-            this.addDoor(scene, door);
+            this.addDoor(scene, door, factory);
         }
         if (this.definition.environmentObjects?.length) {
-            this.addEnvironmentObjects(scene);
+            this.addEnvironmentObjects(scene, factory);
         }
         for (const classroom of this.classrooms) {
             if (classroom.sign) {
@@ -63,18 +78,30 @@ class Level {
         this.objects.push(object);
     }
 
-    addEnvironmentObjects(scene) {
-        const factory = new EnvironmentObjectFactory(this.models);
+    addEnvironmentObjects(scene, factory) {
         for (const placement of this.definition.environmentObjects) {
             for (const { surface, bounds } of factory.create(placement)) {
                 this.addObject(scene, surface);
+                if (placement.hideInDebug) {
+                    this.scenery.push(surface);
+                    surface.visible = !this.debugView;
+                }
                 if (bounds) {
-                    this.solids.push(bounds);
-                    const outline = this.addWireframeBox(scene, bounds, undefined, `${surface.name} collision`);
-                    if (this.definition.solidRendering) {
-                        this.addRenderPair(surface, outline);
-                    } else {
-                        surface.visible = false;
+                    let walls = [bounds];
+                    if (placement.archOpening) {
+                        walls = this.archOpeningWalls(placement, bounds);
+                    } else if (placement.windowOpening) {
+                        walls = this.windowOpeningWalls(placement.windowOpening, bounds);
+                    }
+                    for (const [index, wall] of walls.entries()) {
+                        this.solids.push(wall);
+                        const name = walls.length === 1 ? surface.name : `${surface.name} section ${index + 1}`;
+                        const outline = this.addWireframeBox(scene, wall, undefined, `${name} collision`);
+                        if (this.definition.solidRendering) {
+                            this.addRenderPair(surface, outline, walls.length > 1);
+                        } else {
+                            surface.visible = false;
+                        }
                     }
                 }
             }
@@ -85,6 +112,7 @@ class Level {
         const geometries = new Set();
         const materials = new Set();
         const textures = new Set();
+        const sharedMaterials = new Set(this.finishMaterials.values());
         for (const object of this.objects) {
             scene.remove(object);
             // Model groups borrow their meshes from the level's model cache across builds.
@@ -92,9 +120,11 @@ class Level {
                 continue;
             }
             geometries.add(object.geometry);
-            materials.add(object.material);
-            if (object.material.map) {
-                textures.add(object.material.map);
+            if (!sharedMaterials.has(object.material)) {
+                materials.add(object.material);
+                if (object.material.map) {
+                    textures.add(object.material.map);
+                }
             }
         }
         for (const geometry of geometries) {
@@ -109,6 +139,8 @@ class Level {
         this.objects = [];
         this.solids = [];
         this.renderPairs = [];
+        this.scenery = [];
+        this.finishMaterials.clear();
         this.doors = [];
     }
 
@@ -139,7 +171,7 @@ class Level {
         return frame;
     }
 
-    addPlatformVisuals(scene, bounds, { color, name, surfaceColor = DEFAULT_SURFACE_COLOR,
+    addPlatformVisuals(scene, bounds, { color, name, surfaceColor = DEFAULT_SURFACE_COLOR, surfaceFinish, opacity,
         castShadow = false, receiveShadow = false }) {
         if (!this.definition.solidRendering) {
             this.addWireframeBox(scene, bounds, color, name);
@@ -148,23 +180,77 @@ class Level {
 
         const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
         const geometry = new THREE.BoxGeometry(maxX - minX, maxY - minY, maxZ - minZ);
-        const material = receiveShadow
-            ? new THREE.MeshPhongMaterial({ color: surfaceColor, specular: 0x000000 })
-            : new THREE.MeshLambertMaterial({ color: surfaceColor });
+        const position = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, z: (minZ + maxZ) / 2 };
+        let material;
+        if (surfaceFinish) {
+            material = this.applySurfaceFinish(geometry, position, surfaceFinish);
+        } else if (opacity !== undefined) {
+            material = new THREE.MeshBasicMaterial({ color: surfaceColor, transparent: true, opacity, depthWrite: false });
+        } else {
+            material = receiveShadow
+                ? new THREE.MeshPhongMaterial({ color: surfaceColor, specular: 0x000000 })
+                : new THREE.MeshLambertMaterial({ color: surfaceColor });
+        }
         const surface = new THREE.Mesh(geometry, material);
         surface.name = name;
         surface.castShadow = castShadow;
         surface.receiveShadow = receiveShadow;
-        surface.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+        surface.position.set(position.x, position.y, position.z);
         this.addObject(scene, surface);
         const wireframe = this.addWireframeBox(scene, bounds, color, `${name} collision`);
         this.addRenderPair(surface, wireframe);
     }
 
-    addRenderPair(surface, wireframe) {
+    applySurfaceFinish(geometry, position, name) {
+        const finish = this.definition.surfaceFinishes?.[name];
+        if (!finish) {
+            throw new Error(`Unknown surface finish: ${name}`);
+        }
+        if (!this.finishMaterials.has(name)) {
+            const { model } = EnvironmentObjectFactory.resolveModel(finish, this.definition.modelCatalog);
+            const template = this.models.get(model);
+            let material;
+            if (finish.materialName) {
+                template?.traverse(object => {
+                    if (object.material?.name === finish.materialName) {
+                        material = object.material;
+                    }
+                });
+            } else {
+                material = template?.getObjectByProperty('isMesh', true)?.material;
+            }
+            if (!material?.map) {
+                throw new Error(`Missing textured material for surface finish: ${name}`);
+            }
+            this.finishMaterials.set(name, material);
+        }
+
+        // Project the same material scale across neighboring boxes, including stair risers and treads.
+        const points = geometry.getAttribute('position');
+        const normals = geometry.getAttribute('normal');
+        const uv = geometry.getAttribute('uv');
+        for (let index = 0; index < points.count; index++) {
+            const x = position.x + points.getX(index);
+            const y = position.y + points.getY(index);
+            const z = position.z + points.getZ(index);
+            const nx = normals.getX(index);
+            const ny = normals.getY(index);
+            const u = nx ? -nx * z : x;
+            const v = ny ? -ny * z : y;
+            const direction = normals.getZ(index) < 0 ? -1 : 1;
+            uv.setXY(index, direction * u / finish.tileWidth, v / finish.tileHeight);
+        }
+        const material = this.finishMaterials.get(name);
+        if (material.vertexTangents) {
+            geometry.computeTangents();
+        }
+        return material;
+    }
+
+    addRenderPair(surface, wireframe, partial = false) {
         surface.visible = !this.debugView;
         wireframe.visible = this.debugView;
-        this.renderPairs.push({ surface, wireframe });
+        this.renderPairs.push({ surface, wireframe, partial });
     }
 
     toggleDebugView() {
@@ -176,6 +262,9 @@ class Level {
         for (const { surface, wireframe } of this.renderPairs) {
             surface.visible = !this.debugView;
             wireframe.visible = this.debugView;
+        }
+        for (const surface of this.scenery) {
+            surface.visible = !this.debugView;
         }
         return true;
     }
@@ -236,22 +325,16 @@ class Level {
         return distance <= classroom.interactionRadius;
     }
 
-    addSign(scene, { name, lines, x, y, z, rotationY = 180, width = 0.88, height = 0.33,
-        backgroundColor = '#82d8ac' }) {
+    addSign(scene, { name, lines, notices, x, y, z, rotationY = 180, width = 0.88, height = 0.33,
+        backgroundColor = '#82d8ac', style }) {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = Math.round(canvas.width * height / width);
         const context = canvas.getContext('2d');
-        context.fillStyle = backgroundColor;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = '#15202b';
-        const lineHeight = canvas.height / (lines.length + 1);
-        const fontSize = Math.min(76, Math.floor(lineHeight * 0.82));
-        context.font = `bold ${fontSize}px Arial`;
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        for (const [index, line] of lines.entries()) {
-            context.fillText(line, canvas.width / 2, (index + 1) * lineHeight, canvas.width - 32);
+        if (notices) {
+            this.drawNoticeboard(context, canvas, name, notices);
+        } else {
+            this.drawSign(context, canvas, lines, backgroundColor, style);
         }
 
         const geometry = new THREE.PlaneGeometry(width, height);
@@ -264,7 +347,63 @@ class Level {
         this.addObject(scene, plaque);
     }
 
-    addDoor(scene, definition) {
+    drawSign(context, canvas, lines, backgroundColor, style) {
+        const appearance = SIGN_STYLES[style];
+        context.fillStyle = appearance?.edge ?? backgroundColor;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        if (appearance) {
+            context.fillStyle = appearance.border ?? backgroundColor;
+            context.fillRect(5, 5, canvas.width - 10, canvas.height - 10);
+            context.fillStyle = appearance.face;
+            context.fillRect(11, 11, canvas.width - 22, canvas.height - 22);
+        }
+        context.fillStyle = appearance?.ink ?? '#15202b';
+        const lineHeight = canvas.height / (lines.length + 1);
+        const fontSize = style === 'brass' ? Math.min(104, lineHeight) : Math.min(76, Math.floor(lineHeight * 0.82));
+        context.font = `bold ${fontSize}px ${appearance?.font ?? 'Arial'}`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        for (const [index, line] of lines.entries()) {
+            context.fillText(line, canvas.width / 2, (index + 1) * lineHeight, canvas.width - 32);
+        }
+    }
+
+    drawNoticeboard(context, { width, height }, title, notices) {
+        context.fillStyle = '#38241a';
+        context.fillRect(0, 0, width, height);
+        context.fillStyle = '#8b6341';
+        context.fillRect(8, 8, width - 16, height - 16);
+        context.fillStyle = '#3c4939';
+        context.fillRect(20, 67, width - 40, height - 87);
+        context.fillStyle = '#f3dfb7';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.font = 'bold 29px Georgia';
+        context.fillText(title, width / 2, 40, width - 72);
+
+        const cell = (width - 66) / notices.length;
+        const paperWidth = cell - 17;
+        const paperHeight = Math.min(height - 145, 146);
+        for (const [index, [heading, caption]] of notices.entries()) {
+            const x = 41 + index * cell;
+            const y = 96 + (index % 2) * 16;
+            context.fillStyle = '#253129';
+            context.fillRect(x + 3, y + 5, paperWidth, paperHeight);
+            context.fillStyle = index % 2 ? '#dcc9a2' : '#ebddc0';
+            context.fillRect(x, y, paperWidth, paperHeight);
+            context.fillStyle = '#423322';
+            context.fillRect(x + paperWidth / 2 - 2, y + 8, 4, 4);
+            context.font = 'bold 17px Georgia';
+            context.fillText(heading, x + paperWidth / 2, y + 35, paperWidth - 13);
+            context.font = '15px Georgia';
+            context.fillText(caption, x + paperWidth / 2, y + 59, paperWidth - 13);
+            context.fillStyle = '#a79574';
+            context.fillRect(x + 18, y + 84, paperWidth - 36, 1);
+            context.fillRect(x + 26, y + 96, paperWidth - 52, 1);
+        }
+    }
+
+    addDoor(scene, definition, factory) {
         const { x, z, width, height, depth, color, surfaceColor = color, name,
             castShadow = false, receiveShadow = false } = definition;
         const geometry = new THREE.BoxGeometry(width, height, depth);
@@ -280,13 +419,31 @@ class Level {
         panel.name = name;
         panel.castShadow = castShadow;
         panel.receiveShadow = receiveShadow;
-        let wireframe = null;
-        if (this.definition.solidRendering) {
-            wireframe = this.addWireframeBox(scene, new Wall({ x: 0, y: -height / 2, z: 0, width, height, depth }),
-                color, `${name} collision`);
-            this.addRenderPair(panel, wireframe);
+        const arch = definition.arch ? this.definition.doorProfiles[definition.arch] : null;
+        const parts = [{ x: 0, y: 0, width, height, depth }];
+        if (arch) {
+            for (const band of this.archBands(arch, width)) {
+                parts.push({ x: band.x, y: height, width: band.width, height: band.high, depth });
+            }
         }
-        const door = { definition, panel, wireframe, solidIndex: this.solids.length, isOpen: false };
+        if (this.definition.solidRendering) {
+            if (definition.asset || definition.model) {
+                const [{ surface }] = factory.create({
+                    ...definition, y: -height / 2, x: 0, z: 0, collidable: false
+                });
+                panel.add(surface);
+                // Keep the original hinge, shadow registration, and collision dimensions.
+                panel.material.visible = false;
+                panel.castShadow = false;
+            }
+            for (const [index, part] of parts.entries()) {
+                const label = index === 0 ? name : `${name} arch section ${index}`;
+                const box = new Wall({ ...part, y: part.y - height / 2, z: 0 });
+                part.wireframe = this.addWireframeBox(scene, box, color, `${label} collision`);
+                this.addRenderPair(panel, part.wireframe, index !== 0);
+            }
+        }
+        const door = { definition, panel, parts, wireframe: parts[0].wireframe, solidIndex: this.solids.length, isOpen: false };
         this.doors.push(door);
         this.setDoorPose(door, x, z, definition.axis === 'x' ? Math.PI / 2 : 0);
         this.addObject(scene, panel);
@@ -332,17 +489,76 @@ class Level {
     }
 
     setDoorPose(door, x, z, angle) {
-        const { y, width, height, depth } = door.definition;
+        const { y, height } = door.definition;
         door.panel.position.set(x, y + height / 2, z);
         door.panel.rotation.y = angle;
-        if (door.wireframe) {
-            door.wireframe.position.set(x, y + height / 2, z);
-            door.wireframe.rotation.y = angle;
+        for (const [index, part] of door.parts.entries()) {
+            if (part.wireframe) {
+                part.wireframe.position.set(x, y + height / 2, z);
+                part.wireframe.rotation.y = angle;
+            }
+            this.solids[door.solidIndex + index] = this.orientDoorwayWall(part, x, y, z, angle);
         }
+    }
+
+    orientDoorwayWall(part, x, y, z, angle) {
         const widthAlongX = angle % Math.PI === 0;
-        this.solids[door.solidIndex] = new Wall({
-            x, y, z, width: widthAlongX ? width : depth, height, depth: widthAlongX ? depth : width
+        return new Wall({
+            x: x + part.x * Math.cos(angle), y: y + part.y, z: z - part.x * Math.sin(angle),
+            width: widthAlongX ? part.width : part.depth, height: part.height,
+            depth: widthAlongX ? part.depth : part.width
         });
+    }
+
+    archBands({ rise }, width) {
+        const bandWidth = width / (rise.length - 1);
+        return rise.slice(1).map((next, index) => ({
+            x: -width / 2 + (index + 0.5) * bandWidth,
+            width: bandWidth,
+            low: Math.min(rise[index], next),
+            high: Math.max(rise[index], next)
+        }));
+    }
+
+    archOpeningWalls({ x, y = 0, z, rotationY = 0, archOpening }, bounds) {
+        const profile = this.definition.doorProfiles[archOpening];
+        const angle = rotationY * Math.PI / 180;
+        const widthAlongX = angle % Math.PI === 0;
+        const fullWidth = widthAlongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ;
+        const depth = widthAlongX ? bounds.maxZ - bounds.minZ : bounds.maxX - bounds.minX;
+        const headHeight = bounds.maxY - y;
+        const bands = this.archBands(profile, profile.width);
+        const shoulder = (fullWidth - profile.width) / 2;
+        if (shoulder > CONTACT_TOLERANCE) {
+            const offset = (fullWidth + profile.width) / 4;
+            bands.push({ x: -offset, width: shoulder, low: 0 }, { x: offset, width: shoulder, low: 0 });
+        }
+        return bands.map(({ x: offset, width, low }) => this.orientDoorwayWall({
+            x: offset, y: low, width, depth, height: headHeight - low
+        }, x, y, z, angle));
+    }
+
+    windowOpeningWalls({ axis, center, width, bottom, height }, bounds) {
+        const alongX = axis === 'z';
+        const minimum = alongX ? bounds.minX : bounds.minZ;
+        const maximum = alongX ? bounds.maxX : bounds.maxZ;
+        const left = center - width / 2;
+        const right = center + width / 2;
+        const top = bottom + height;
+        return [
+            [minimum, left, bounds.minY, bounds.maxY],
+            [right, maximum, bounds.minY, bounds.maxY],
+            [left, right, bounds.minY, bottom],
+            [left, right, top, bounds.maxY]
+        ].filter(([start, end, low, high]) => end - start > CONTACT_TOLERANCE && high - low > CONTACT_TOLERANCE)
+            .map(([start, end, low, high]) => new Wall({
+                x: alongX ? (start + end) / 2 : (bounds.minX + bounds.maxX) / 2,
+                y: low,
+                z: alongX ? (bounds.minZ + bounds.maxZ) / 2 : (start + end) / 2,
+                width: alongX ? end - start : bounds.maxX - bounds.minX,
+                height: high - low,
+                depth: alongX ? bounds.maxZ - bounds.minZ : end - start
+            }));
     }
 
     isBlocked(position, radius, height) {

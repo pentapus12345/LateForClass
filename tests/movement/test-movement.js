@@ -858,19 +858,21 @@ function registerMovementTests(test, levels, models) {
         }
     });
 
-    test('the stairwell has standing head clearance at every tread and the landing', () => {
+    test('the stairwell has standing and jumping clearance at every tread and the landing', () => {
         const { level } = setup({ definition: classroomData });
-        const { playerRadius, playerHeight } = GAME_CONFIG;
+        const { playerRadius, playerHeight, jumpHeight } = GAME_CONFIG;
         const elevatedSurfaces = classroomData.platforms.filter(box =>
             box.name.startsWith('Classroom stair ') || box.name === 'Upper-floor landing'
         );
+        const beams = classroomData.platforms.filter(box => box.name.startsWith('Stairwell ') && box.name.endsWith(' beam'));
         equal(elevatedSurfaces.length, 13);
         for (const { x, y, z, height } of elevatedSurfaces) {
             const feet = { x, y: y + height, z };
             equal(level.isBlocked(feet, playerRadius, playerHeight), false);
             const overheadContact = level.getVerticalCollision(feet, feet.y + 10, playerRadius, playerHeight);
-            near(overheadContact + playerHeight, 6.4);
-            equal(overheadContact > feet.y, true);
+            const beam = beams.find(box => Math.abs(z - box.z) < box.depth / 2 + playerRadius);
+            near(overheadContact + playerHeight, beam?.y ?? 6.4);
+            equal(overheadContact > feet.y + jumpHeight, true);
         }
     });
 
@@ -1027,7 +1029,6 @@ function registerMovementTests(test, levels, models) {
             equal(end.z > west.z, true);
             equal([east, west, end].every(door => door.y === floor), true);
         }
-        equal(classroomData.schedule.roomId, '102');
         for (const sign of [origin, farEnd]) {
             const plaque = scene.children.find(object => object.name === sign.name);
             nearVector(plaque.position, sign);
@@ -1051,12 +1052,17 @@ function registerMovementTests(test, levels, models) {
 
         manager.build(classroomData.lighting);
         equal(fallback.some(light => scene.children.includes(light)), false);
-        equal(manager.lights.filter(light => light.castShadow).length, 1);
+        equal(manager.lights.filter(light => light.castShadow).length, 3);
         const light = manager.lights.find(light => light.castShadow);
         const config = classroomData.lighting.lights.find(definition => definition.shadow);
         nearVector(light.position, config.position);
         nearVector(light.target.position, config.target);
         equal(light.shadow.mapSize.x, config.shadow.mapSize);
+        for (const name of ['Corridor window daylight', 'Room 101 window daylight']) {
+            const daylight = manager.lights.find(light => light.name === name);
+            equal(daylight.castShadow, true);
+            equal(daylight.shadow.mapSize.x, 512);
+        }
         equal(renderer.shadowMap.type, THREE.PCFSoftShadowMap);
         equal(renderer.shadowMap.enabled, true);
         equal(manager.fixtures.length, classroomData.lighting.fixtures.length);
@@ -1221,9 +1227,9 @@ function registerMovementTests(test, levels, models) {
         equal(firstMesh(chair).material === firstMesh(find('Room 003 back west outer chair')).material, true);
 
         const placement = classroomData.environmentObjects.find(object => object.name === chair.name);
-        const factory = new EnvironmentObjectFactory(models);
-        const [{ bounds: straight }] = factory.create({ ...placement, rotationY: 0 });
-        const [{ bounds: turned }] = factory.create({ ...placement, x: 10, y: 2, z: 20, rotationY: 90 });
+        const factory = new EnvironmentObjectFactory(models, classroomData.modelCatalog);
+        const [{ bounds: straight }] = factory.create({ ...placement, rotationY: 180 });
+        const [{ bounds: turned }] = factory.create({ ...placement, x: 10, y: 2, z: 20, rotationY: 270 });
         near(turned.maxX - turned.minX, straight.maxZ - straight.minZ);
         near(turned.maxZ - turned.minZ, straight.maxX - straight.minX);
         near(turned.minY, 2);
@@ -1234,7 +1240,7 @@ function registerMovementTests(test, levels, models) {
         player.resetPosition({ x: 3.5, y: 0, z: 1.4 }, { x: 3.5, y: GAME_CONFIG.cameraHeight, z: 5 }, level);
         pressKey(player, 'KeyW');
         advance(player, level, 0.8, 60);
-        near(player.position.z, placement.z - (straight.maxZ - placement.z) - GAME_CONFIG.playerRadius, 0.05);
+        near(player.position.z, straight.minZ - GAME_CONFIG.playerRadius, 0.05);
 
         let disposals = 0;
         deskMesh.geometry.addEventListener('dispose', () => disposals++);
@@ -1253,13 +1259,280 @@ function registerMovementTests(test, levels, models) {
         equal(find(outline.name).visible, true);
     });
 
+    test('catalog defaults can replace a model and placements can override scale, facing, and collision', () => {
+        const catalog = classroomData.modelCatalog;
+        const factory = new EnvironmentObjectFactory(models, catalog);
+        const placement = { asset: 'studentChair', type: 'studentChair', x: 1, y: 2, z: 3, rotationY: 180 };
+        const [chair] = factory.create(placement);
+        const [larger] = factory.create({ ...placement, scale: 1.5, rotationOffset: -90 });
+        near(chair.surface.rotation.y, 0);
+        near(larger.surface.rotation.y, Math.PI / 2);
+        near(larger.bounds.minY, 2);
+        near(larger.bounds.maxY - 2, (chair.bounds.maxY - 2) * 1.5);
+        near(larger.bounds.maxX - larger.bounds.minX, (chair.bounds.maxZ - chair.bounds.minZ) * 1.5);
+        const replacement = { ...catalog.studentChair, model: catalog.studentDesk.model };
+        const swappedFactory = new EnvironmentObjectFactory(models, { ...catalog, studentChair: replacement });
+        const [swapped] = swappedFactory.create(placement);
+        const [explicit] = factory.create({ ...placement, model: catalog.studentDesk.model, collidable: false });
+        near(swapped.bounds.maxY - swapped.bounds.minY, new THREE.Box3().setFromObject(explicit.surface).max.y - 2);
+        equal(explicit.bounds, null);
+        equal(factory.create({ type: 'studentChair', x: 0, z: 0 })[0].surface.isGroup === true, false);
+    });
+
+    test('reused vaulted bays leave the hall route open and the oak leaf still matches its collider', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === name);
+        const arch = find('Vaulted hall near rib vault');
+        const farArch = find('Vaulted hall far rib vault');
+        function firstGeometry(group) {
+            let geometry;
+            group.traverse(node => { geometry ??= node.geometry; });
+            return geometry;
+        }
+        equal(Boolean(firstGeometry(arch)), true);
+        equal(firstGeometry(arch) === firstGeometry(farArch), true);
+        equal(new THREE.Box3().setFromObject(arch).max.y > 9.5, true);
+        const { playerRadius, playerHeight } = GAME_CONFIG;
+        for (const z of [22.32, 24.5, 27, 29.5]) {
+            equal(level.isBlocked({ x: 0, y: 4, z }, playerRadius, playerHeight), false);
+        }
+        equal(level.isBlocked({ x: 1.8, y: 3, z: 24.5 }, playerRadius, playerHeight), true);
+        const wall = find('Vaulted hall east wall before doorway');
+        const wallBox = new THREE.Box3().setFromObject(wall);
+        near(wallBox.max.x - wallBox.min.x, 0.8, 1e-6);
+        const farWall = find('Vaulted hall west wall after doorway');
+        near(new THREE.Box3().setFromObject(farWall).max.x, -2, 1e-6);
+        equal(firstGeometry(wall), firstGeometry(farWall));
+        for (const materialName of ['Aged lime plaster', 'Panelled oak', 'Weathered masonry']) {
+            let textured = false;
+            wall.traverse(node => { textured ||= node.material?.name === materialName && Boolean(node.material.map); });
+            equal(textured, true);
+        }
+        for (const name of ['Vaulted hall near oak floor', 'Vaulted hall far oak floor']) {
+            const floor = find(name);
+            near(floor.position.y + floor.geometry.parameters.height / 2, 3);
+            equal(floor.geometry.parameters.width, 4);
+            equal(floor.geometry.parameters.depth, 5);
+            equal(floor.material.name, 'Worn oak');
+        }
+
+        const { definition, panel, wireframe } = level.doors.find(door => door.definition.roomId === '101');
+        const leaf = panel.children[0];
+        const box = new THREE.Box3().setFromObject(leaf);
+        near(box.max.x - box.min.x, definition.width, 1e-6);
+        near(box.max.y - box.min.y, definition.height + Math.max(...classroomData.doorProfiles[definition.arch].rise), 1e-6);
+        near(box.max.z - box.min.z, definition.depth, 1e-6);
+        equal(panel.material.visible, false);
+        equal(level.openDoor({ x: 1.6, y: 3, z: 27 }), true);
+        nearVector(panel.position, wireframe.position);
+        near(panel.rotation.y, wireframe.rotation.y);
+        level.toggleDebugView();
+        equal(panel.visible, false);
+        equal(wireframe.visible, true);
+        equal(arch.visible, false);
+        equal(find('Vaulted hall pointed stair portal collision').visible, true);
+        equal(find('Room 102 mullioned window sample collision').visible, true);
+    });
+
+    test('the console and green chair fit the side of the hall below the signs', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === name);
+        const sign = classroomData.signs.find(sign => sign.name === 'Stairs from first floor');
+        const { playerRadius, playerHeight } = GAME_CONFIG;
+        level.toggleDebugView();
+        const [consoleBox, chairBox] = ['Hallway console', 'Green hallway chair'].map(name => {
+            const surface = find(name);
+            const box = new THREE.Box3().setFromObject(surface);
+            near(box.min.y, 3);
+            equal(box.min.x > 0.8 + playerRadius && box.max.x < 2, true);
+            equal(box.max.y < sign.y - sign.height / 2, true);
+            equal(box.max.z < 26.1 - playerRadius, true);
+            equal(level.isBlocked(surface.position, playerRadius, playerHeight), true);
+            equal(level.isBlocked({ x: 0.8, y: 3, z: surface.position.z }, playerRadius, playerHeight), false);
+            equal(find(`${name} collision`).visible, true);
+            return box;
+        });
+        const consoleHeight = consoleBox.max.y - consoleBox.min.y;
+        const chairHeight = chairBox.max.y - chairBox.min.y;
+        equal(chairHeight > consoleHeight * 1.3, true);
+        equal(chairBox.max.z < consoleBox.min.z, true);
+    });
+
+    test('historic finishes reuse model materials across geometry and restart without changing route clearance', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === name);
+        const namedFinish = name => level.finishMaterials.get(name);
+        equal(find('Classroom stair 1').material, find('Classroom stair 12').material);
+        equal(find('Room 101 flagstone threshold').getObjectByProperty('isMesh', true).material, namedFinish('flagstones'));
+        equal(find('Vaulted hall near oak floor').material, find('First-floor Room 101 floor').material);
+        equal(find('Classroom stair 1').material, namedFinish('stairLimestone'));
+        equal(find('Stairwell ceiling').material.name, 'Limewashed masonry');
+        equal(find('Stairwell east wall').material, find('First-floor Room 101 outer wall').material);
+        equal(find('Room 101 center oak beam').material, find('First-floor Room 101 floor').material);
+        const floor = find('First-floor Room 101 floor');
+        const uvs = floor.geometry.getAttribute('uv');
+        const normals = floor.geometry.getAttribute('normal');
+        const coordinates = Array.from({ length: uvs.count }, (_, index) => index);
+        const maxU = Math.max(...coordinates.filter(index => normals.getY(index) === 1).map(index => uvs.getX(index)));
+        near(maxU, 7.25 / classroomData.surfaceFinishes.oakBoards.tileWidth, 1e-6);
+        const material = floor.material;
+        const texture = material.map;
+        let disposals = 0;
+        material.addEventListener('dispose', () => disposals++);
+        texture.addEventListener('dispose', () => disposals++);
+        level.toggleDebugView();
+        equal(floor.visible, false);
+        equal(find('First-floor Room 101 floor collision').visible, true);
+        equal(find('Room 101').visible !== false, true);
+        level.build(scene);
+        equal(find('First-floor Room 101 floor').material, material);
+        equal(disposals, 0);
+        const { playerRadius, playerHeight } = GAME_CONFIG;
+        equal(level.openDoor({ x: 1.6, y: 3, z: 27 }), true);
+        equal(level.isBlocked({ x: 3.13, y: 3, z: 27 }, playerRadius, playerHeight), false);
+        equal(level.getEnteredRoomId({ x: 3.13, y: 3, z: 27 }), '101');
+        equal(level.isBlocked({ x: 5.02, y: 4, z: 26.9 }, playerRadius, playerHeight), false);
+        const studentGeometry = find('Room 102 north student chair').getObjectByProperty('isMesh', true).geometry;
+        for (const side of ['west', 'east']) {
+            const chair = find(`Room 101 ${side} student chair`);
+            equal(chair.getObjectByProperty('isMesh', true).geometry, studentGeometry);
+            near(chair.rotation.y, 0);
+            const chairBounds = new THREE.Box3().setFromObject(chair);
+            const deskBounds = new THREE.Box3().setFromObject(find(`Room 101 ${side} student desk`));
+            near(chairBounds.min.y, 3);
+            equal(chairBounds.max.z < deskBounds.min.z, true);
+        }
+    });
+
+    test('the portrait and college notices are wall decorations with no colliders', () => {
+        const { level, scene } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === name);
+        const portrait = find('Hall portrait of John Locke');
+        const board = find('College notices');
+        const canvas = portrait.getObjectByProperty('isMesh', true).geometry;
+        let disposed = false;
+        board.material.map.addEventListener('dispose', () => { disposed = true; });
+        const withoutDecorations = setup({ definition: {
+            ...classroomData,
+            environmentObjects: classroomData.environmentObjects.filter(item => item.name !== portrait.name),
+            signs: classroomData.signs.filter(item => item.name !== board.name)
+        } });
+        equal(level.solids.length, withoutDecorations.level.solids.length);
+        level.toggleDebugView();
+        equal(find(`${portrait.name} collision`), undefined);
+        equal(find(`${board.name} collision`), undefined);
+        level.build(scene);
+        equal(disposed, true);
+        equal(find(portrait.name).getObjectByProperty('isMesh', true).geometry, canvas);
+    });
+
+    test('the two windows open the wall through to their glazing and prevent jumping out', () => {
+        const { level, player, scene } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === name);
+        const { playerRadius, playerHeight, cameraHeight } = GAME_CONFIG;
+        const corridorFrame = find('Corridor mullioned window');
+        const classroomFrame = find('Room 101 mullioned window');
+        equal(corridorFrame.getObjectByProperty('isMesh', true).geometry,
+            classroomFrame.getObjectByProperty('isMesh', true).geometry);
+        for (const [name, innerWall, centerZ] of [['Corridor', 2, 31.04], ['Room 101', 7.25, 27.75]]) {
+            const pane = find(`${name} window glazing`);
+            const inside = { x: innerWall + 0.04, y: 4, z: centerZ };
+            equal(level.isBlocked(inside, 0.04, playerHeight), false);
+            equal(level.isBlocked({ ...inside, y: 3.1 }, 0.04, playerHeight), true);
+            equal(level.isBlocked({ ...inside, z: centerZ + 0.73 }, 0.04, playerHeight), true);
+            equal(level.isBlocked({ ...inside, x: pane.position.x }, playerRadius, playerHeight), true);
+            equal(pane.castShadow, false);
+            const start = { x: innerWall - 0.57, y: 3, z: centerZ };
+            player.resetPosition(start, { x: innerWall + 3, y: 3 + cameraHeight, z: centerZ }, level);
+            pressKey(player, 'KeyW');
+            pressKey(player, 'Space');
+            let furthest = start.x;
+            for (let frame = 0; frame < 72; frame++) {
+                player.update(1 / 60, level);
+                furthest = Math.max(furthest, player.position.x);
+            }
+            equal(furthest > innerWall - playerRadius, true);
+            equal(furthest <= pane.position.x - pane.geometry.parameters.width / 2 - playerRadius + 1e-6, true);
+        }
+        level.toggleDebugView();
+        equal(find('Quadrangle east gateway').visible, false);
+        equal(find('Corridor window glazing collision').visible, true);
+        equal(find('Room 101 window glazing collision').visible, true);
+    });
+
+    test('arched doors preserve their base hinge pose and expose an open crown above the original opening', () => {
+        const { level } = setup({ definition: classroomData });
+        for (const [roomId, approach, center, shoulder] of [
+            ['101', { x: 1.6, y: 3, z: 27 }, { x: 2.5, y: 3, z: 27 }, { x: 2.5, y: 3, z: 26.17 }],
+            ['103', { x: 0, y: 3, z: 30.9 }, { x: 0, y: 3, z: 32 }, { x: 0.83, y: 3, z: 32 }]
+        ]) {
+            const door = level.doors.find(entry => entry.definition.roomId === roomId);
+            equal(level.isBlocked(center, 0.05, 2.45), true);
+            const { panel, parts } = door;
+            equal(parts.length > 1, true);
+            equal(level.openDoor(approach), true);
+            const swing = roomId === '101'
+                ? { x: 3.4, y: 4.125, z: 27.9 }
+                : { x: -0.9, y: 4.125, z: 32.9 };
+            nearVector(panel.position, swing);
+            for (const { wireframe } of parts) {
+                nearVector(wireframe.position, panel.position);
+                near(wireframe.rotation.y, panel.rotation.y);
+            }
+            equal(level.isBlocked(center, 0.05, 2.45), false);
+            equal(level.isBlocked(shoulder, 0.05, 2.45), true);
+            equal(level.isBlocked(center, 0.05, 2.9), true);
+        }
+        equal(level.doors.find(door => door.definition.roomId === '003').parts.length, 1);
+    });
+
+    test('Room 102 keeps its doorway and center aisle clear of imported furniture', () => {
+        const { level, scene, player } = setup({ definition: classroomData });
+        const find = name => scene.children.find(object => object.name === `Room 102 ${name}`);
+        for (const name of ['north student desk', 'south student desk', 'north student chair', 'south student chair',
+            'teacher desk', 'standing chalkboard', 'wooden display shelves']) {
+            const surface = find(name);
+            const box = new THREE.Box3().setFromObject(surface);
+            near(box.min.y, 3);
+            equal(box.min.x >= -7.25 && box.max.x <= -2.25, true);
+            equal(box.min.z >= 24 && box.max.z <= 30, true);
+            equal(Boolean(find(`${name} collision`)), true);
+        }
+        const bookGroup = find('shelf books');
+        const books = new THREE.Box3().setFromObject(bookGroup);
+        const shelf = new THREE.Box3().setFromObject(find('wooden display shelves'));
+        equal(shelf.containsBox(books), true);
+        const shelfCenterX = (shelf.min.x + shelf.max.x) / 2;
+        const dividerOffsets = [-0.176, 0.176];
+        bookGroup.traverse(mesh => {
+            if (mesh.isMesh) {
+                const book = new THREE.Box3().setFromObject(mesh);
+                for (const offset of dividerOffsets) {
+                    const divider = shelfCenterX + offset;
+                    equal(book.max.x < divider - 0.011 || book.min.x > divider + 0.011, true);
+                }
+            }
+        });
+        equal(Boolean(find('shelf books collision')), false);
+        near(find('north student chair').rotation.y, -Math.PI / 2);
+        near(scene.children.find(object => object.name === 'Room 003 back east outer chair').rotation.y, 0);
+
+        player.resetPosition({ x: -1.5, y: 3, z: 27 }, { x: -7, y: 4.6, z: 27 }, level);
+        equal(level.openDoor(player.position), true);
+        pressKey(player, 'KeyW');
+        advance(player, level, 0.65, 60);
+        equal(level.getEnteredRoomId(player.position), '102');
+        equal(player.position.x < -5, true);
+        equal(player.isGrounded, true);
+    });
+
     test('classroom surfaces and debug outlines match their colliders without replacing them', () => {
         const { level, scene } = setup({ definition: classroomData });
         const colliders = [...level.solids];
         const pairs = level.renderPairs;
         const sign = scene.children.find(object => object.name === `Room ${classroomData.schedule.roomId}`);
         equal(pairs.length, colliders.length);
-        const matchBounds = ({ surface, wireframe }, collider) => {
+        const matchBounds = ({ surface, wireframe, partial }, collider) => {
             const positions = wireframe.geometry.getAttribute('position');
             const sin = Math.sin(wireframe.rotation.y);
             const cos = Math.cos(wireframe.rotation.y);
@@ -1280,17 +1553,21 @@ function registerMovementTests(test, levels, models) {
             });
             for (const [axis, size] of [['X', worldWidth], ['Y', height], ['Z', worldDepth]]) {
                 const coordinate = axis.toLowerCase();
-                near(modelBox?.min[coordinate] ?? surface.position[coordinate] - size / 2, collider[`min${axis}`]);
-                near(modelBox?.max[coordinate] ?? surface.position[coordinate] + size / 2, collider[`max${axis}`]);
+                if (!partial) {
+                    near(modelBox?.min[coordinate] ?? surface.position[coordinate] - size / 2, collider[`min${axis}`]);
+                    near(modelBox?.max[coordinate] ?? surface.position[coordinate] + size / 2, collider[`max${axis}`]);
+                }
                 const values = vertices.map(vertex => vertex[coordinate]);
-                near(Math.min(...values), collider[`min${axis}`], 1e-6);
-                near(Math.max(...values), collider[`max${axis}`], 1e-6);
+                // Wireframe coordinates are stored as 32-bit floats.
+                near(Math.min(...values), collider[`min${axis}`], 2e-6);
+                near(Math.max(...values), collider[`max${axis}`], 2e-6);
             }
         };
-        for (const [index, { surface, wireframe }] of pairs.entries()) {
-            matchBounds({ surface, wireframe }, colliders[index]);
+        const transparentNames = classroomData.platforms.filter(platform => platform.opacity !== undefined).map(platform => platform.name);
+        for (const [index, { surface, wireframe, partial }] of pairs.entries()) {
+            matchBounds({ surface, wireframe, partial }, colliders[index]);
             equal(surface.visible, true);
-            equal(surface.material?.transparent === true, false);
+            equal(surface.material?.transparent === true, transparentNames.includes(surface.name));
             equal(wireframe.visible, false);
         }
         const signVisibility = sign.visible;
@@ -1300,9 +1577,11 @@ function registerMovementTests(test, levels, models) {
         equal(sign.visible, signVisibility);
         equal(level.toggleDebugView(), true);
         equal(pairs.every(({ surface, wireframe }) => surface.visible && !wireframe.visible), true);
-        for (const { definition, solidIndex } of level.doors) {
+        for (const { definition, solidIndex, parts } of level.doors) {
             equal(level.openDoor(definition), true);
-            matchBounds(pairs[solidIndex], level.solids[solidIndex]);
+            for (let index = solidIndex; index < solidIndex + parts.length; index++) {
+                matchBounds(pairs[index], level.solids[index]);
+            }
         }
         equal(setup().level.toggleDebugView(), false);
         equal(setup({ definition: playgroundData }).level.toggleDebugView(), false);

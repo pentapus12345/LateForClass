@@ -50,14 +50,29 @@ const ENVIRONMENT_OBJECT_TYPES = {
 };
 
 class EnvironmentObjectFactory {
-    constructor(models = new Map()) {
+    constructor(models = new Map(), catalog = {}) {
         this.models = models;
+        this.catalog = catalog;
         this.geometries = new Map();
         this.materials = new Map();
     }
 
-    static async loadModels(placements, levelsUrl, signal) {
-        const modelPaths = new Set(placements.map(({ model }) => model).filter(Boolean));
+    static resolveModel({ asset, model, modelVariant, scale, rotationOffset, collidable }, catalog) {
+        if (asset && !Object.hasOwn(catalog, asset)) {
+            throw new Error(`Unknown model catalog entry: ${asset}`);
+        }
+        const defaults = asset ? catalog[asset] : {};
+        return {
+            model: model ?? defaults.model,
+            modelVariant: modelVariant ?? defaults.modelVariant,
+            scale: scale ?? defaults.scale ?? 1,
+            rotationOffset: rotationOffset ?? defaults.rotationOffset ?? 0,
+            collidable: collidable ?? defaults.collidable
+        };
+    }
+
+    static async loadModels(placements, levelsUrl, signal, catalog = {}) {
+        const modelPaths = new Set(placements.map(placement => this.resolveModel(placement, catalog).model).filter(Boolean));
         const assetsDirectory = THREE.LoaderUtils.extractUrlBase(levelsUrl);
         const entries = await Promise.all([...modelPaths].map(async model => {
             const url = assetsDirectory + model;
@@ -87,16 +102,21 @@ class EnvironmentObjectFactory {
         return new Map(entries);
     }
 
-    create({ type, name = type, model, x, y = 0, z, rotationY = 0, color, collidable,
-        castShadow = false, receiveShadow = false }) {
-        if (!Object.hasOwn(ENVIRONMENT_OBJECT_TYPES, type)) {
+    create(placement) {
+        const { type, name = type, x, y = 0, z, rotationY = 0, color, castShadow = false, receiveShadow = false } = placement;
+        const { model, modelVariant, scale, rotationOffset, collidable } = EnvironmentObjectFactory.resolveModel(placement, this.catalog);
+        const definition = Object.hasOwn(ENVIRONMENT_OBJECT_TYPES, type) ? ENVIRONMENT_OBJECT_TYPES[type] : null;
+        if (!definition && !model) {
             throw new Error(`Unknown environment object type: ${type}`);
         }
-        const definition = ENVIRONMENT_OBJECT_TYPES[type];
         const angle = rotationY * Math.PI / 180;
-        const solid = collidable ?? !definition.decorative;
+        const solid = collidable ?? !definition?.decorative;
         if (model) {
-            return [this.createModel(model, name, x, y, z, angle, solid, castShadow, receiveShadow)];
+            const surface = this.instantiateModel(model, modelVariant, scale, castShadow, receiveShadow);
+            surface.name = name;
+            surface.position.set(x, y, z);
+            surface.rotation.y = angle + rotationOffset * Math.PI / 180;
+            return [{ surface, bounds: solid ? this.fitModelBounds(surface) : null }];
         }
         const sin = Math.sin(angle);
         const cos = Math.cos(angle);
@@ -131,29 +151,31 @@ class EnvironmentObjectFactory {
         });
     }
 
-    createModel(model, name, x, y, z, angle, solid, castShadow, receiveShadow) {
+    instantiateModel(model, modelVariant, scale, castShadow, receiveShadow) {
         const template = this.models.get(model);
         if (!template) {
             throw new Error(`Furniture model was not loaded: ${model}`);
         }
-        const surface = template.clone();
-        surface.name = name;
-        surface.position.set(x, y, z);
-        surface.rotation.y = angle;
+        const source = modelVariant ? template.getObjectByName(modelVariant) : template;
+        if (!source) {
+            throw new Error(`Unknown model variant ${modelVariant} in ${model}`);
+        }
+        const surface = modelVariant ? new THREE.Group().add(source.clone()) : template.clone();
+        surface.scale.setScalar(scale);
         surface.traverse(node => {
             if (node.isMesh) {
                 node.castShadow = castShadow;
                 node.receiveShadow = receiveShadow;
             }
         });
-        let bounds = null;
-        if (solid) {
-            const { min, max } = new THREE.Box3().setFromObject(surface);
-            bounds = new Wall({
-                x: (min.x + max.x) / 2, y: min.y, z: (min.z + max.z) / 2,
-                width: max.x - min.x, height: max.y - min.y, depth: max.z - min.z
-            });
-        }
-        return { surface, bounds };
+        return surface;
+    }
+
+    fitModelBounds(surface) {
+        const { min, max } = new THREE.Box3().setFromObject(surface);
+        return new Wall({
+            x: (min.x + max.x) / 2, y: min.y, z: (min.z + max.z) / 2,
+            width: max.x - min.x, height: max.y - min.y, depth: max.z - min.z
+        });
     }
 }
