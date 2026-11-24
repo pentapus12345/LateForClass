@@ -7,8 +7,9 @@ const SIGN_STYLES = {
 };
 
 class Level {
-    constructor(definition, config, models = new Map()) {
+    constructor(definition, config, models = new Map(), areaId = `level-${definition.id}`) {
         this.definition = definition;
+        this.areaId = areaId;
         this.config = config;
         this.models = models;
         this.finishMaterials = new Map();
@@ -28,14 +29,6 @@ class Level {
         this.doors = [];
     }
 
-    async loadEnvironmentModels(levelsUrl, signal) {
-        const { environmentObjects = [], modelCatalog, surfaceFinishes = {} } = this.definition;
-        const placements = this.definition.solidRendering
-            ? [...environmentObjects, ...this.doorDefinitions, ...Object.values(surfaceFinishes)]
-            : environmentObjects;
-        this.models = await EnvironmentObjectFactory.loadModels(placements, levelsUrl, signal, modelCatalog);
-    }
-
     build(scene) {
         this.clear(scene);
         const factory = new EnvironmentObjectFactory(this.models, this.definition.modelCatalog);
@@ -47,6 +40,7 @@ class Level {
             const bounds = new Wall(platform);
             const sections = platform.windowOpening ? this.windowOpeningWalls(platform.windowOpening, bounds) : [bounds];
             for (const [index, section] of sections.entries()) {
+                section.id = this.objectId('platform', platform, index);
                 this.solids.push(section);
                 const name = index ? `${platform.name} section ${index + 1}` : platform.name;
                 this.addPlatformVisuals(scene, section, { ...platform, name });
@@ -73,14 +67,19 @@ class Level {
         }
     }
 
+    objectId(kind, definition, part) {
+        const key = areaObjectKey(kind, definition);
+        return `${this.areaId}/${kind}/${encodeURIComponent(key)}/${part}`;
+    }
+
     addObject(scene, object) {
-        scene.add(object);
+        scene?.add(object);
         this.objects.push(object);
     }
 
     addEnvironmentObjects(scene, factory) {
         for (const placement of this.definition.environmentObjects) {
-            for (const { surface, bounds } of factory.create(placement)) {
+            for (const [part, { surface, bounds }] of factory.create(placement).entries()) {
                 this.addObject(scene, surface);
                 if (placement.hideInDebug) {
                     this.scenery.push(surface);
@@ -94,6 +93,7 @@ class Level {
                         walls = this.windowOpeningWalls(placement.windowOpening, bounds);
                     }
                     for (const [index, wall] of walls.entries()) {
+                        wall.id = this.objectId('placement', placement, `${part}/${index}`);
                         this.solids.push(wall);
                         const name = walls.length === 1 ? surface.name : `${surface.name} section ${index + 1}`;
                         const outline = this.addWireframeBox(scene, wall, undefined, `${name} collision`);
@@ -114,8 +114,8 @@ class Level {
         const textures = new Set();
         const sharedMaterials = new Set(this.finishMaterials.values());
         for (const object of this.objects) {
-            scene.remove(object);
-            // Model groups borrow their meshes from the level's model cache across builds.
+            scene?.remove(object);
+            // Model groups borrow their meshes from the world's model cache across builds.
             if (object.isGroup) {
                 continue;
             }
@@ -183,7 +183,12 @@ class Level {
         const position = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, z: (minZ + maxZ) / 2 };
         let material;
         if (surfaceFinish) {
-            material = this.applySurfaceFinish(geometry, position, surfaceFinish);
+            try {
+                material = this.applySurfaceFinish(geometry, position, surfaceFinish);
+            } catch (error) {
+                geometry.dispose();
+                throw error;
+            }
         } else if (opacity !== undefined) {
             material = new THREE.MeshBasicMaterial({ color: surfaceColor, transparent: true, opacity, depthWrite: false });
         } else {
@@ -271,12 +276,16 @@ class Level {
 
     createHallwayColliders() {
         const { width, height, depth, wallThickness } = this.definition.hallway;
+        this.hallwayFootprint = new Wall({ x: 0, z: 0, width, height, depth });
         this.solids = [
             new Wall({ x: -width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: width / 2, z: 0, width: wallThickness, height, depth }),
             new Wall({ x: 0, z: -depth / 2, width, height, depth: wallThickness }),
             new Wall({ x: 0, z: depth / 2, width, height, depth: wallThickness })
         ];
+        for (const [index, wall] of this.solids.entries()) {
+            wall.id = `${this.areaId}/hallway/${index}`;
+        }
     }
 
     addPillars(scene) {
@@ -419,6 +428,7 @@ class Level {
         panel.name = name;
         panel.castShadow = castShadow;
         panel.receiveShadow = receiveShadow;
+        this.addObject(scene, panel);
         const arch = definition.arch ? this.definition.doorProfiles[definition.arch] : null;
         const parts = [{ x: 0, y: 0, width, height, depth }];
         if (arch) {
@@ -443,10 +453,10 @@ class Level {
                 this.addRenderPair(panel, part.wireframe, index !== 0);
             }
         }
-        const door = { definition, panel, parts, wireframe: parts[0].wireframe, solidIndex: this.solids.length, isOpen: false };
+        const id = this.objectId('door', definition, 'panel');
+        const door = { id, definition, panel, parts, wireframe: parts[0].wireframe, solidIndex: this.solids.length, isOpen: false };
         this.doors.push(door);
         this.setDoorPose(door, x, z, definition.axis === 'x' ? Math.PI / 2 : 0);
-        this.addObject(scene, panel);
     }
 
     getNearbyDoor(position) {
@@ -458,7 +468,7 @@ class Level {
             }
             const { x, y, z, interactionRadius } = door.definition;
             const distance = Math.hypot(position.x - x, position.y - y, position.z - z);
-            if (distance <= interactionRadius && distance < nearestDistance) {
+            if (distance <= interactionRadius && (distance < nearestDistance || (distance === nearestDistance && door.id < nearest.id))) {
                 nearest = door;
                 nearestDistance = distance;
             }
@@ -475,17 +485,26 @@ class Level {
         if (!door) {
             return false;
         }
-        const { x, z, width, axis } = door.definition;
+        this.swingDoor(door, this.swingDirection(door, position));
+        return true;
+    }
+
+    swingDirection(door, position) {
+        const { x, z, axis } = door.definition;
         const normalIsX = axis === 'x';
         const normalDistance = normalIsX ? position.x - x : position.z - z;
-        const swing = normalDistance <= 0 ? 1 : -1;
+        return normalDistance <= 0 ? 1 : -1;
+    }
+
+    swingDoor(door, swing) {
+        const { x, z, width, axis } = door.definition;
+        const normalIsX = axis === 'x';
         const halfWidth = width / 2;
         // Turn around the jamb at the negative end of the door's local width.
         const openX = normalIsX ? x + swing * halfWidth : x - halfWidth;
         const openZ = normalIsX ? z + halfWidth : z + swing * halfWidth;
         this.setDoorPose(door, openX, openZ, ((normalIsX ? 1 : 0) - swing) * Math.PI / 2);
         door.isOpen = true;
-        return true;
     }
 
     setDoorPose(door, x, z, angle) {
@@ -497,7 +516,9 @@ class Level {
                 part.wireframe.position.set(x, y + height / 2, z);
                 part.wireframe.rotation.y = angle;
             }
-            this.solids[door.solidIndex + index] = this.orientDoorwayWall(part, x, y, z, angle);
+            const wall = this.orientDoorwayWall(part, x, y, z, angle);
+            wall.id = this.objectId('door', door.definition, index);
+            this.solids[door.solidIndex + index] = wall;
         }
     }
 
@@ -579,7 +600,8 @@ class Level {
     getVerticalCollision(position, targetY, radius, height) {
         const rising = targetY > position.y;
         const hallway = this.definition.hallway;
-        const boundary = hallway ? (rising ? hallway.height - height : 0) : null;
+        const withinHall = hallway && this.hallwayFootprint.overlapsFootprint(position, radius);
+        const boundary = withinHall ? (rising ? hallway.height - height : 0) : null;
         const crossesFace = face => rising
             ? position.y <= face + CONTACT_TOLERANCE && targetY >= face
             : position.y >= face - CONTACT_TOLERANCE && targetY <= face + CONTACT_TOLERANCE;

@@ -31,7 +31,8 @@ vm.runInNewContext(read(GLTF_LOADER), {
     createImageBitmap: true
 });
 function localModelResponse(url) {
-    const data = fs.readFileSync(path.join(PROJECT_ROOT, url));
+    const file = new URL(url, 'http://localhost/').pathname;
+    const data = fs.readFileSync(path.join(PROJECT_ROOT, file));
     return { ok: true, arrayBuffer: async () => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) };
 }
 
@@ -271,7 +272,8 @@ const THREE = {
 const models = new Map();
 const context = vm.createContext({
     THREE,
-    document: { createElement: createCanvas },
+    URL, AbortSignal,
+    document: { baseURI: 'http://localhost/', createElement: createCanvas },
     test,
     levels,
     models,
@@ -287,14 +289,25 @@ for (const file of browserTestFiles) {
 }
 test.before(async () => {
     const loaded = await vm.runInContext(`
-        const classroom = new Level(levels[2], GAME_CONFIG);
-        classroom.loadEnvironmentModels('assets/levels.json').then(() => classroom.models);
+        const cache = new ModelCache('assets/levels.json');
+        cache.prepare(levels[2]).then(() => cache.modelsFor(levels[2]));
     `, context);
     for (const [model, template] of loaded) {
         models.set(model, template);
     }
 });
 vm.runInContext('registerMovementTests(test, levels, models)', context);
+
+// Exercise the area fixture with real Three.js scene parenting, materials and GLB geometry.
+const worldContext = vm.createContext({
+    THREE: loaderThree, URL, AbortSignal, levels, test,
+    document: { baseURI: 'http://localhost/' },
+    fetch: async url => localModelResponse(url)
+});
+for (const file of browserTestFiles) {
+    vm.runInContext(read(file), worldContext, { filename: file });
+}
+vm.runInContext("registerWorldTests(test, levels, 'assets/levels.json')", worldContext);
 
 const gameHtml = read(GAME_PAGE);
 const gameScripts = readScriptSources(GAME_PAGE);
@@ -305,11 +318,11 @@ test('the game and test pages load dependencies in order with exact filename cas
     assert.equal(loader, GLTF_LOADER);
     assertExactPath('assets/vendor/three-r128/LICENSE');
     const dependencies = ['assets/gameConfig.js', 'js/controls.js', 'js/Wall.js', 'js/EnvironmentObjectFactory.js',
-        'js/LightingManager.js', 'js/Level.js', 'js/Player.js', 'js/SchoolClock.js', 'js/GameSession.js'];
+        'js/ModelCache.js', 'js/LightingManager.js', 'js/SchoolDefinition.js', 'js/Level.js', 'js/World.js', 'js/Player.js', 'js/SchoolClock.js', 'js/GameSession.js'];
     assert.deepEqual(gameFiles, [...dependencies, 'js/GameUI.js', 'js/Game.js', 'js/main.js']);
     assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[0]), library);
     assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[1]), loader);
-    assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js']);
+    assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js', 'tests/movement/test-world.js']);
     for (const file of [library, loader, ...gameFiles, ...browserTestFiles, 'assets/levels.json']) {
         assertExactPath(file);
     }
@@ -393,7 +406,7 @@ function createGameElements() {
     return elements;
 }
 
-async function loadGame(response, search = '', storage = new Map(), loadModel = localModelResponse) {
+async function loadGame(response, search = '', storage = new Map(), loadModel = localModelResponse, beforeStart) {
     const elements = createGameElements();
     let hasFocus = true;
     const document = Object.assign(new EventTarget(), {
@@ -446,14 +459,17 @@ async function loadGame(response, search = '', storage = new Map(), loadModel = 
         }
     }
 
+    document.baseURI = 'http://localhost/';
     const page = vm.createContext({
         document,
         window,
+        URL,
         URLSearchParams,
         AbortSignal,
         fetch: async (url, { cache, signal }) => {
             assert.ok(signal instanceof AbortSignal);
-            if (url.startsWith('assets/models/')) {
+            if (url.startsWith('http://localhost/assets/models/')) {
+                url = new URL(url).pathname.slice(1);
                 modelRequests.push(url);
                 return loadModel(url);
             }
@@ -480,6 +496,9 @@ async function loadGame(response, search = '', storage = new Map(), loadModel = 
     });
 
     for (const file of gameScripts.slice(2)) {
+        if (file === 'js/main.js') {
+            beforeStart?.(page);
+        }
         await vm.runInContext(read(file), page, { filename: file });
     }
     return { document, window, elements, frames, renderers, errors, advanceTime, modelRequests };
@@ -919,6 +938,40 @@ test('the level query selects the playground and restart keeps that level', asyn
     assert.equal(fallback.renderers[0].camera.position.z, levels[0].playerStart.z);
 });
 
+test('a live game keeps play access, objective and clock through area activation and reload', async () => {
+    let world;
+    const { frames, elements } = await loadGame({ ok: true, json: async () => ({ levels }) }, '?level=3',
+        new Map(), localModelResponse, page => {
+            page.observeWorld = instance => { world = instance; };
+            vm.runInContext(`
+                const adapt = schoolFromLevel;
+                schoolFromLevel = definition => {
+                    const school = adapt(definition);
+                    school.areas.push({ id: 'annex', definition: {} });
+                    return school;
+                };
+                const attach = World.prototype.attach;
+                World.prototype.attach = function (...args) {
+                    observeWorld(this);
+                    return attach.apply(this, args);
+                };
+            `, page);
+        });
+    elements.get('start-button').dispatchEvent(new Event('click'));
+    frames.shift()(2000);
+    const id = world.school.initialAreaId;
+    await world.loadArea('annex');
+    world.activateArea('annex');
+    world.unloadArea(id);
+    await world.loadArea(id);
+    world.activateArea(id);
+    world.unloadArea('annex');
+    frames.shift()(3000);
+    assert.equal(elements.get('objective').textContent, 'Find Room 102');
+    assert.equal(elements.get('school-time').textContent, '08:05');
+    assert.equal(elements.get('start-screen').hidden, true);
+});
+
 test('startup loads each furniture asset once and reports a failed asset request', async () => {
     const response = { ok: true, json: async () => ({ levels }) };
     const game = await loadGame(response, '?level=3');
@@ -937,7 +990,7 @@ test('startup loads each furniture asset once and reports a failed asset request
     assert.equal(failure.elements.get('start-button').disabled, true);
     assert.equal(failure.renderers.length, 0);
     assert.match(failure.elements.get('screen-message').textContent, /Could not load/);
-    assert.match(failure.errors[0][1].message, /Failed to load furniture model assets\/models\//);
+    assert.match(failure.errors[0][1].message, /Failed to load furniture model .*assets\/models\//);
     assert.match(failure.errors[0][1].cause.message, /404/);
 });
 

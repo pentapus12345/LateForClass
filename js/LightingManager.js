@@ -8,26 +8,43 @@ class LightingManager {
         this.scene = scene;
         this.renderer = renderer;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.lights = [];
-        this.fixtures = [];
+        this.registrations = new Map();
+        this.debugView = false;
     }
 
-    build({ lights = DEFAULT_LEVEL_LIGHTS, fixtures = [] } = {}, debugView = false) {
-        this.clear();
-        for (const definition of lights) {
-            const light = this.createLight(definition);
-            this.scene.add(light);
-            if (light.target) {
-                this.scene.add(light.target);
+    get lights() {
+        return Array.from(this.registrations.values()).flatMap(group => group.lights);
+    }
+
+    get fixtures() {
+        return Array.from(this.registrations.values()).flatMap(group => group.fixtures);
+    }
+
+    register(id, { lights = [], fixtures = [] } = {}) {
+        if (this.registrations.has(id)) {
+            throw new Error(`Lighting already registered: ${String(id)}`);
+        }
+        const group = { lights: [], fixtures: [] };
+        this.registrations.set(id, group);
+        try {
+            for (const definition of lights) {
+                const light = this.createLight(definition);
+                group.lights.push(light);
+                this.scene.add(light);
+                if (light.target) {
+                    this.scene.add(light.target);
+                }
             }
-            this.lights.push(light);
+            for (const definition of fixtures) {
+                const fixture = this.createFixture(definition);
+                group.fixtures.push(fixture);
+                this.scene.add(fixture);
+            }
+            this.setDebugView(this.debugView);
+        } catch (error) {
+            this.release(id);
+            throw error;
         }
-        for (const definition of fixtures) {
-            const fixture = this.createFixture(definition);
-            this.scene.add(fixture);
-            this.fixtures.push(fixture);
-        }
-        this.setDebugView(debugView);
     }
 
     createLight({ type, name = type, color = 0xffffff, intensity = 1, groundColor = 0x555555,
@@ -91,27 +108,31 @@ class LightingManager {
     }
 
     setDebugView(debugView) {
+        this.debugView = debugView;
         this.renderer.shadowMap.enabled = !debugView && this.lights.some(light => light.castShadow);
         for (const fixture of this.fixtures) {
             fixture.visible = !debugView;
         }
     }
 
-    clear() {
-        for (const light of this.lights) {
+    release(id) {
+        const group = this.registrations.get(id);
+        if (!group) {
+            return;
+        }
+        this.registrations.delete(id);
+        for (const light of group.lights) {
             this.scene.remove(light);
             if (light.target) {
                 this.scene.remove(light.target);
             }
             light.shadow?.dispose();
         }
-        for (const fixture of this.fixtures) {
+        for (const fixture of group.fixtures) {
             this.scene.remove(fixture);
             fixture.geometry.dispose();
             fixture.material.dispose();
         }
-        this.lights = [];
-        this.fixtures = [];
-        this.renderer.shadowMap.enabled = false;
+        this.setDebugView(this.debugView);
     }
 }

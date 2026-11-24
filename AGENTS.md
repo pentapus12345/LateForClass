@@ -21,10 +21,12 @@ Use exact filename casing in every script reference and import. Prefer descripti
 ## Architecture rules
 
 - **Game** loads the current level and owns the scene, renderer, game loop, and browser input and Pointer Lock coordination. It reports play access to the session and supplies world observations and state to the appropriate component.
-- **GameSession** owns the run phase, active schedule, arrival result, and session reset. It evaluates the deadline before player movement and decides whether the room reported by `Level` satisfies the schedule. It uses **SchoolClock** for simulated time and pause accounting.
+- **GameSession** owns the run phase, active schedule, arrival result, and session reset. It evaluates the deadline before player movement and decides whether the room reported by `World` satisfies the schedule. It uses **SchoolClock** for simulated time and pause accounting.
 - **GameUI** owns interface DOM references, form events, and presentation. It renders supplied state and sends menu actions back to `Game`.
 - **Player** owns player position and orientation, movement input, velocity, gravity, collision response, and the camera.
-- **Level** builds the objects defined in `assets/levels.json`. It owns walls, pillars, collision queries, environmental information, and cleanup.
+- **World** coordinates area lifecycle, door state and spatial queries across active areas. **SchoolDefinition.js** adapts existing level data and registers stable area, room and object identities. Keep challenge timing, outcomes and player state with their existing owners.
+- **Level** builds one area's walls, signs, doors, colliders and render instances. Areas share world coordinates with Y up. Give each shared boundary one owner. Area unloading releases local objects and preserves door swing for reloading within the same run.
+- **ModelCache** belongs to the world and owns parsed GLBs and pending requests by resolved URL. **EnvironmentObjectFactory** creates placements borrowing those resources. **LightingManager** owns global and per-area light registrations. Verify lifecycle changes with the two-area fixture in Node and Chrome. [Architecture decision](docs/connected-school-architecture.md)
 - **Wall** encapsulates one wall's dimensions, bounds, and collision query.
 - **controls.js** defines action mappings, settings defaults, normalization, and browser persistence.
 

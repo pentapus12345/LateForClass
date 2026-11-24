@@ -35,3 +35,9 @@ The clock regressions check scaling across frame intervals, active time across f
 The session unit tests supply timestamps and room IDs without creating a scene or DOM. The UI contract test supplies screen state and checks DOM output and menu callbacks without running the game loop. The startup and playthrough regressions exercise the assembled components.
 
 Visual foundation tests verify that the solid surfaces and debug outlines match the colliders, that V preserves camera position, and that the debug outline follows the door as it opens. Both views use the same physics.
+
+## Connected-area lifecycle
+
+Both runners execute the async A/B fixture using Three.js r128, the actual GLTFLoader and the optimized student chair. The two definitions use different relative paths for the same GLB. The tests check request sharing, stable identities, load races and failure recovery, seam movement in world coordinates, restoration of both door swings, shadow and fixture release, and disposal of borrowed and area-owned resources. Chrome renders B into a WebGL context after unloading A. Node also exercises the assembled Game with a running school clock across a reload and a second area's activation.
+
+For performance comparison, use the milestone-19 network settings, resolution, and three timed Room 102 runs. The benchmark and representative paired first-person views are recorded in the [architecture decision](../docs/connected-school-architecture.md#verification).

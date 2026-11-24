@@ -1045,12 +1045,13 @@ function registerMovementTests(test, levels, models) {
         const scene = new THREE.Scene();
         const renderer = { shadowMap: {} };
         const manager = new LightingManager(scene, renderer);
-        manager.build();
+        manager.register('world', { lights: DEFAULT_LEVEL_LIGHTS });
         equal(manager.lights.length, 2);
         equal(renderer.shadowMap.enabled, false);
         const fallback = [...manager.lights];
 
-        manager.build(classroomData.lighting);
+        manager.release('world');
+        manager.register('school', classroomData.lighting);
         equal(fallback.some(light => scene.children.includes(light)), false);
         equal(manager.lights.filter(light => light.castShadow).length, 3);
         const light = manager.lights.find(light => light.castShadow);
@@ -1081,7 +1082,9 @@ function registerMovementTests(test, levels, models) {
         fixture.geometry.addEventListener('dispose', () => fixtureDisposals++);
         fixture.material.addEventListener('dispose', () => fixtureDisposals++);
         light.shadow.map = { dispose() { shadowDisposals++; } };
-        manager.build(classroomData.lighting, true);
+        manager.release('school');
+        manager.setDebugView(true);
+        manager.register('school', classroomData.lighting);
         equal(shadowDisposals, 1);
         equal(fixtureDisposals, 2);
         equal(scene.children.includes(light.target), false);

@@ -71,37 +71,6 @@ class EnvironmentObjectFactory {
         };
     }
 
-    static async loadModels(placements, levelsUrl, signal, catalog = {}) {
-        const modelPaths = new Set(placements.map(placement => this.resolveModel(placement, catalog).model).filter(Boolean));
-        const assetsDirectory = THREE.LoaderUtils.extractUrlBase(levelsUrl);
-        const entries = await Promise.all([...modelPaths].map(async model => {
-            const url = assetsDirectory + model;
-            try {
-                const response = await fetch(url, { signal });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                const data = await response.arrayBuffer();
-                const loader = new THREE.GLTFLoader();
-                const { scene } = await new Promise((resolve, reject) => {
-                    loader.parse(data, THREE.LoaderUtils.extractUrlBase(url), resolve, reject);
-                });
-                const box = new THREE.Box3().setFromObject(scene);
-                if (box.isEmpty()) {
-                    throw new Error('The model has no geometry');
-                }
-                // Keep the authored horizontal origin and put the lowest point on the floor.
-                scene.position.y -= box.min.y;
-                const template = new THREE.Group();
-                template.add(scene);
-                return [model, template];
-            } catch (error) {
-                throw new Error(`Failed to load furniture model ${url}`, { cause: error });
-            }
-        }));
-        return new Map(entries);
-    }
-
     create(placement) {
         const { type, name = type, x, y = 0, z, rotationY = 0, color, castShadow = false, receiveShadow = false } = placement;
         const { model, modelVariant, scale, rotationOffset, collidable } = EnvironmentObjectFactory.resolveModel(placement, this.catalog);

@@ -75,10 +75,12 @@ Level definitions can include an optional `platforms` array of solid boxes. Each
 - [Game](js/Game.js) loads the level and coordinates rendering, browser input, Pointer Lock, and the game loop.
 - [GameSession](js/GameSession.js) owns the schedule, run phase, and arrival result. It uses [SchoolClock](js/SchoolClock.js) to track active school time and checks the deadline before movement.
 - [GameUI](js/GameUI.js) renders the session, HUD, and menus and forwards menu actions to `Game`.
-- [Player](js/Player.js) owns movement, physics, and the camera. It asks `Level` about the environment and handles collision response.
-- [Level](js/Level.js) builds and clears the scene objects defined by [assets/levels.json](assets/levels.json). It uses [Wall](js/Wall.js) for perimeter collision queries.
-- [LightingManager](js/LightingManager.js) builds and clears each level’s light sources, shadow maps, and visible fixtures.
-- [EnvironmentObjectFactory](js/EnvironmentObjectFactory.js) loads GLB templates and builds furniture and collision boxes from level placements. Procedural resources are shared within a build. Imported resources stay shared across restarts.
+- [Player](js/Player.js) owns movement, physics, and the camera. It asks `World` about active geometry and handles collision response.
+- [SchoolDefinition](js/SchoolDefinition.js) adapts each selectable level into one area and registers stable room and area identities.
+- [World](js/World.js) coordinates loading, activation, unloading, door state and spatial queries across active areas. Each [Level](js/Level.js) builds and clears one area's geometry and uses [Wall](js/Wall.js) for collision.
+- [ModelCache](js/ModelCache.js) shares pending GLB requests and loaded templates across areas and releases them on world teardown. [Ownership and lifecycle](docs/connected-school-architecture.md)
+- [LightingManager](js/LightingManager.js) registers school-wide illumination and releases each area’s lights, shadow maps and fixtures independently.
+- [EnvironmentObjectFactory](js/EnvironmentObjectFactory.js) instantiates GLB templates and builds furniture and collision boxes from level placements. Procedural resources are shared within a build. Imported resources stay shared across restarts.
 - [tests/](tests/README.md) contains the offline test runner and the browser test page. [AGENTS.md](AGENTS.md) documents the development workflow.
 
 ## Tests

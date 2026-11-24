@@ -14,13 +14,17 @@
     <script src="../../assets/gameConfig.js"></script>
     <script src="../../js/controls.js"></script>
     <script src="../../js/Wall.js"></script>
-    <script src="../../js/EnvironmentObjectFactory.js?v=20261124-4"></script>
-    <script src="../../js/LightingManager.js?v=20261123-7"></script>
-    <script src="../../js/Level.js?v=20261124-8"></script>
+    <script src="../../js/EnvironmentObjectFactory.js?v=20261124-195"></script>
+    <script src="../../js/ModelCache.js"></script>
+    <script src="../../js/LightingManager.js?v=20261124-195"></script>
+    <script src="../../js/SchoolDefinition.js"></script>
+    <script src="../../js/Level.js?v=20261124-195"></script>
+    <script src="../../js/World.js"></script>
     <script src="../../js/Player.js"></script>
     <script src="../../js/SchoolClock.js"></script>
     <script src="../../js/GameSession.js?v=20261123-2"></script>
-    <script src="test-movement.js?v=20261124-10"></script>
+    <script src="test-movement.js?v=20261124-195"></script>
+    <script src="test-world.js"></script>
     <script>
         const button = document.getElementById('run');
         const results = document.getElementById('results');
@@ -33,8 +37,8 @@
                     throw new Error(`Could not load level data (${response.status})`);
                 }
                 const { levels } = await response.json();
-                const classroom = new Level(levels[2], GAME_CONFIG);
-                await classroom.loadEnvironmentModels('../../assets/levels.json', AbortSignal.timeout(10000));
+                const cache = new ModelCache('../../assets/levels.json');
+                await cache.prepare(levels[2]);
                 const reports = [];
                 registerMovementTests((name, run) => {
                     try {
@@ -43,7 +47,18 @@
                     } catch (error) {
                         reports.push(`FAIL  ${name}\n      ${error.message}`);
                     }
-                }, levels, classroom.models);
+                }, levels, cache.modelsFor(levels[2]));
+                cache.dispose();
+                const cases = [];
+                registerWorldTests((name, run) => cases.push({ name, run }), levels, '../../assets/levels.json');
+                for (const { name, run } of cases) {
+                    try {
+                        await run();
+                        reports.push(`PASS  ${name}`);
+                    } catch (error) {
+                        reports.push(`FAIL  ${name}\n      ${error.message}`);
+                    }
+                }
                 results.textContent = reports.join('\n');
             } catch (error) {
                 results.textContent = error.message;

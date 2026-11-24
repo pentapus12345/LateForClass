@@ -703,6 +703,344 @@ Convert the three upstairs classroom entrances within the vaulted hall using a s
 
 **Verification:** The corridor near Room 103 and Room 101 look onto the same quadrangle. Chrome verified the sightlines and interior daylight. The glazing blocks jumps through both openings and appears in V. All 100 Node and 76 Chrome tests passed. Three timed Room 102 runs met the four browser budgets. [First-person views and measurements](docs/courtyard-window-review.md)
 
+### 19.5. Architecture preparation for a connected, expandable school
+
+**Status:** Completed. The product owner approved the ownership and migration design and physical adjacency as the foundation for milestone 20.
+
+**Verification:** All 108 Node and 83 Chrome regressions passed. Two test areas share a GLB across concurrent loads and independent unload/reload cycles. Three timed school walkthroughs met the original four budgets. Startup grew by 14,564 bytes, leaving 8,616 bytes of headroom. [Architecture decision, screenshots and measurements](docs/connected-school-architecture.md#verification)
+
+**Complexity:** Large
+
+**Objective:** Refactor the existing single-level architecture into clearly owned, testable components that can support multiple independently loaded areas of one persistent school, without changing the current game's appearance, layout, controls or gameplay.
+
+**Contribution to the vision:** Prepare LateForClass for an enormous, gradually discoverable school containing academic buildings, service passages, courtyards and eventually architecturally impossible areas. Establish the technical foundations for loading and unloading areas without resetting the player's timetable, losing progress, duplicating assets or disrupting navigation.
+
+**Rationale:**
+
+The existing architecture has served the small two-floor prototype well. `GameSession`, `GameUI`, `Player`, `EnvironmentObjectFactory` and `LightingManager` already provide useful separation of responsibilities.
+
+However, the current design assumes that a `Level` represents one complete playable environment. `Level` coordinates geometry, imported assets, furniture, doors, collision, signage, room detection and cleanup. Model and lighting resources are largely managed around the lifetime of that complete environment.
+
+Milestone 20 will introduce a school composed of multiple connected areas, only some of which may be loaded simultaneously. The current ownership and lifecycle assumptions must be reviewed and adjusted before that expansion.
+
+This milestone is a **focused, behavior-preserving architectural refactor**, not a new game feature or a general-purpose engine redesign.
+
+#### 1. Architecture audit and proposed design
+
+Before implementation, inspect the actual current source and document:
+
+- The responsibilities and dependencies of `Game`, `Level`, `Player`, `GameSession`, `EnvironmentObjectFactory`, `LightingManager`, and related rendering/collision components.
+- How level data becomes scene geometry, collisions, doors, signs, furniture, lights and room-arrival regions.
+- Which components currently own shared models, geometry, materials, textures and GPU resources.
+- What happens during initialization, retry, level rebuilding and disposal.
+- Which assumptions depend on all geometry belonging to one simultaneously loaded level.
+- Any existing architecture that can be reused without modification.
+
+Produce a concise proposed ownership model, component diagram and lifecycle sequence.
+
+Explicitly identify which existing classes should remain unchanged, which responsibilities require extraction, and which changes can wait until milestone 20.
+
+**Approval gate:** Present the proposed component boundaries, ownership rules, migration approach and anticipated risks to the product owner before implementing the refactor.
+
+#### 2. Separate school, area and session responsibilities
+
+Establish conceptual separation between:
+
+**School / World**
+- Represents the connected school as a whole.
+- Owns or references the registry of area identities and their relationships.
+- Coordinates which areas are loaded and active.
+- Provides a future integration point for transitions and global room lookup.
+- Does not own the player's school clock or win/loss rules.
+
+**Area**
+- Represents one independently manageable portion of the school, such as a corridor, group of rooms, stairwell or courtyard.
+- Owns its local scene objects, collision objects, doors, signs, room regions and local lighting registrations.
+- Can be constructed and disposed of without rebuilding unrelated areas.
+- Exposes the local spatial queries needed for movement and interaction.
+
+**Game**
+- Remains the application coordinator.
+- Coordinates the renderer, player, world and game session.
+- Does not directly construct individual architectural elements or implement asset-loading policies.
+
+**GameSession**
+- Continues to own the school clock, schedule, run phase and win/loss rules.
+- Must remain independent of which areas are currently loaded.
+- Must not be reset simply because the player enters another area.
+
+**Player**
+- Continues to own movement, camera orientation, gravity and jumping.
+- Uses a stable spatial-query interface rather than depending on the concrete implementation of one `Level`.
+
+Retain `Level` where it remains useful. Refactor or repurpose it only where necessary to establish these boundaries. Do not introduce new classes solely to match the terminology above.
+
+Avoid duplicating functionality between `World`, `Level` and `Area`.
+
+#### 3. Define area identity and spatial contracts
+
+Establish the minimum data and interfaces required for future connected areas.
+
+Each area must have:
+
+- A stable, unique identifier.
+- A defined coordinate convention and relationship to the school/world coordinate system.
+- A self-contained definition of its local geometry and spatial regions.
+- A predictable construction and disposal lifecycle.
+- A way to identify its rooms, doors and collision objects.
+- A defined interface through which the world can query or manage it.
+
+Define how area identifiers, room identifiers and object identifiers remain stable independently of whether the relevant area is currently loaded.
+
+Preserve the existing room-numbering convention and all current room identities.
+
+Define the coordinate strategy explicitly. Milestone 20 should be able to connect physically adjacent areas without accumulating arbitrary coordinate offsets or duplicating boundary geometry.
+
+Do not implement impossible spatial transitions in this milestone. The future design must not unnecessarily rule them out.
+
+#### 4. Establish explicit asset ownership
+
+Review the current `EnvironmentObjectFactory`, GLB loading and optimized asset pipeline.
+
+Introduce or consolidate a shared resource owner with responsibilities for:
+
+- Loading models and reusable resources.
+- Caching assets by stable identity.
+- Avoiding duplicate concurrent requests for the same asset.
+- Reusing shared geometry, materials and textures across areas.
+- Keeping shared resources alive while they remain in use.
+- Releasing resources according to an explicit disposal policy.
+- Handling loading failures without leaving partially initialized or unusable areas.
+
+Distinguish between:
+
+**Shared resources:** Model templates, geometry, textures and materials that may be referenced by several areas.
+
+**Area-owned instances:** Scene objects, transforms, collision volumes, debug meshes and other instance-specific objects that should disappear when an area unloads.
+
+Ensure unloading one area cannot invalidate resources used by another.
+
+Choose a simple, explicit cache-lifetime policy appropriate for the current project. Reference counting is optional, not mandatory. If the implementation retains shared assets for the lifetime of the game, document that decision and its memory implications.
+
+Preserve the existing optimized GLB pipeline, asset catalog, model corrections and procedural fallback capabilities.
+
+Avoid rebuilding a functioning asset system.
+
+#### 5. Define area lifecycle and state restoration
+
+Establish a consistent lifecycle contract, distinguishing:
+
+- **Unloaded:** No active area-specific scene resources.
+- **Loading:** Required resources and area objects are being prepared.
+- **Loaded:** The area is constructed and available.
+- **Active:** The area participates in the relevant rendering, collision, interaction and/or update operations.
+
+Active must not necessarily mean that only one area can be active. Adjacent areas may need to coexist for visible doorways and seamless movement.
+
+Define how loading failures, duplicate load requests and repeated unload requests are handled.
+
+Separate **persistent logical state** from **temporary rendered state**.
+
+For example:
+
+- Whether a door is open is logical state.
+- The door's mesh and debug collider are area-owned runtime objects.
+- The current school time belongs to `GameSession`.
+- The player's position belongs to `Player`.
+- A room's identity does not depend on whether its geometry is loaded.
+
+Define how an area restores relevant logical state after reloading.
+
+For milestone 19.5, an in-memory state representation is sufficient. Browser storage, long-term saves, multi-day progression and discovery history belong to later milestones.
+
+Preserve the existing retry semantics. Retrying the current challenge must restore the configured initial time, player location, doors and gameplay state.
+
+#### 6. Prepare area-aware collision and spatial queries
+
+Preserve the current movement and collision behavior while making the spatial-query boundary independent of one monolithic level.
+
+The architecture must support future queries for:
+
+- Horizontal movement obstruction.
+- Floor and platform heights.
+- Vertical collisions.
+- Stair and step traversal.
+- Door interaction candidates.
+- Current room and arrival-region identification.
+
+Define which component receives those queries and how it delegates them to loaded areas.
+
+Allow relevant adjacent-area geometry to participate when the player approaches or crosses an area boundary.
+
+Avoid gaps, duplicate colliders or inconsistent collision behavior at shared boundaries.
+
+Do not introduce a new physics engine, broad-phase spatial index, octree or other acceleration system without evidence that it is necessary.
+
+Preserve the existing movement physics, player dimensions and collision-debug view.
+
+#### 7. Prepare lighting and rendering for multiple areas
+
+Review `LightingManager` and its current resource lifetime.
+
+Define how an area can register and release local lighting definitions and visible fixtures independently of other areas.
+
+Preserve:
+
+- Existing daylight and courtyard rendering.
+- Historic interior lighting.
+- Shadow configuration.
+- Reusable fixture models.
+- The collision-debug display.
+
+Ensure releasing one area's lighting does not remove or invalidate lighting still required by another area.
+
+Keep global illumination settings and area-specific lights clearly distinguished.
+
+Do not implement a new lighting engine, dynamic weather, advanced global illumination or post-processing system.
+
+Lighting transitions between areas may remain a milestone-20 concern.
+
+#### 8. Preserve compatibility with existing levels
+
+The current playable school, Hallway and Physics Playground must continue to work.
+
+Choose and document a migration strategy:
+
+- Preserve the current JSON schema through a compatibility adapter; or
+- Introduce a minimally changed schema with a deterministic migration.
+
+Do not manually redesign the existing school simply to accommodate the architecture.
+
+Avoid duplicating level definitions or creating parallel systems that must be maintained indefinitely.
+
+Maintain the existing vanilla JavaScript and browser-loading approach unless a clearly demonstrated technical limitation requires a separately approved change.
+
+#### 9. Build a minimal architecture verification fixture
+
+Create a small automated test fixture with two synthetic areas, **A and B**, that share at least one imported model.
+
+The fixture is for architecture verification, not new playable content.
+
+Demonstrate this lifecycle:
+
+1. Load Area A.
+2. Load Area B.
+3. Verify that both can instantiate the shared model without duplicate asset loading.
+4. Give each area distinct local objects and collision regions.
+5. Unload Area A.
+6. Verify that Area A's instances, colliders and local lights are removed.
+7. Verify that Area B remains intact and its shared assets remain valid.
+8. Reload Area A.
+9. Verify that its objects are reconstructed once, with correct logical state and no duplication.
+10. Repeat the cycle and verify predictable resource ownership and cleanup.
+
+Include a separate compatibility walkthrough of the existing playable school.
+
+A production-quality area-streaming system is explicitly outside scope.
+
+#### 10. Tests and verification
+
+Add focused automated tests for:
+
+- Stable area and room identifiers.
+- Area construction and disposal.
+- Repeated and concurrent load requests.
+- Asset loading and shared-resource reuse.
+- Resource survival while referenced by another area.
+- Safe cleanup and repeatable reloading.
+- Local collision registration and removal.
+- Logical state restoration after reloading.
+- Area-local lighting registration and disposal.
+- Error handling during incomplete asset loading.
+- No reset of `GameSession` from area lifecycle events.
+- Existing retry behavior.
+- Existing room-arrival and scheduled-destination rules.
+
+Where appropriate, verify resource identity and disposal calls directly rather than inferring correctness from screenshots.
+
+Run all existing Node and Chrome regression tests.
+
+Perform a browser walkthrough covering movement, camera control, doors, stairs, room arrival, lighting, courtyard visibility, the 60× clock, pause, timeout, retry and debug view.
+
+Capture representative before-and-after screenshots to confirm that the refactor does not unintentionally alter the existing visual presentation.
+
+Record relevant startup, loading, frame-time and memory measurements using the established milestone-19 performance methodology.
+
+#### Dependencies
+
+- Completed milestones 14–19.
+- Existing `GameSession`, `Player`, `Level`, `EnvironmentObjectFactory` and `LightingManager`.
+- Approved milestone-20 direction for connected, independently loaded areas.
+- Product-owner approval of the specific ownership and migration design before implementation.
+
+#### Acceptance criteria
+
+**Architecture**
+
+- [x] A documented ownership model clearly separates school-wide responsibilities, area-local responsibilities, game-session state and shared assets.
+- [x] The proposed boundaries and migration approach have received product-owner approval.
+- [x] Existing responsibilities are reused rather than duplicated.
+- [x] No new central class becomes responsible for unrelated gameplay, rendering, assets and physics functionality.
+
+**Area lifecycle**
+
+- [x] Two independently managed synthetic areas can be loaded, unloaded and reloaded.
+- [x] Area-specific objects, collision registrations and lighting resources have predictable lifetimes.
+- [x] Repeated lifecycle operations do not produce duplicate instances, dangling registrations or invalid resource references.
+- [x] Area logical state can be reconstructed independently of its render objects.
+
+**Resource management**
+
+- [x] Shared GLB resources are loaded and reused correctly.
+- [x] Unloading one area does not invalidate resources still used by another.
+- [x] Shared-resource ownership and disposal policies are documented and tested.
+- [x] Existing model catalog and optimization functionality remain operational.
+
+**Compatibility**
+
+- [x] The existing two-floor school remains visually and functionally unchanged.
+- [x] All existing rooms remain correctly numbered and reachable.
+- [x] Doors, stairs, collision, jumping, camera, schedules and arrival detection behave as before.
+- [x] The school clock and active objective are independent of area lifecycle operations.
+- [x] Retry restores the expected initial state.
+- [x] The Hallway and Physics Playground remain operational.
+
+**Verification**
+
+- [x] All existing Node and Chrome tests pass.
+- [x] New lifecycle and resource-ownership tests pass.
+- [x] Browser screenshots show no unintended visual regression.
+- [x] Performance measurements show no material unexplained regression against the milestone-19 baseline.
+- [x] A concise architecture decision record describes the selected design, rejected alternatives and known limitations.
+- [x] `README.md`, `ROADMAP.md`, `CHANGELOG.md`, `AGENTS.md` and relevant test documentation reflect the implemented architecture.
+
+#### Constraints
+
+- This is a behavior-preserving architectural refactor.
+- Do not add playable areas, classrooms, wings or new architectural content.
+- Do not implement full area streaming, area traversal gameplay or background prefetching.
+- Do not implement persistent school days, discovery history or route changes.
+- Do not implement impossible connections or portals.
+- Do not change the school's visual style.
+- Do not introduce a new physics engine.
+- Do not introduce a general-purpose entity-component system, dependency-injection framework or event bus.
+- Do not upgrade Three.js without separate approval.
+- Prefer composition and existing components over unnecessary abstractions.
+- Avoid unrelated code cleanup or formatting changes.
+- Follow `AGENTS.md`; do not commit or push automatically.
+
+**Implementation sequence:**
+
+1. Audit the current architecture.
+2. Propose exact ownership boundaries, interfaces and migration strategy.
+3. Obtain product-owner approval.
+4. Implement the smallest necessary architectural changes.
+5. Validate shared resources and area lifecycles with the synthetic fixture.
+6. Verify the unchanged playable school and regression suite.
+7. Document the resulting architecture and remaining limitations.
+
+**Definition of done:** Milestone 20 can begin by connecting real playable areas using the established interfaces, without needing to redesign asset ownership, game-session state, collision delegation or area lifecycles.
+
 ## Current limitations
 
 - The timed school uses six classrooms and one same-day deadline. The current default is Mathematics in Room 102, so Room 101 is available to explore during the run. First-time player comprehension and time allowance remain playtesting items.

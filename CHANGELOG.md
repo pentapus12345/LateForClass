@@ -8,6 +8,12 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-24 — Prepare independently loaded school areas
+
+- Adapted each playable level to a one-area school. World coordinates area lifecycle and delegates active-area queries. Level owns local instances and colliders, ModelCache shares GLBs, and LightingManager releases local lights and fixtures independently. Door swings survive unload and reload within a run.
+- All 108 Node and 83 Chrome tests passed, including the concurrent two-area fixture. Browser walkthroughs covered all three levels and three timed Room 102 arrivals. Across eight fixed first-person comparisons, six pairs matched exactly and two differed at one pixel each.
+- Startup increased by 14,564 bytes to 16,768,600 bytes, leaving 8,616 bytes under the 16 MiB ceiling. Median startup was 5.946 seconds, worst route p95 was 9.2 ms, and estimated decoded asset storage was 238.1 MiB. Cached templates live until world teardown. [Architecture decision and comparison](docs/connected-school-architecture.md#verification)
+
 ### 2026-11-24 — Add courtyard windows and daylight
 
 - Opened the vaulted corridor near Room 103 and Room 101’s outer wall with matching mullioned windows onto a shared quadrangle. Added local daylight and thin blocking glazing with V outlines. The courtyard uses repeated stone bays, paved walks, and a central lawn.

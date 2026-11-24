@@ -31,8 +31,10 @@ class Game {
             throw new Error(`Level ${STARTING_LEVEL_ID} is missing`);
         }
         this.session = new GameSession(levelDefinition);
-        this.level = new Level(levelDefinition, this.config);
-        await this.level.loadEnvironmentModels(LEVELS_URL, AbortSignal.timeout(LEVEL_LOAD_TIMEOUT_MS));
+        this.definition = levelDefinition;
+        const school = schoolFromLevel(levelDefinition);
+        this.world = new World(school, this.config, LEVELS_URL);
+        await this.world.loadArea(school.initialAreaId);
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(this.config.backgroundColor);
@@ -40,20 +42,21 @@ class Game {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
 
-        this.lighting = new LightingManager(this.scene, this.renderer);
+        this.world.attach(this.scene, new LightingManager(this.scene, this.renderer));
+        this.world.activateArea(school.initialAreaId);
 
         this.ui.configure({
             title: levelDefinition.id === STARTING_LEVEL_ID ? 'Late For Class' : levelDefinition.name,
             message: levelDefinition.instructions ?? `${HALLWAY_OBJECTIVE}.`,
             schedule: this.session.schedule,
             hasClock: this.session.hasClock,
-            hasInteraction: this.level.doorDefinitions.length > 0 || Boolean(levelDefinition.classroom),
+            hasInteraction: Boolean(levelDefinition.doors?.length || levelDefinition.door) || Boolean(levelDefinition.classroom),
             supportsViewToggle: levelDefinition.solidRendering
         });
         this.ui.renderControls(this.controlSettings);
         this.player = new Player(this.config, this.controlSettings);
         this.resizeRenderer();
-        this.restart();
+        this.resetRun();
         this.ui.mountCanvas(this.renderer.domElement);
 
         this.ui.bindActions({
@@ -86,8 +89,18 @@ class Game {
             this.render();
         });
 
+        window.addEventListener('pagehide', event => {
+            if (!event.persisted) {
+                this.dispose();
+            }
+        });
         this.ui.setEnabled(true);
         this.animate();
+    }
+
+    dispose() {
+        this.world?.dispose();
+        this.renderer?.dispose();
     }
 
     start() {
@@ -133,9 +146,12 @@ class Game {
     }
 
     restart() {
-        this.level.build(this.scene);
-        this.lighting.build(this.level.definition.lighting, this.level.debugView);
-        this.player.resetPosition(this.level.playerStart, this.level.playerLookAt, this.level);
+        this.world.reset();
+        this.resetRun();
+    }
+
+    resetRun() {
+        this.player.resetPosition(this.definition.playerStart, this.definition.playerLookAt, this.world);
         this.session.reset();
         this.pointerLockFailed = false;
         this.syncPlayState();
@@ -180,12 +196,12 @@ class Game {
             return;
         }
         if (action === 'interact') {
-            if (this.level.openDoor(this.player.position)) {
+            if (this.world.openDoor(this.player.position)) {
                 this.updateObjective();
                 return;
             }
             const now = performance.now();
-            if (this.level.canConfirmArrival(this.player.position) && this.session.confirmLegacyArrival(now)) {
+            if (this.world.canConfirmArrival(this.player.position) && this.session.confirmLegacyArrival(now)) {
                 this.presentResult(now);
             }
             return;
@@ -205,7 +221,7 @@ class Game {
     updateInterface(now = performance.now()) {
         const running = this.session.isRunning;
         this.ui.renderSession(this.session.snapshot(now), this.pointerLockFailed);
-        this.ui.renderView(this.level.debugView, running);
+        this.ui.renderView(this.world.debugView, running);
         if (running) {
             this.updateObjective();
         }
@@ -226,24 +242,23 @@ class Game {
     }
 
     toggleView() {
-        if (this.level.toggleDebugView()) {
-            this.lighting.setDebugView(this.level.debugView);
-            this.ui.renderView(this.level.debugView, this.isPlaying());
+        if (this.world.toggleDebugView()) {
+            this.ui.renderView(this.world.debugView, this.isPlaying());
             this.render();
         }
     }
 
     updateObjective() {
         const { position } = this.player;
-        const { classroom } = this.level.definition;
+        const { classroom } = this.definition;
         const { destinationRoomId } = this.session;
         let instruction = '';
-        if (this.level.canOpenDoor(position)) {
+        if (this.world.canOpenDoor(position)) {
             instruction = 'Press E to open the door';
         } else if (destinationRoomId) {
             instruction = `Find Room ${destinationRoomId}`;
         } else if (classroom) {
-            instruction = this.level.canConfirmArrival(position)
+            instruction = this.world.canConfirmArrival(position)
                 ? 'Press E to enter the classroom'
                 : HALLWAY_OBJECTIVE;
         }
@@ -273,8 +288,8 @@ class Game {
             this.presentResult(now);
             return;
         }
-        this.player.update(deltaTime, this.level);
-        const roomId = this.level.getEnteredRoomId(this.player.position);
+        this.player.update(deltaTime, this.world);
+        const roomId = this.world.getEnteredRoomId(this.player.position);
         if (this.session.enterRoom(roomId, now)) {
             this.presentResult(now);
         } else {
