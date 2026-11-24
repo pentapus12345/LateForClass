@@ -17,7 +17,8 @@ class GameUI {
         this.optionsOpen = false;
     }
 
-    configure({ title, message, schedule, hasClock, hasInteraction, supportsViewToggle }) {
+    configure({ title, message, schedule, destinationNumber = schedule?.roomId, hasClock, hasInteraction, supportsViewToggle }) {
+        this.destinationNumber = destinationNumber;
         this.introTitle = title;
         this.introMessage = message;
         this.hasInteraction = hasInteraction;
@@ -25,7 +26,7 @@ class GameUI {
         this.document.getElementById('school-clock').hidden = !hasClock;
         if (schedule) {
             this.document.getElementById('schedule-class-name').textContent = schedule.className;
-            this.document.getElementById('schedule-room').textContent = `Room ${schedule.roomId}`;
+            this.document.getElementById('schedule-room').textContent = `Room ${this.destinationNumber}`;
             const startTime = this.document.getElementById('schedule-start-time');
             startTime.textContent = schedule.startTime;
             startTime.dateTime = schedule.startTime;
@@ -70,11 +71,11 @@ class GameUI {
         this.renderObjective('');
         if (phase === 'late') {
             this.screenTitle.textContent = 'You’re Late!';
-            this.screenMessage.textContent = `${schedule.className} started at ${schedule.startTime} in Room ${schedule.roomId}.`;
+            this.screenMessage.textContent = `${schedule.className} started at ${schedule.startTime} in Room ${this.destinationNumber}.`;
             this.startButton.textContent = 'Retry';
         } else if (phase === 'arrived') {
             this.screenTitle.textContent = 'You made it to class!';
-            this.screenMessage.textContent = arrivedRoomId ? `You arrived at Room ${arrivedRoomId}.` : 'Level complete.';
+            this.screenMessage.textContent = arrivedRoomId ? `You arrived at Room ${this.destinationNumber ?? arrivedRoomId}.` : 'Level complete.';
             this.startButton.textContent = 'Play Again';
         } else if (phase === 'paused') {
             this.screenTitle.textContent = 'Paused';

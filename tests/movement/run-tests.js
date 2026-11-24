@@ -301,13 +301,16 @@ vm.runInContext('registerMovementTests(test, levels, models)', context);
 // Exercise the area fixture with real Three.js scene parenting, materials and GLB geometry.
 const worldContext = vm.createContext({
     THREE: loaderThree, URL, AbortSignal, levels, test,
-    document: { baseURI: 'http://localhost/' },
+    firstCourt: JSON.parse(read('assets/' + levels.find(level => level.id === 4).schoolFile)),
+    document: { baseURI: 'http://localhost/', createElement: createCanvas },
     fetch: async url => localModelResponse(url)
 });
 for (const file of browserTestFiles) {
     vm.runInContext(read(file), worldContext, { filename: file });
 }
 vm.runInContext("registerWorldTests(test, levels, 'assets/levels.json')", worldContext);
+
+vm.runInContext("registerFirstCourtTests(test, firstCourt, 'assets/levels.json')", worldContext);
 
 const gameHtml = read(GAME_PAGE);
 const gameScripts = readScriptSources(GAME_PAGE);
@@ -322,7 +325,8 @@ test('the game and test pages load dependencies in order with exact filename cas
     assert.deepEqual(gameFiles, [...dependencies, 'js/GameUI.js', 'js/Game.js', 'js/main.js']);
     assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[0]), library);
     assert.equal(path.posix.join(path.posix.dirname(BROWSER_TEST_PAGE), browserTestScripts[1]), loader);
-    assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js', 'tests/movement/test-world.js']);
+    assert.deepEqual(browserTestFiles, [...dependencies, 'tests/movement/test-movement.js', 'tests/movement/test-world.js',
+        'tests/movement/test-first-court.js']);
     for (const file of [library, loader, ...gameFiles, ...browserTestFiles, 'assets/levels.json']) {
         assertExactPath(file);
     }
@@ -473,8 +477,11 @@ async function loadGame(response, search = '', storage = new Map(), loadModel = 
                 modelRequests.push(url);
                 return loadModel(url);
             }
-            assert.equal(url, 'assets/levels.json');
             assert.equal(cache, 'no-cache');
+            if (url === 'http://localhost/assets/schools/first-court.json') {
+                return { ok: true, json: async () => JSON.parse(read('assets/schools/first-court.json')) };
+            }
+            assert.equal(url, 'assets/levels.json');
             if (response instanceof Error) {
                 throw response;
             }
@@ -936,6 +943,72 @@ test('the level query selects the playground and restart keeps that level', asyn
     const fallback = await loadGame(response, '?level=unknown');
     assert.equal(fallback.elements.get('screen-title').textContent, 'Late For Class');
     assert.equal(fallback.renderers[0].camera.position.z, levels[0].playerStart.z);
+});
+
+test('First Court starts timed by default and its development entry remains playable past the deadline', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    for (const explore of [false, true]) {
+        const query = explore ? '?level=4&mode=explore' : '?level=4';
+        const { elements, errors, frames, renderers } = await loadGame(response, query);
+        assert.deepEqual(errors, []);
+        const start = elements.get('start-button');
+        start.dispatchEvent(new Event('click'));
+        assert.equal(elements.get('schedule-panel').hidden, explore);
+        if (!explore) {
+            assert.equal(elements.get('school-time').textContent, '08:15');
+            assert.equal(elements.get('objective').textContent, 'Find Room 25');
+        }
+        frames.shift()(45000);
+        assert.equal(elements.get('start-screen').hidden, explore);
+        if (!explore) {
+            assert.equal(start.textContent, 'Retry');
+            start.dispatchEvent(new Event('click'));
+            assert.equal(elements.get('school-time').textContent, '08:15');
+        }
+        assert.equal(renderers[0].camera.position.z, -13);
+    }
+});
+
+test('First Court consistently presents a renumbered classroom and can schedule either teaching room', async () => {
+    for (const [id, number, door, inside] of [
+        ['ER-G-01', '25a', { x: 26, y: 0, z: 37 }, { x: 26, y: 0, z: 40 }],
+        ['GH-G-02', '14', { x: -19.35, y: 0, z: 16 }, { x: -16.75, y: 0, z: 16 }]
+    ]) {
+        const manifest = JSON.parse(read('assets/schools/first-court.json'));
+        manifest.challenge.schedule.roomId = id;
+        manifest.areas[2].definition.rooms.find(room => room.id === 'ER-G-01').number = '25a';
+        let game;
+        const { elements, frames, errors, renderers } = await loadGame({ ok: true, json: async () => ({ levels }) },
+            '?level=4', new Map(), localModelResponse, page => {
+                const fetch = page.fetch;
+                page.fetch = (url, options) => url.endsWith('/schools/first-court.json')
+                    ? Promise.resolve({ ok: true, json: async () => manifest }) : fetch(url, options);
+                page.observeGame = value => { game = value; };
+                vm.runInContext(`
+                    const init = Game.prototype.init;
+                    Game.prototype.init = function () { observeGame(this); return init.call(this); };
+                `, page);
+            });
+        assert.deepEqual(errors, []);
+        const label = 'Room ' + number;
+        const plaque = renderers[0].scene.children.find(object => object.name === label);
+        assert.equal(plaque.material.map.image.text, label);
+        const range = renderers[0].scene.children.find(object => object.name === 'Cross passage directions');
+        assert.ok(range.material.map.image.lines.includes('Rooms 25a–26'));
+        assert.equal(elements.get('schedule-room').textContent, label);
+        assert.ok(elements.get('screen-message').textContent.includes(label));
+        const start = elements.get('start-button');
+        start.dispatchEvent(new Event('click'));
+        assert.equal(elements.get('objective').textContent, 'Find ' + label);
+        frames.shift()(45000);
+        assert.ok(elements.get('screen-message').textContent.includes(label));
+        start.dispatchEvent(new Event('click'));
+        assert.ok(game.world.openDoor(door));
+        game.player.position.set(inside.x, inside.y, inside.z);
+        frames.shift()();
+        assert.equal(game.session.phase, 'arrived');
+        assert.equal(elements.get('screen-message').textContent, 'You arrived at ' + label + '.');
+    }
 });
 
 test('a live game keeps play access, objective and clock through area activation and reload', async () => {

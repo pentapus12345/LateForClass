@@ -1,113 +1,133 @@
-# LateForClass product vision
+# LateForClass — Product Vision
 
-LateForClass is a first-person 3D school-navigation game set in an enormous, historic, increasingly improbable school. The immediate challenge is reaching the correct class before it begins; the longer-term challenge is learning the school, recognizing its patterns, discovering hidden routes, and adapting when familiar parts of the building subtly change. The tone combines believable old-English academic architecture, exploration, dry institutional absurdity, and occasional unease—not primarily horror.
+## The premise
 
-## Core gameplay requirements
+**LateForClass is a first-person, time-pressured navigation game set in one enormous, historic school that becomes increasingly improbable the better you get to know it.** You have classes to attend, rooms to find and deadlines to beat. You are under pressure from the beginning. As you rush through the school, you glimpse inviting rooms, distant passages and intriguing clues that you would love to investigate—but usually cannot stop for. Over successive classes, learning routes, recognizing landmarks and interpreting the institution’s peculiar history become increasingly important to arriving on time.
 
-1. Each level gives the player a scheduled class, a classroom identifier, and a class start time.
-2. The player navigates interconnected school spaces and uses classroom labels and building patterns to find the destination.
-3. The player opens doors as necessary and **physically enters the correct classroom**. Merely approaching its door or pressing an arrival button does not count.
-4. Entering the correct classroom before class starts automatically wins the level. Entering another room does not.
-5. If the class start time is reached before a valid arrival, the player immediately loses the level.
-6. After a win or loss, the player can restart the level from its initial state.
+The school should initially seem like a functioning, centuries-old English boarding school or university. It is beautiful, overwhelming, lived-in and sometimes inconvenient. With time it reveals forgotten departments, bizarre arrangements, impossible spaces and subtle changes to familiar routes. Its response to all this is characteristically bureaucratic. The tone is **curious, atmospheric, dryly funny and occasionally unsettling—not primarily horror**.
 
-Walking, camera control, jumping, gravity, and collisions support this gameplay loop; they are not the primary challenge. Across multiple classes or days, knowledge of the school becomes a form of player progression.
+**Core promise:** *You have to get to class. The school is fascinating, enormous and confusing—and there is never quite enough time to see everything.*
 
-## Time and scheduling
+**Primary player experience:** Immediate urgency, quick decisions and the pleasure of gradually mastering a place you initially barely understand. Exploration is a source of temptation and a means of solving later navigation problems, **not a replacement for the deadline-driven game**.
 
-- Each level defines the **starting school time**, **class name**, **class start time**, **destination classroom identifier**, and **time multiplier** in structured level JSON.
-- Time is simulated, not taken from the computer's clock. The default multiplier is **60×**: one second of active real time advances school time by one minute; one real minute advances it by one school hour.
-- A readable in-game clock shows the current school time. The existing schedule display shows the next class, room, and start time. Both use the same authoritative data and simulated clock.
-- The clock advances only during active gameplay; pausing or suspending gameplay freezes simulated time. The deadline must not be bypassed or extended unintentionally by focus or pointer-lock changes.
-- Arrival **strictly before** the class start time counts as on time. At the deadline or later is late. The result is final until restart.
-- Restart restores the configured time, player spawn, doors, objective, and other level state. Time progression and deadline checks must be independent of frame rate.
+## 1. One school, not a sequence of unrelated levels
 
-## The school: setting and progression
+- The intended game takes place in **one connected school and its grounds**, rather than a set of independent corridor challenges. The world should persist conceptually across classes and school days.
+- Each location has a recognizable identity, a believable institutional purpose and relationships to other places. Rooms, corridors and courtyards should not exist solely to create the shortest route to the next objective.
+- The school is **far larger than the player initially understands**. A first visit reveals only a small part; distant buildings, galleries, stairs, courtyards and branching passages suggest much more beyond it.
+- Navigation offers choices: meaningful junctions, optional detours, alternative routes and places worth investigating even when they do not serve the current class.
+- The player builds a mental map. Previously learned routes, landmarks, numbering conventions and shortcuts remain useful over time. **Accumulated knowledge is a primary form of progression.**
+- The existing Hallway, Physics Playground and six-classroom school are **development and regression prototypes**, not the required geography of the final school. Future school-building should not be constrained by those layouts.
 
-- The school should feel **far larger than the player can initially comprehend**. It evokes an old English university or boarding school: stone quadrangles, gothic or collegiate arches, oak doors, tall windows, timber, worn floors, layered additions, and mismatched wings from different eras.
-- It contains places with purposes beyond teaching: libraries, dining halls, cafeteria kitchens, changing rooms and showers, maintenance rooms, utility corridors, service stairs, storage areas, courtyards, and outdoor sports grounds including a football field.
-- The player discovers these spaces gradually. Some unusual service routes become useful shortcuts to scheduled destinations; an apparently inconvenient route through a kitchen, showers, or outdoor grounds may prove essential.
-- Most of the school is stable and learnable. Some passages, entrances, destinations, or signs can change **infrequently and intentionally**, often between visits or school days. The player should notice that something once familiar is different, while previous knowledge remains valuable.
-- Stranger areas may have internally consistent but increasingly absurd rules: unusual room-numbering systems, implausibly large interiors, forgotten departments, and connections that could not fit in a conventional building.
-- The absurdity should unfold gradually, contrasted with mundane school bureaucracy and the ever-present class schedule. Favor curiosity, humor, mystery, and mild unease over arbitrary randomness or jump scares.
-- Significant layout changes must never silently make the current destination unreachable or cause an unwinnable timed run. Changes should be legible in hindsight, with clues or alternative routes.
+## 2. Timetable-driven navigation and escalating challenges
 
-## World and navigation
+- Scheduled classes give the player a **reason to move through the world**. A challenge identifies the class, destination room and start time. The player must find and **physically enter the correct classroom strictly before** the deadline. Merely reaching its door, entering another room or pressing a completion key does not count.
+- Arriving on time succeeds; reaching the deadline first fails the **current class challenge**. The existing prototype's win/loss/retry behavior remains the reference implementation, but the long-term game should not treat every failed class as a reason to erase the entire school experience.
+- **Early classes emphasize panic and orientation.** The player starts with a clearly specified but unfamiliar destination and a short, fair deadline. Reading signs, choosing a passage, opening the right door and correcting a small mistake are enough to create pressure. The first playable challenge should feel urgent immediately, not like a guided tour.
+- **Later classes broaden the challenge.** More distant destinations, accumulated route knowledge and alternative paths require better decisions. Still later, longer allowances support investigating cryptic numbers, contradictory directions, renamed halls, obsolete notices, counterintuitive connections and historical clues. Finding out *where the classroom actually is* may become the puzzle.
+- The time budget reflects distance, navigational complexity, clue interpretation and realistic first-time discovery—not simply a fixed increase from one challenge to the next. Some intellectual challenges may have substantially longer deadlines, but they are still timed class challenges.
+- The environment should continually tempt the player with rooms and routes they lack time to inspect. Curiosity and time pressure reinforce each other. Optional untimed exploration can exist as a **development and playtesting mode**; whether ordinary players ever receive free-roaming periods remains undecided, not a core requirement.
+- The school can contain genuine locked, staff-only or otherwise restricted spaces when these make sense in-world. Access should not depend on arbitrary game-level numbers.
+- The immediate objective is understandable or solvable from the timetable and in-world clues. As the game progresses, what counts as a sufficient clue can become less direct, provided the solution remains fair and discoverable.
 
-- The school or campus contains connected corridors, classrooms, interactive doors, stairs, multiple floors, basements, outdoor paths, service areas, and varied building wings.
-- Classroom identifiers are visible and follow discoverable patterns related to the layout. Players learn and use these patterns to navigate.
-- Room boundaries and arrival regions are defined in level data and evaluated in three dimensions: proximity outside the door, or being above or below a classroom, must not count as entry.
-- The school must be navigable and understandable from a first-person viewpoint, including when walls are opaque. Room labels and environmental clues should make the numbering system learnable without requiring trial-and-error entry into every classroom.
-- The intended challenge is finding a plausible route from in-world information; it should not require the player to know the level in advance or follow a developer-only marker.
+### Time and challenge rules
 
-## Challenge design and validation
+- The game uses **simulated school time**, independent of the computer clock. The initial/default speed is **60×**: one real second of active play advances one school minute.
+- A readable clock and timetable derive from one authoritative simulation clock and schedule. Challenge start time, destination and deadline are data-defined.
+- Pausing or suspending active play freezes simulated time; loading and interruption must not unfairly consume the player's deadline.
+- Arrival strictly before class time counts as on time; arrival at or after the deadline is late. Outcomes must be deterministic and frame-rate independent.
+- A class retry resets the appropriate challenge state. Which world changes, discoveries and longer-term progress survive retry, failure or a new day must be specified before progression is implemented.
 
-- Difficulty should come primarily from learning the building, understanding its room-numbering pattern, choosing routes, and managing the remaining time—not from obscure clues, hidden hitboxes, or precision movement.
-- The time allowance is set per level in JSON and should be balanced against route complexity and realistic player discovery time. The default 60× clock speed is independent of the amount of school time granted for a challenge.
-- Before adding substantial progression or complexity, validate a complete navigation challenge with someone unfamiliar with the layout. Observe navigation decisions, wrong turns, sign comprehension, and whether the deadline feels fair; adjust level data and clues accordingly.
-- Multiple playable classrooms must have consistent room identities across their signs, doors, spatial arrival regions, and schedule targets. Entering a wrong room does not cause an automatic win.
+## 3. A vast, credible, historically layered institution
 
-## World persistence and evolving routes
+The architectural direction is **stylized realism inspired by old English universities and boarding schools**—not a fantasy castle, generic modern school, or monotonous medieval dungeon.
 
-- The player should be able to revisit recognizable areas across multiple classes or school days; routes learned earlier generally remain useful.
-- Persistent discovery includes which areas and passages the player has found, and which world changes have occurred. Specific progression, save behavior, and consequences require separate milestone approval.
-- Maintain a distinction between **area definitions** (what spaces exist), **connections** (which doors, stairs, or passages link them), and **school state** (which approved connections or conditions are currently active).
-- Impossible spaces may eventually use transitions between areas whose coordinates do not align physically; seamless portals are optional, not a requirement for the initial implementation.
-- Changes should normally happen out of sight or between visits, rather than visibly rearranging corridors around the player during a timed run.
+- Grand entrance halls, tall vaulted spaces, substantial arches, stone quadrangles, cloisters, galleries, monumental staircases, high windows, oak doors, stone and plaster walls, timber panelling, worn flagstones, patterned tiles and old wooden floors all have a place.
+- The building should feel as though it has grown and been adapted **over centuries**: different wings, awkward connections, mismatched heights, renovated classrooms, practical modern fittings and occasional ancient fabric.
+- The architecture must vary. Imposing public halls and warmly occupied academic corridors contrast with ordinary classrooms, narrow staircases, service tunnels, kitchens, neglected storage rooms and older, more austere sections.
+- It is unmistakably **a school**: room plaques, directional signs, timetables, portraits, noticeboards, books, displays, teaching equipment, lamps, radiators and traces of daily institutional life accompany the historic architecture.
+- **Windows genuinely look outside** onto courtyards, other wings, gardens, rooftops and grounds. Daylight helps convey the campus's size. Eventually the player can walk through courtyards and across outdoor sports areas, including a football field.
+- Lighting varies deliberately: sunlit classrooms and courts, warm occupied interiors, dim back passages and neglected spaces. Darkness builds atmosphere but must not turn normal navigation into guesswork.
+- Over time, students, teachers, maintenance staff and other moving people may help the building feel occupied. Ambient activity should enrich, not obstruct, navigation.
+- The visual language should make the school beautiful and inviting enough that players **wish they could stop and wander, even while racing to class**.
 
-## Player controls
+## 4. Places worth discovering
 
-- Support first-person keyboard movement and mouse look with reliable yaw, pitch clamping, and zero camera roll.
-- Support both WASD-for-movement/arrow-keys-for-looking and the swapped keyboard layout; keyboard looking and mouse looking may be enabled independently.
-- Allow mouse sensitivity, vertical inversion, and keyboard look speed to be configured in an Options screen, with locally persisted settings and a restore-defaults action.
-- Space is the default jump input, with optional left-click jumping; E is the default interaction input for doors. Mouse motion controls looking, not walking.
+Beyond classrooms, the eventual school should organically contain libraries, reading rooms, laboratories, lecture halls, administrative offices, dining halls, a cafeteria and its kitchens, service and delivery yards, maintenance rooms, utility corridors, storage, basements, changing rooms, showers, courtyards, gardens and sports grounds.
 
-## Visual presentation and development diagnostics
+- Spaces have plausible everyday relationships. Kitchens connect to dining rooms and deliveries; changing rooms connect to sports facilities; service stairs and maintenance corridors reach otherwise inconvenient places.
+- Sometimes an unlikely route—through a kitchen, a shower block, a courtyard or a maintenance passage—becomes a useful or essential shortcut.
+- Some discoveries are simply interesting. Not every unlocked door or side corridor must contain a puzzle, reward or classroom.
+- Distinctive architecture, signs, furnishings, paintings, views and sounds create memorable landmarks that help the player orient themselves.
+- The first playable part of the new school should already offer **at least one meaningful direction choice or optional detour** and convincing views of a larger institution; it should not feel like a single long corridor dressed as a campus.
 
-- The target art direction is **stylized architectural realism inspired by an old English university**: historic masonry, aged wood, varied architectural eras, rich but restrained materials, and believable proportions. Avoid generic modern-school styling as the final target.
-- The building has real window openings with views onto exterior environments and convincing daylight; later levels can let the player walk outside through courtyards and across the football field.
-- Some spaces are bright and welcoming, others dim or neglected. Lighting and darkness should build atmosphere while maintaining fair, accessible navigation and legible clues.
-- Detailed reusable 3D assets and physically based materials should create convincing spaces. Use optimization and selective detail rather than requiring every object to be highly detailed.
-- Moving people, such as students, teachers, and maintenance staff, are a long-term ambition. They are not essential to the first visual-quality benchmark.
+## 5. Familiarity, change and increasing absurdity
 
-- The finished game should be a visually coherent, appealing 3D historic school, not merely a wireframe model. The target atmosphere is established above; detailed asset choices and final execution still require product-owner approval.
-- A **game view** provides solid surfaces, lighting, materials, readable classroom labels, and visible routes. A **debug view** or overlay exposes wireframes and useful collision diagnostics.
-- Both views derive from the same level geometry and must not change movement, collision, room identity, timing, or outcomes.
-- Prioritize spatial readability, signage, and performance over decoration. Retain the hallway and Physics Playground as development and diagnostic environments.
-- Preserve earlier visual prototypes as technical baselines; choose specific asset packs, materials, and reference images through separately approved visual-quality milestones.
+The school's strangeness emerges gradually, in contrast to its ordinary routines.
 
-## Technical and architectural requirements
+- **Most geography remains stable and learnable.** The player must be able to trust enough of the school for familiarity to matter.
+- Occasionally, a familiar connection, door, staircase, sign or destination has changed since the previous visit. Changes are **rare enough to be noticed**, not constant random maze reshuffling.
+- Changes generally occur between visits, between classes or out of sight. They should be surprising and retrospectively understandable, with clues and viable alternate routes.
+- Deeper areas may have internally consistent but unconventional rules: strange room-number sequences, forgotten departments, improbable staircases, spaces larger inside than outside, and connections that cannot coexist in ordinary geometry.
+- The player can learn and sometimes exploit these unusual rules. Strange routes can be shortcuts as well as obstacles.
+- The school never arbitrarily makes an active scheduled destination unreachable or a timed challenge impossible without warning and a fair way to respond.
+- Humor comes partly from institutional normality persisting amid absurdity: a timetable, directional plaque or official notice treats an impossible wing as entirely routine.
+- Avoid relying on jump scares, arbitrary randomness or deliberately confusing controls. Mystery and mild unease are welcome; horror is not the primary identity.
 
-- Scale the school through coherent **connected areas** rather than assuming every room and outdoor location must remain fully loaded and rendered simultaneously. Area loading/unloading, shared asset caching, visibility management, and resource cleanup should be introduced when justified by measured performance.
-- Support outdoor geometry and views through real architectural openings; never use painted-on windows when the level requires a physically traversable or visible outside world.
-- Separate stable level/area definitions from temporary school-state variations and persistent player discovery. Keep navigational connectivity testable, including when some links change.
-- Reuse the established environmental-object factory, GLB imports, lighting system, and collision/debug tools; expand them instead of introducing parallel render or object systems.
-- Plan for animation and character navigation later, but do not add crowd simulation or non-player-character behavior before the environment and traversal systems are solid.
+## 6. Navigation and information design
 
-- Define levels using structured data, separating room layout, walls, doors, stairs, player spawn, collision/arrival volumes, schedule, and timing from the game code.
-- Use the scheduled room identifier to determine the valid arrival area; avoid hardcoded room coordinates or identifiers in the game controller.
-- Keep visual and collision geometry aligned and ensure both game and debug presentations use the same definitions.
-- Maintain clear responsibilities for Game (coordination and rendering), GameSession (run state, scheduling and outcomes, composing SchoolClock), GameUI (interface), Player (input, motion, physics), Level (world definitions and spatial queries), and the existing geometry, furniture and lighting modules.
-- Preserve regression coverage for camera orientation, movement, doors, stairs, room entry, time boundaries, win/loss states, pause, and restart. Verify small test scenes before expanding to larger buildings.
-- Follow [AGENTS.md](AGENTS.md) for development conventions and milestone approval.
+- Use coherent, **discoverable room- and building-numbering conventions** as the default. A convention should help players infer locations from the environment; exceptional wings may deliberately have different, learnable rules.
+- Signs are integral to gameplay and visual identity. Historic plaques, carved or painted directions, noticeboards and architectural landmarks should guide players without floating developer markers.
+- Players should be able to reason about destinations from first-person clues rather than trying every door or needing prior knowledge of the map.
+- Keep rooms, signs, doors and arrival regions tied to the same stable identities, independent of whether an area is currently loaded.
+- Every normal route must be navigable with reliable doors, stairs, floor contact, collision and adequate visual cues. Optional mystery should not be confused with broken wayfinding.
+- Important routes and destinations should remain reachable after approved school-state changes. Connectivity and challenge fairness should be testable.
 
-## Ideas requiring future approval
+## 7. Experience and progression principles
 
-- An explicit countdown, warning sounds, or narrative cues to increase urgency.
-- Directional signs, maps, navigation hints, optional shortcuts, or assistance systems.
-- Scoring, difficulty modes, multi-class schedules, progression, and broader restart systems.
-- Specific model packs, materials, architectural variants, sound design, and environmental storytelling treatments within the historic-school direction.
+- The school itself is the main recurring character. Its geography and history should become more interesting over repeated visits.
+- Progression should expand the **horizon of navigational knowledge** through increasingly distant or obscure classes, new reasons to visit other wings, and routes learned under pressure—not primarily by locking the world behind discrete stages.
+- Begin with fast, readable wayfinding. Progress toward route mastery and shortcuts, then investigations into numbering, renamed places and misleading history, and only later toward subtle physical or institutional impossibilities. This is a progression in *kinds of thinking*, not just journey length.
+- Longer time allowances for investigative challenges should create room to interpret environmental clues without abandoning the class deadline. Keep curiosity alive even when stopping to investigate would be risky.
+- Offer routes that reward both first-time observation and later mastery. A shortcut discovered early may become important several classes later.
+- New areas should broaden the world, not simply increase corridor length. Give each area a recognizable identity, landmarks and connections.
+- Plan for repeated timed journeys across multiple classes or school days while leaving the exact day structure, saved discovery state, consequences of lateness and progression rules open for later approval.
+- Test the first class with unfamiliar players **in timed mode first**: observe initial urgency, decisions at signs, wrong turns, recovery and whether the deadline feels fair without prior map knowledge. Also observe whether they notice intriguing places they wish to revisit. Test later investigative challenges for reasoning and clue fairness, not just speed.
 
-## Open design decisions
+## 8. Technical and architectural principles
 
-- How much of the school should exist in the initial playable chapter, and how will numbering work in unusual wings?
-- How should the time display and schedule be visually integrated, and should there also be a countdown?
-- How should level difficulty increase, including the initial time allowance, complexity of routes, and the balance between exploration and time pressure?
-- What should win and loss screens say or show, and what happens narratively when the player is late?
-- How much route choice and navigational assistance should be available?
-- Who is the player, which doors are interactive, and how should those doors behave in later levels?
-- Which visual references best define the historic-school look, and how stylized or realistic should the final execution be?
-- How frequently should the school change, what triggers changes, and what clues make them fair?
-- When should service spaces, outdoor routes, and other people first appear?
+- Implement the school as **connected, independently manageable areas** with stable identities and coherent spatial relationships. Normal neighboring spaces should support continuous movement; eventual impossible connections may use explicit area transitions.
+- Separate immutable area definitions, connections, currently active world state and persistent player discovery. A school persists conceptually even when only a subset of its geometry is loaded.
+- Keep **game session and schedule state independent of area loading**. Area changes must not reset the clock, destination or player controls.
+- Reuse the established `World` / `Level` approach, shared model cache, environmental-object factory, GLB assets, lighting and collision systems. Prefer targeted extensions to parallel systems or wholesale engine changes.
+- Assign clear ownership for per-area geometry, collision, doors, signs and lights versus shared assets. Loading, unloading, reloading, retry and failure recovery must be predictable and safe.
+- Preserve consistent coordinates, collision continuity and first-person camera orientation across ordinary area boundaries. Preserve logical state such as door pose when an area reloads.
+- Build the world from structured data, not hardcoded room-specific game logic. Room, schedule and arrival identities must remain stable when geometry or loading boundaries evolve.
+- Scale to a browser through reusable assets, optimized textures, bounded active areas, sensible visibility and lighting costs, and measurements of **cumulative cached assets**, not just visible-scene resources.
+- Maintain solid game view and collision/debug view without altering gameplay behavior. Preserve regression tests for movement, camera, doors, stairs, area transitions, arrivals, time boundaries, pause, retry, resource lifecycle and rendering.
+- Retain the existing prototype environments as regression baselines. Introduce future systems such as non-player characters and impossible connections only when the preceding world and traversal foundations are sound.
+- Follow [AGENTS.md](AGENTS.md) for development conventions and product-owner approval. Implementation sequence and scope belong in [ROADMAP.md](ROADMAP.md), not in this vision.
 
-The product owner controls this vision and approves changes to it. Progress and proposals are tracked in [ROADMAP.md](ROADMAP.md).
+## 9. Controls and accessibility foundations
+
+- First-person keyboard movement and mouse look must have reliable yaw and pitch, a level horizon and predictable collisions, jumping and gravity.
+- Preserve the existing configurable movement/look control layouts, sensitivity, inversion and alternative jump input.
+- Doors remain interactable through the established action input. Interaction prompts and signs should be legible and consistent.
+- Lighting, environmental detail and difficulty must not conceal essential navigation information or require precision movement to compensate for unclear design.
+
+## Open product decisions
+
+These are intentionally **not yet settled** by the vision:
+
+- How the school day is structured: scheduled classes, possible breaks, and progression between days; whether any player-facing free exploration is appropriate.
+- What happens after a missed class, and how class retry differs from restarting a day or continuing the world.
+- What is saved between play sessions: discovered areas, shortcuts, changes, timetables and other progress.
+- Whether and when the player receives maps, annotations, additional hints or navigation assistance.
+- How much of the school is explorable at first, how room numbering varies by building, and how later wings introduce unusual rules.
+- The frequency, triggers and story logic of architectural changes and impossible connections.
+- How characters, sound, school routines and narrative context enter the experience.
+- Exact difficulty progression and deadlines; how late-game clue solving and investigation fit into timed class challenges.
+
+**Product principle:** **The player is trying not to be late, not taking a sightseeing tour.** Build a believable, enticing, increasingly surprising school that rewards growing familiarity, while preserving urgent navigation as the core game. Do not let a convenient technical milestone reduce that school to a linear timed corridor; equally, do not turn the opening class into an untimed exploration exercise.
+
+The product owner approves changes to this vision. The development plan, milestone boundaries and acceptance tests are maintained separately in [ROADMAP.md](ROADMAP.md).

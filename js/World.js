@@ -3,11 +3,13 @@ const GLOBAL_LIGHTING = Symbol('school lighting');
 class World {
     constructor(school, config, levelsUrl) {
         this.school = school;
+        this.initialAreaIds = school.initialActiveAreaIds ?? [school.initialAreaId];
         this.config = config;
         this.cache = new ModelCache(levelsUrl);
         const registry = registerSchoolAreas(school);
         this.areas = registry.areas;
         this.rooms = registry.rooms;
+        this.roomNumbers = registry.roomNumbers;
         this.active = new Map();
         this.debugView = false;
         this.disposed = false;
@@ -49,7 +51,7 @@ class World {
 
     #buildArea(id) {
         const area = this.area(id);
-        const level = new Level(area.definition, this.config, this.cache.modelsFor(area.definition), id);
+        const level = new Level(area.definition, this.config, this.cache.modelsFor(area.definition), id, this.roomNumbers);
         try {
             level.build();
             for (const door of level.doors) {
@@ -132,8 +134,10 @@ class World {
             this.unloadArea(id);
             area.doors.clear();
         }
-        this.#buildArea(this.school.initialAreaId);
-        this.activateArea(this.school.initialAreaId);
+        for (const id of this.initialAreaIds) {
+            this.#buildArea(id);
+            this.activateArea(id);
+        }
     }
 
     dispose() {

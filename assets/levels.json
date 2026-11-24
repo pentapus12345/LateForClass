@@ -378,6 +378,7 @@
         { "name": "First-floor Room 103 east wall", "x": 4.125, "y": 3, "z": 35, "width": 0.25, "height": 3.4, "depth": 6, "surfaceColor": "#dfd6c6" },
         { "name": "First-floor Room 103 far wall", "x": 0, "y": 3, "z": 38.125, "width": 8.5, "height": 3.4, "depth": 0.25, "surfaceColor": "#dfd6c6" }
       ]
-    }
+    },
+    { "id": 4, "name": "The School — First Court", "schoolFile": "schools/first-court.json" }
   ]
 }

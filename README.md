@@ -14,6 +14,8 @@ Open <http://localhost:8090> in a desktop browser and click **Start Game**. The 
 
 Open the [level picker](http://localhost:8090/levels/) or click **Choose a level** from the game screen to browse all levels by name. The list comes from `assets/levels.json` and includes new levels automatically.
 
+Select **The School — First Court** for the timed challenge. Read your timetable when you gain control. For a first-time playtest, try the timed entry before opening the development view. [Timed First Court](http://localhost:8090/?level=4) · [Explore First Court](http://localhost:8090/?level=4&mode=explore)
+
 ## Controls and options
 
 Choose **Options** on the start or pause screen. The Standard layout uses WASD to move and the arrow keys to look. The Swapped layout reverses those roles. The Keyboard and Mouse sections let you turn each look input on or off, adjust camera speed and mouse sensitivity, invert vertical mouse look, and optionally jump with a left click.

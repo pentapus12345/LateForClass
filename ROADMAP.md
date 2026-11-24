@@ -1053,17 +1053,17 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 
 ### 20. Large-school area and connection architecture
 
-**Status:** Proposed
+**Status:** In Progress. The product owner approved the [First Court design](docs/milestone-20-new-school.md). The product owner walked the [first blockout](docs/first-court-blockout.md) and requested stronger route choices before streaming. The product owner approved the [seven-room layout](docs/milestone-20-new-school.md#2-first-court-floor-plan-and-room-schedule) for blockout only. The revised build awaits a timed-first walk-through and subsequent untimed review. The intended opening is urgent, timed class navigation; an untimed mode is for development and evaluation. All three areas are temporarily resident.
 
 **Complexity:** Large
 
 **Objective:** Support the sensation of an overwhelmingly large school without loading and maintaining the entire world as one simultaneous scene.
 
-**Scope:** Design explicit area definitions, doors/stairs/passages as connections, and transitions between connected areas while maintaining stable identities for rooms and signs. Prototype loading and releasing an adjacent area on demand, preserving cached reusable assets and required session state. Test seamless physical routes first; leave impossible or non-aligned transitions to a later milestone. Introduce measured visibility/culling strategies only as needed. Protect scheduled-room reachability and preserve clock behavior through transitions.
+**Scope:** Build First Court as a fourth school with a gatehouse and porter’s lodge, a covered cloister and an East Range classroom and stair lookout. The normal entry starts the Mathematics trial. Its public destination is Room 25. An explicit **developer-only** entry supports untimed inspection; it is not the default gameplay or a commitment to player-facing free roam. Early classes emphasize quick orientation and recoverable wrong turns; later milestones can add longer, clue-driven timed investigations. Prototype loading and releasing an adjacent area on demand, preserving cached reusable assets and required session state. Test seamless physical routes first; leave impossible or non-aligned transitions to a later milestone. Introduce measured visibility/culling strategies only as needed. Protect scheduled-room reachability and preserve clock behavior through transitions.
 
 **Dependencies:** Milestones 17–19, current Game/Level/GameSession architecture.
 
-**Acceptance criteria:** The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
+**Acceptance criteria:** The default first-time experience creates an immediate, fair sense of urgency: a timed start, a legible but not prescriptive route choice, room plaques, a recoverable wrong turn, and intriguing optional spaces the player may wish to revisit. Test with at least one unfamiliar player in timed mode before showing them the map or explore mode. The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
 
 **Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
 

@@ -7,7 +7,7 @@ const SIGN_STYLES = {
 };
 
 class Level {
-    constructor(definition, config, models = new Map(), areaId = `level-${definition.id}`) {
+    constructor(definition, config, models = new Map(), areaId = `level-${definition.id}`, roomNumbers = new Map()) {
         this.definition = definition;
         this.areaId = areaId;
         this.config = config;
@@ -15,8 +15,9 @@ class Level {
         this.finishMaterials = new Map();
         this.playerStart = definition.playerStart;
         this.playerLookAt = definition.playerLookAt;
-        const { classroom, door } = definition;
-        this.classrooms = (definition.classrooms ?? (classroom ? [classroom] : [])).map(room => ({
+        const { door } = definition;
+        this.roomNumbers = roomNumbers;
+        this.rooms = areaRooms(definition).map(room => ({
             ...room,
             bounds: room.bounds ? new Wall(room.bounds) : null
         }));
@@ -56,14 +57,24 @@ class Level {
         if (this.definition.environmentObjects?.length) {
             this.addEnvironmentObjects(scene, factory);
         }
-        for (const classroom of this.classrooms) {
-            if (classroom.sign) {
-                const label = `Room ${classroom.id}`;
-                this.addSign(scene, { ...classroom.sign, name: label, lines: [label] });
+        for (const room of this.rooms) {
+            if (room.sign) {
+                const label = `Room ${room.number ?? room.id}`;
+                this.addSign(scene, { ...room.sign, name: label, lines: [label] });
             }
         }
         for (const sign of this.definition.signs ?? []) {
-            this.addSign(scene, sign);
+            if (sign.roomRange) {
+                const numbers = sign.roomRange.map(id => {
+                    if (!this.roomNumbers.has(id)) {
+                        throw new Error(`Unknown room on ${sign.name}: ${id}`);
+                    }
+                    return this.roomNumbers.get(id);
+                });
+                this.addSign(scene, { ...sign, lines: [...sign.lines, `Rooms ${numbers.join('–')}`] });
+            } else {
+                this.addSign(scene, sign);
+            }
         }
     }
 
@@ -305,7 +316,7 @@ class Level {
         // must fit between this room's floor and ceiling.
         const { x, y, z } = position;
         const { playerRadius, playerHeight } = this.config;
-        for (const { id, bounds } of this.classrooms) {
+        for (const { id, bounds } of this.rooms) {
             if (!id || !bounds) {
                 continue;
             }

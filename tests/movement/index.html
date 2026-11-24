@@ -17,14 +17,15 @@
     <script src="../../js/EnvironmentObjectFactory.js?v=20261124-195"></script>
     <script src="../../js/ModelCache.js"></script>
     <script src="../../js/LightingManager.js?v=20261124-195"></script>
-    <script src="../../js/SchoolDefinition.js"></script>
-    <script src="../../js/Level.js?v=20261124-195"></script>
-    <script src="../../js/World.js"></script>
+    <script src="../../js/SchoolDefinition.js?v=20261124-207"></script>
+    <script src="../../js/Level.js?v=20261124-207"></script>
+    <script src="../../js/World.js?v=20261124-207"></script>
     <script src="../../js/Player.js"></script>
     <script src="../../js/SchoolClock.js"></script>
     <script src="../../js/GameSession.js?v=20261123-2"></script>
     <script src="test-movement.js?v=20261124-195"></script>
     <script src="test-world.js"></script>
+    <script src="test-first-court.js?v=20261124-207"></script>
     <script>
         const button = document.getElementById('run');
         const results = document.getElementById('results');
@@ -51,6 +52,13 @@
                 cache.dispose();
                 const cases = [];
                 registerWorldTests((name, run) => cases.push({ name, run }), levels, '../../assets/levels.json');
+                const schoolUrl = new URL(levels.find(level => level.id === 4).schoolFile, response.url);
+                const schoolResponse = await fetch(schoolUrl);
+                if (!schoolResponse.ok) {
+                    throw new Error(`Could not load First Court (${schoolResponse.status})`);
+                }
+                registerFirstCourtTests((name, run) => cases.push({ name, run }),
+                    await schoolResponse.json(), '../../assets/levels.json');
                 for (const { name, run } of cases) {
                     try {
                         await run();

@@ -8,6 +8,19 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-24 — Seven-room First Court blockout ready for timed-first review
+
+- Connected both arms of First Court with a third physical passage. Added the seven approved room plaques, five working entrances and two furnished teaching rooms. Both the ordinary timed entry and optional development entry keep all three areas active.
+- Room metadata now supplies public labels to plaques, range signs, instructions, the timetable, the objective and both results. Session and arrival logic use stable IDs across renumbering and retry.
+- Verification covered both timed routes, a recoverable wrong turn, all working and restricted doors, both directions around the loop, and the alternate classroom schedule. The all-resident cold startup measured 3.11 s median and 8,406,276 B, 17,668 B above the eventual two-area byte target. The product owner’s first-time pacing and sightline review is pending. [Playtest and evidence](docs/first-court-blockout.md)
+
+### 2026-11-24 — Open First Court for milestone 20 layout review
+
+- Added a fourth selectable school with a gatehouse, a public porter’s lodge, a covered cloister, the ER-G-01 teaching room and a walkable stair overlooking the same courtyard tower. Three area definitions share one manifest and model cache. The original three level definitions keep their geometry and schedules.
+- The ordinary entry begins Mathematics at 08:15 for a 09:00 class. An explicit development entry opens the same layout without a deadline. Startup and retry activate the authored area set.
+- All 113 Node tests and 87 Chrome tests passed. A timed Chrome walk arrived at 08:30. An untimed walk visited both detours and crossed both seams in reverse. The fourth school used 1,764,600 B at startup. The original prototype stayed within its startup budget with 4,996 B of headroom in the largest sample.
+- The three areas stay resident during layout review. Streaming, failure handling, final art and first-time playtesting follow the geometry and sightline decision. [First-person views and measurements](docs/first-court-blockout.md)
+
 ### 2026-11-24 — Prepare independently loaded school areas
 
 - Adapted each playable level to a one-area school. World coordinates area lifecycle and delegates active-area queries. Level owns local instances and colliders, ModelCache shares GLBs, and LightingManager releases local lights and fixtures independently. Door swings survive unload and reload within a run.

@@ -23,34 +23,65 @@ class Game {
             throw new Error(`Failed to load levels.json: ${response.status}`);
         }
         const { levels } = await response.json();
-        const requestedLevel = new URLSearchParams(window.location.search).get('level');
+        const params = new URLSearchParams(window.location.search);
+        const requestedLevel = params.get('level');
         const requestedLevelId = Number(requestedLevel || STARTING_LEVEL_ID);
-        const levelDefinition = levels.find(level => level.id === requestedLevelId) ??
+        let levelDefinition = levels.find(level => level.id === requestedLevelId) ??
             levels.find(level => level.id === STARTING_LEVEL_ID);
         if (!levelDefinition) {
             throw new Error(`Level ${STARTING_LEVEL_ID} is missing`);
         }
+        let school;
+        if (levelDefinition.schoolFile) {
+            const url = new URL(levelDefinition.schoolFile, new URL(LEVELS_URL, document.baseURI));
+            const response = await fetch(url.href, {
+                cache: 'no-cache', signal: AbortSignal.timeout(LEVEL_LOAD_TIMEOUT_MS)
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to load ${levelDefinition.schoolFile}: ${response.status}`);
+            }
+            const manifest = await response.json();
+            school = schoolFromManifest(manifest);
+            const explore = params.get('mode') === 'explore';
+            levelDefinition = {
+                ...levelDefinition, ...(explore ? {} : manifest.challenge),
+                playerStart: manifest.playerStart,
+                playerLookAt: manifest.playerLookAt,
+                skyColor: manifest.skyColor,
+                instructions: explore ? manifest.explorationInstructions : manifest.instructions,
+                solidRendering: true
+            };
+        } else {
+            school = schoolFromLevel(levelDefinition);
+        }
         this.session = new GameSession(levelDefinition);
         this.definition = levelDefinition;
-        const school = schoolFromLevel(levelDefinition);
         this.world = new World(school, this.config, LEVELS_URL);
-        await this.world.loadArea(school.initialAreaId);
+        const { schedule, destinationRoomId } = this.session;
+        this.destinationNumber = this.world.roomNumbers.get(destinationRoomId) ?? destinationRoomId;
+        await Promise.all(this.world.initialAreaIds.map(id => this.world.loadArea(id)));
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(this.config.backgroundColor);
-        this.scene.fog = new THREE.Fog(this.config.backgroundColor, this.config.fogNear, this.config.fogFar);
+        const skyColor = levelDefinition.skyColor ?? this.config.backgroundColor;
+        this.scene.background = new THREE.Color(skyColor);
+        this.scene.fog = new THREE.Fog(skyColor, this.config.fogNear, this.config.fogFar);
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
 
         this.world.attach(this.scene, new LightingManager(this.scene, this.renderer));
-        this.world.activateArea(school.initialAreaId);
+        for (const id of this.world.initialAreaIds) {
+            this.world.activateArea(id);
+        }
 
         this.ui.configure({
             title: levelDefinition.id === STARTING_LEVEL_ID ? 'Late For Class' : levelDefinition.name,
-            message: levelDefinition.instructions ?? `${HALLWAY_OBJECTIVE}.`,
+            message: levelDefinition.instructions ?? (schedule
+                ? `${schedule.className} starts at ${schedule.startTime} in Room ${this.destinationNumber}.`
+                : `${HALLWAY_OBJECTIVE}.`),
+            destinationNumber: this.destinationNumber,
             schedule: this.session.schedule,
             hasClock: this.session.hasClock,
-            hasInteraction: Boolean(levelDefinition.doors?.length || levelDefinition.door) || Boolean(levelDefinition.classroom),
+            hasInteraction: school.areas.some(({ definition }) => Boolean(definition.doors?.length || definition.door || definition.classroom)),
             supportsViewToggle: levelDefinition.solidRendering
         });
         this.ui.renderControls(this.controlSettings);
@@ -256,7 +287,7 @@ class Game {
         if (this.world.canOpenDoor(position)) {
             instruction = 'Press E to open the door';
         } else if (destinationRoomId) {
-            instruction = `Find Room ${destinationRoomId}`;
+            instruction = `Find Room ${this.destinationNumber}`;
         } else if (classroom) {
             instruction = this.world.canConfirmArrival(position)
                 ? 'Press E to enter the classroom'
