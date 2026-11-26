@@ -234,6 +234,11 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                 for (const [id, from, to] of [
                     [c, [-16, 1.6, -13], [-6, 1.8, 2]],
                     [c, [2.45, 1.6, 2], [-6, 1.8, 2]],
+                    [c, [-19.88, 1.6, 6.35], [-19.6, 1.45, 16.1]],
+                    [c, [-19.8, 1.6, 19.4], [-19.97, 1.43, 10.7]],
+                    [c, [-19.95, 2.55, 19.72], [-16.7, 1.48, 22.65]],
+                    [c, [2.55, 1.6, 7.45], [2.5, 4.65, 3.94]],
+                    [c, [2.53, 2.55, 25.15], [2.5, 4.8, 30.1]],
                     [a, [4.23, 1.6, 29], [17.7, 9.5, 28.5]],
                     [a, [4.23, 1.6, 29], [0, 1.8, 23]],
                     [a, [34.63, 3.04, 41.85], [17.7, 9.5, 28.5]],
@@ -256,6 +261,84 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             }
         });
     }
+
+    test('First Court roof joints, plaster corner and lookout recess cover the former visible defects', () =>
+        withSchool((world, scene) => {
+            const meshes = [];
+            scene.updateMatrixWorld(true);
+            scene.traverseVisible(object => {
+                if (object.isMesh && object.material.visible && object.material.opacity > 0.95) {
+                    meshes.push(object);
+                }
+            });
+            for (const [from, to, name] of [
+                [[-19.5, 2, 20.506], [-18.2, 2, 20.506], 'Warm_lime_plaster'],
+                [[-19.5, 2, 20.510], [-18.2, 2, 20.510], 'Warm_lime_plaster'],
+                [[-14.45, 1.6, -8.65], [-14, 9.26, -15.82], 'GatehouseJoints_arrival_gable'],
+                [[2.55, 1.6, 7.45], [2.5, 5.1, 4.035], 'CloisterJoints_stone_joints'],
+                [[2.53, 2.55, 25.15], [2.5, 5.77, 28.97], 'CloisterJoints_stone_joints'],
+                [[34.65, 3.04, 41.85], [30.65, -0.12, 40.85], 'EastRangeJoints_recess_paving']
+            ]) {
+                const eye = new THREE.Vector3(...from);
+                const direction = new THREE.Vector3(...to).sub(eye).normalize();
+                const hit = new THREE.Raycaster(eye, direction).intersectObjects(meshes)[0]?.object;
+                check(hit?.name === name, 'Expected ' + name + ' from ' + from + ', found ' + hit?.name);
+            }
+            for (const level of world.active.values()) {
+                check(!level.solids.some(solid => solid.id.includes('%20fitted%20joins')),
+                    'Fitted joins added new collision in ' + level.areaId);
+            }
+        }));
+
+    test('Scholars’ Passage finishes fit the corridor, leave plaques clear and add no collision', () =>
+        withSchool((world, scene) => {
+            const [gatehouse] = world.initialAreaIds;
+            const level = world.active.get(gatehouse);
+            const finishes = scene.getObjectByName('Scholars Passage finishes');
+            const portrait = scene.getObjectByName('Scholars Passage portrait');
+            const runner = scene.getObjectByName('Worn_Scholars_Passage_runner');
+            const trim = scene.getObjectByName('Oak_mouldings_and_fitted_ledge');
+            const notice = scene.getObjectByName('Schoolroom notices');
+            check(finishes && portrait && runner && trim && notice, 'Sample finishes are missing');
+            check(!level.solids.some(solid => solid.id.startsWith(gatehouse + '/placement/Scholars')),
+                'Sample dressing added a collider');
+            const runnerBounds = new THREE.Box3().setFromObject(runner);
+            check(runnerBounds.min.y > 0.005 && runnerBounds.max.y < 0.012 &&
+                runnerBounds.min.x > -20.3 && runnerBounds.max.x < -19.3 &&
+                runnerBounds.min.z > 5 && runnerBounds.max.z < 20,
+            'Runner is coplanar with the floor or extends beyond the centre aisle');
+            const trimBounds = new THREE.Box3().setFromObject(finishes);
+            check(trimBounds.min.z >= 4.17 && trimBounds.max.z <= 23.33 &&
+                trimBounds.min.x >= -21.49 && trimBounds.max.x <= -11.67,
+            'Finish mesh extends outside the sample');
+
+            scene.updateMatrixWorld(true);
+            const visible = [];
+            scene.traverseVisible(object => {
+                if (object.isMesh && object.material.opacity !== 0 && object.material.visible) {
+                    visible.push(object);
+                }
+            });
+            for (const [label, x, z] of [['Room 13', -19.8, 11.48], ['Room 14', -19.8, 14.47],
+                ['Room 15', -13, 33.52]]) {
+                const plaque = scene.getObjectByName(label);
+                const eye = new THREE.Vector3(x, 1.6, z);
+                const ray = new THREE.Raycaster(eye, plaque.position.clone().sub(eye).normalize());
+                check(ray.intersectObjects(visible)[0]?.object === plaque, label + ' is visually obstructed');
+            }
+            const runnerSupport = world.getVerticalCollision({ x: -19.8, y: 0.3, z: 12 }, -0.1, 0.3, 1.8);
+            check(runnerSupport !== null && Math.abs(runnerSupport) < 1e-6, 'Runner changed floor contact');
+            for (const z of [10, 16]) {
+                check(world.isBlocked({ x: z === 10 ? -21.3 : -18.3, y: 0, z }, 0.3, 1.8), 'Closed door leaked');
+            }
+            check(world.openDoor({ x: -19.35, y: 0, z: 16 }) &&
+                !world.isBlocked({ x: -18.3, y: 0, z: 16 }, 0.3, 1.8), 'Schoolroom threshold is obstructed');
+
+            world.toggleDebugView();
+            check(!finishes.visible && !portrait.visible && notice.visible &&
+                scene.getObjectByName('East school wall chair rail 1 collision').visible,
+            'Debug view lost the original outlines or shows decorative meshes over them');
+        }));
 
     test('First Court seams support walking, jumping and immediate reversal across their clear width', () =>
         withSchool(world => {

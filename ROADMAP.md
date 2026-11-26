@@ -1065,7 +1065,7 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 
 **Acceptance criteria:** The default first-time experience creates an immediate, fair sense of urgency: a timed start, a legible but not prescriptive route choice, room plaques, a recoverable wrong turn, and intriguing optional spaces the player may wish to revisit. Test with at least one unfamiliar player in timed mode before showing them the map or explore mode. The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
 
-**Stage decision and remaining work:** Review streaming and its measured startup budgets. The later historic-art pass requires separate approval. It should investigate the reported visual glitches with reproducible positions, favor optimized imported furniture over inconsistent procedural placeholders, and add institutional detail within the approved layout. Unfamiliar-player validation and final milestone acceptance are separate review items.
+**Stage decision and remaining work:** Stage V1 is provisionally accepted. Stage V2's architectural repairs are ready for review. The startup budget remains open. Furnishing, exterior composition, unfamiliar-player validation and final milestone acceptance are separate review items. [Stage V2 evidence](docs/first-court-visual-spec.md#9-stage-v2-architectural-geometry-review)
 
 **Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
 

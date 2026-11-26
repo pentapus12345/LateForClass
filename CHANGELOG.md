@@ -8,6 +8,18 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-26 — Repair First Court’s architectural joins
+
+- Joined the separate Scholars’ Passage plaster faces at the bright corner seam. Set the reception soffits back from the vault masonry and fitted the gable tops to the existing profile.
+- Closed the unintended openings at both cloister vault ends, seated the ribs into the spine, and fitted the north soffit step. Finished the exposed lookout recess and corrected local oak trim and stone jamb joins.
+- All 121 Node and 94 Chrome tests passed. The visibility sweep found no missing-area pixels across 1,887 sampled poses. The measured First Court startup was 8,695,772 B, above the existing 8 MiB gate. Stage V2 awaits review. [Matched Chrome views and verification](docs/first-court-visual-spec.md#9-stage-v2-architectural-geometry-review)
+
+### 2026-11-26 — Fit the Scholars’ Passage visual sample
+
+- Added warm limewash, fitted dark oak panelling and jambs, a muted runner, the existing John Locke portrait and iron lanterns, and schoolroom notices above a narrow ledge. The sample covers the passage past Rooms 13 and 14 through the first turn.
+- Removed the competing solid-view dado and rail faces at local joins while preserving the original collision outlines. Both timed routes and both directions of the untimed loop passed, along with 120 Node and 93 Chrome regressions.
+- Stage V1 awaits visual approval. The paired views, collision evidence, and startup and resource measurements are recorded with the sample. [Stage V1 review](docs/first-court-visual-spec.md#8-stage-v1-sample-for-visual-review)
+
 ### 2026-11-25 — Stream First Court’s three areas
 
 - First Court starts with the gatehouse and cloister, then prefetches and retires areas using the three authored connections and the approved layout’s routes and sightlines. Door swings survive reloading. Cross-boundary lighting stays active, and reusing detached local lights bounds Three.js’s per-light uniform cache.
