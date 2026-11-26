@@ -19,27 +19,53 @@ function areaRooms(definition) {
     return definition.rooms ?? definition.classrooms ?? (definition.classroom ? [definition.classroom] : []);
 }
 
-// One connection owns its aperture. Both endpoints use the same world-space survey.
+function validStreamingRegion(region) {
+    return Array.isArray(region) && region.length === 4 && region.every(Number.isFinite) &&
+        region[0] < region[1] && region[2] < region[3];
+}
+
+function withinRegion({ x, z }, [minX, maxX, minZ, maxZ], margin = 0) {
+    return x >= minX - margin && x <= maxX + margin && z >= minZ - margin && z <= maxZ + margin;
+}
+
+// Both ends of a connection use the same world-space aperture.
 function schoolFromManifest(manifest) {
     const { initialAreaId, initialActiveAreaIds, globalLighting, modelCatalog, doorProfiles } = manifest;
-    const areas = manifest.areas.map(({ id, definition }) => ({
-        id, neighbors: [], definition: { solidRendering: true, modelCatalog, doorProfiles, ...definition }
+    const areas = manifest.areas.map(({ id, definition, required }) => ({
+        id, required, approaches: [], neighbors: [], definition: { solidRendering: true, modelCatalog, doorProfiles, ...definition }
     }));
     const byId = new Map(areas.map(area => [area.id, area]));
-    for (const { from, to, aperture } of manifest.connections) {
+    if (byId.size !== areas.length || areas.some(area => !area.id || !Array.isArray(area.required) ||
+        !area.required.length || !area.required.every(validStreamingRegion))) {
+        throw new Error('Invalid or duplicate school area or streaming regions');
+    }
+    for (const { from, to, aperture, approachFrom, approachTo } of manifest.connections) {
         const a = byId.get(from);
         const b = byId.get(to);
         if (!a || !b || a === b || a.neighbors.includes(to) ||
             !['x', 'z'].includes(aperture?.axis) ||
             ![aperture.plane, aperture.min, aperture.max, aperture.floor, aperture.ceiling].every(Number.isFinite) ||
-            aperture.min >= aperture.max || aperture.floor >= aperture.ceiling) {
+            aperture.min >= aperture.max || aperture.floor >= aperture.ceiling ||
+            !validStreamingRegion(approachFrom) || !validStreamingRegion(approachTo)) {
             throw new Error(`Invalid school connection: ${from} to ${to}`);
+        }
+        for (const edge of [aperture.min, aperture.max]) {
+            const point = aperture.axis === 'x' ? { x: aperture.plane, z: edge } : { x: edge, z: aperture.plane };
+            if (![a, b].every(area => area.required.some(region => withinRegion(point, region))) ||
+                ![approachFrom, approachTo].every(region => withinRegion(point, region))) {
+                throw new Error(`Streaming regions must cover school connection: ${from} to ${to}`);
+            }
         }
         a.neighbors.push(to);
         b.neighbors.push(from);
+        a.approaches.push(approachTo);
+        b.approaches.push(approachFrom);
     }
-    if (!initialActiveAreaIds.includes(initialAreaId) || initialActiveAreaIds.some(id => !byId.has(id)) ||
-        new Set(initialActiveAreaIds).size !== initialActiveAreaIds.length) {
+    if (!Array.isArray(initialActiveAreaIds) || !initialActiveAreaIds.includes(initialAreaId) ||
+        initialActiveAreaIds.some(id => !byId.has(id)) ||
+        new Set(initialActiveAreaIds).size !== initialActiveAreaIds.length ||
+        areas.some(area => area.required.some(region => withinRegion(manifest.playerStart, region)) &&
+            !initialActiveAreaIds.includes(area.id))) {
         throw new Error('Invalid school startup areas');
     }
     const reachable = new Set([initialAreaId]);
@@ -53,6 +79,9 @@ function schoolFromManifest(manifest) {
         room.id === destination && (!area.definition.rooms || room.kind === 'classroom') && room.bounds &&
         area.definition.doors?.some(door => door.roomId === room.id)))) {
         throw new Error(`Unreachable scheduled room: ${destination}`);
+    }
+    if (reachable.size !== areas.length) {
+        throw new Error('Disconnected school area');
     }
     return { initialAreaId, initialActiveAreaIds, areas, globalLighting };
 }
@@ -69,11 +98,11 @@ function registerSchoolAreas(school) {
     const regions = [];
     const roomNumbers = new Map();
     const usedNumbers = new Set();
-    for (const { id, definition, neighbors = [] } of school.areas) {
+    for (const { id, definition, neighbors = [], required, approaches } of school.areas) {
         if (!id || areas.has(id)) {
             throw new Error(`Invalid or duplicate area ID: ${id}`);
         }
-        areas.set(id, { definition, neighbors, doors: new Map(), status: 'unloaded' });
+        areas.set(id, { definition, neighbors, required, approaches, doors: new Map(), status: 'unloaded' });
         for (const room of areaRooms(definition)) {
             if (definition.rooms && (!room.id || typeof room.number !== 'string' || !room.number.trim())) {
                 throw new Error('Numbered school rooms require an ID and public number');

@@ -58,11 +58,15 @@ class GameUI {
         this.screenMessage.textContent = message;
     }
 
-    renderSession({ phase, schedule, arrivedRoomId, schoolTime }, pointerLockFailed) {
+    renderSession({ phase, schedule, arrivedRoomId, schoolTime }, pointerLockFailed, passageState) {
         const running = phase === 'running';
         this.startScreen.hidden = running || this.optionsOpen;
         this.optionsScreen.hidden = !this.optionsOpen;
         this.schedulePanel.hidden = !running || !schedule;
+        if (passageState || this.passageState) {
+            this.startButton.disabled = passageState === 'loading';
+            this.passageState = passageState;
+        }
         this.renderSchoolTime(schoolTime);
 
         if (running) {
@@ -77,6 +81,11 @@ class GameUI {
             this.screenTitle.textContent = 'You made it to class!';
             this.screenMessage.textContent = arrivedRoomId ? `You arrived at Room ${this.destinationNumber ?? arrivedRoomId}.` : 'Level complete.';
             this.startButton.textContent = 'Play Again';
+        } else if (passageState === 'loading' || passageState === 'failed') {
+            const failed = passageState === 'failed';
+            this.screenTitle.textContent = failed ? 'Passage unavailable' : 'Loading passage…';
+            this.screenMessage.textContent = failed ? 'The passage could not load. You can retry from here.' : 'The game is paused.';
+            this.startButton.textContent = failed ? 'Retry passage' : 'Loading…';
         } else if (phase === 'paused') {
             this.screenTitle.textContent = 'Paused';
             this.screenMessage.textContent = pointerLockFailed

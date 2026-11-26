@@ -1053,7 +1053,7 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 
 ### 20. Large-school area and connection architecture
 
-**Status:** In Progress. The product owner approved the [First Court design](docs/milestone-20-new-school.md). The product owner walked the [first blockout](docs/first-court-blockout.md) and requested stronger route choices before streaming. The product owner approved the [seven-room layout](docs/milestone-20-new-school.md#2-first-court-floor-plan-and-room-schedule) for blockout only. The revised build awaits a timed-first walk-through and subsequent untimed review. The intended opening is urgent, timed class navigation; an untimed mode is for development and evaluation. All three areas are temporarily resident.
+**Status:** In Progress. The product owner approved the seven-room [First Court layout](docs/first-court-blockout.md). Area streaming is implemented and ready for product-owner review. The timed trial remains the default and the developer entry supports untimed inspection. [Streaming evidence and open benchmark gates](docs/milestone-20-new-school.md#8-streaming-stage-implementation-and-evidence)
 
 **Complexity:** Large
 
@@ -1064,6 +1064,8 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 **Dependencies:** Milestones 17–19, current Game/Level/GameSession architecture.
 
 **Acceptance criteria:** The default first-time experience creates an immediate, fair sense of urgency: a timed start, a legible but not prescriptive route choice, room plaques, a recoverable wrong turn, and intriguing optional spaces the player may wish to revisit. Test with at least one unfamiliar player in timed mode before showing them the map or explore mode. The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
+
+**Stage decision and remaining work:** Review streaming and its measured startup budgets. The later historic-art pass requires separate approval. It should investigate the reported visual glitches with reproducible positions, favor optimized imported furniture over inconsistent procedural placeholders, and add institutional detail within the approved layout. Unfamiliar-player validation and final milestone acceptance are separate review items.
 
 **Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
 

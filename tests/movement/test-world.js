@@ -96,6 +96,7 @@ function registerWorldTests(test, levels, levelsUrl) {
             equal(mesh(a).geometry, mesh(b).geometry, 'borrowed geometry');
             const shared = [mesh(b).geometry, mesh(b).material, mesh(b).material.map].map(disposals);
             const fixtureB = scene.getObjectByName('B fixture');
+            const lightA = scene.getObjectByName('A light');
             const lightB = scene.getObjectByName('B light');
             const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 30);
             camera.position.set(2, 1.6, 2.8);
@@ -124,6 +125,7 @@ function registerWorldTests(test, levels, levelsUrl) {
                 await world.loadArea('A');
                 world.activateArea('A');
                 world.activateArea('A');
+                equal(scene.getObjectByName('A light'), lightA, 'renderer reuses the original light ID');
                 equal(world.area('A').level.debugView, world.debugView, 'new area inherits view');
                 equal(lighting.fixtures.length, 2, 'no duplicate fixtures');
                 equal(scene.children.filter(o => o.name === 'Student chair').length, 2, 'no duplicate chairs');
@@ -135,6 +137,7 @@ function registerWorldTests(test, levels, levelsUrl) {
             world.dispose();
             equal(shared.every(count => count() === 1), true, 'shared resources disposed exactly once');
             equal(scene.children.length, 0, 'complete scene teardown');
+            equal(lighting.lightInstances.size, 0, 'detached light instances released at teardown');
         } finally {
             world.dispose();
             renderer.dispose?.();

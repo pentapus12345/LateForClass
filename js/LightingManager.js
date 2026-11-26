@@ -9,6 +9,7 @@ class LightingManager {
         this.renderer = renderer;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.registrations = new Map();
+        this.lightInstances = new Map();
         this.debugView = false;
     }
 
@@ -26,9 +27,15 @@ class LightingManager {
         }
         const group = { lights: [], fixtures: [] };
         this.registrations.set(id, group);
+        const instances = this.lightInstances.get(id) ?? [];
+        this.lightInstances.set(id, instances);
         try {
-            for (const definition of lights) {
-                const light = this.createLight(definition);
+            for (const [index, definition] of lights.entries()) {
+                // Three.js r128 caches uniforms by light ID for the renderer's lifetime.
+                if (instances[index]?.definition !== definition) {
+                    instances[index] = { definition, light: this.createLight(definition) };
+                }
+                const { light } = instances[index];
                 group.lights.push(light);
                 this.scene.add(light);
                 if (light.target) {
@@ -126,7 +133,11 @@ class LightingManager {
             if (light.target) {
                 this.scene.remove(light.target);
             }
-            light.shadow?.dispose();
+            if (light.shadow) {
+                light.shadow.dispose();
+                light.shadow.map = null;
+                light.shadow.mapPass = null;
+            }
         }
         for (const fixture of group.fixtures) {
             this.scene.remove(fixture);
@@ -134,5 +145,12 @@ class LightingManager {
             fixture.material.dispose();
         }
         this.setDebugView(this.debugView);
+    }
+
+    dispose() {
+        for (const id of this.registrations.keys()) {
+            this.release(id);
+        }
+        this.lightInstances.clear();
     }
 }

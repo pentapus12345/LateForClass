@@ -1,4 +1,6 @@
 const GLOBAL_LIGHTING = Symbol('school lighting');
+const AREA_KEEP_MS = 500;
+const AREA_APPROACH_MARGIN = 2;
 
 class World {
     constructor(school, config, levelsUrl) {
@@ -121,9 +123,67 @@ class World {
         const area = this.area(id);
         this.deactivateArea(id);
         area.pending = null;
+        area.streaming = null;
+        area.loadError = null;
+        area.keepUntil = 0;
         area.level?.clear();
         area.level = null;
         area.status = 'unloaded';
+    }
+
+    updateResidency(position, now, movementReach) {
+        let blockedArea = null;
+        for (const [id, area] of this.areas) {
+            if (!area.required) {
+                continue;
+            }
+            // Include all positions the player could reach during the upcoming physics step.
+            const required = area.required.some(region => withinRegion(position, region, movementReach));
+            if (required || area.approaches.some(region => withinRegion(position, region)) ||
+                area.required.some(region => withinRegion(position, region, AREA_APPROACH_MARGIN))) {
+                area.keepUntil = now + AREA_KEEP_MS;
+                this.streamArea(id);
+            } else if (now >= (area.keepUntil ?? 0) && (area.status !== 'unloaded' || area.loadError)) {
+                this.unloadArea(id);
+            }
+            if (required && area.status !== 'active') {
+                blockedArea ??= id;
+            }
+        }
+        return blockedArea;
+    }
+
+    streamArea(id) {
+        const area = this.area(id);
+        if (area.status === 'active' || area.loadError || area.streaming) {
+            return area.streaming;
+        }
+        const pending = this.loadArea(id).then(() => {
+            if (area.streaming === pending) {
+                this.activateArea(id);
+            }
+        }).catch(error => {
+            if (area.streaming === pending) {
+                area.loadError = error;
+                console.error(`Could not load passage to ${id}`, error);
+            }
+        }).finally(() => {
+            if (area.streaming === pending) {
+                area.streaming = null;
+            }
+        });
+        area.streaming = pending;
+        return pending;
+    }
+
+    passageState(id) {
+        const area = this.area(id);
+        return area.status === 'active' ? 'ready' : area.loadError ? 'failed' : 'loading';
+    }
+
+    retryPassage(id) {
+        this.area(id).loadError = null;
+        return this.streamArea(id);
     }
 
     reset() {
@@ -145,7 +205,7 @@ class World {
         for (const id of this.areas.keys()) {
             this.unloadArea(id);
         }
-        this.lighting?.release(GLOBAL_LIGHTING);
+        this.lighting?.dispose();
         this.cache.dispose();
     }
 

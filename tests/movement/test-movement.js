@@ -1083,11 +1083,14 @@ function registerMovementTests(test, levels, models) {
         fixture.material.addEventListener('dispose', () => fixtureDisposals++);
         light.shadow.map = { dispose() { shadowDisposals++; } };
         manager.release('school');
+        equal(scene.children.includes(light.target), false);
+        equal(light.shadow.map, null);
         manager.setDebugView(true);
         manager.register('school', classroomData.lighting);
         equal(shadowDisposals, 1);
         equal(fixtureDisposals, 2);
-        equal(scene.children.includes(light.target), false);
+        equal(manager.lights.find(current => current.name === light.name), light);
+        equal(scene.children.includes(light.target), true);
         equal(scene.children.includes(fixture), false);
         equal(renderer.shadowMap.enabled, false);
         equal(scene.children.filter(child => child.name === fixture.name).length, 1);

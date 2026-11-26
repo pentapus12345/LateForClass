@@ -1,12 +1,20 @@
 {
     "initialAreaId": "gatehouse",
-    "initialActiveAreaIds": ["gatehouse", "west-cloister", "east-range"],
+    "initialActiveAreaIds": ["gatehouse", "west-cloister"],
     "playerStart": {"x": -16, "y": 0, "z": -13},
     "playerLookAt": {"x": -13.8, "y": 2.25, "z": 2},
     "skyColor": "#c9d5d7",
     "explorationInstructions": "Inspect First Court at your own pace.",
     "challenge": {"schedule": {"className": "Mathematics", "roomId": "ER-G-01", "startTime": "09:00"}, "clock": {"startTime": "08:15", "timeScale": 60}},
-    "globalLighting": {"lights": [{"type": "hemisphere", "intensity": 0.74, "color": "#fff3df", "groundColor": "#a49c94"}, {"type": "directional", "intensity": 0.48, "color": "#ffefd5", "position": {"x": -10, "y": 15, "z": -8}}]},
+    "globalLighting": {"lights": [
+        {"type": "hemisphere", "intensity": 0.74, "color": "#fff3df", "groundColor": "#a49c94"},
+        {"type": "directional", "intensity": 0.48, "color": "#ffefd5", "position": {"x": -10, "y": 15, "z": -8}},
+        {"name": "Reception fill", "type": "point", "position": {"x": -14, "y": 4.8, "z": -7}, "color": "#ffe4bb", "intensity": 0.43, "distance": 23},
+        {"name": "Schoolroom lamp light", "type": "point", "position": {"x": -14.8, "y": 2.95, "z": 16}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14},
+        {"name": "Cross passage lamp light", "type": "point", "position": {"x": -2, "y": 2.95, "z": 42}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14},
+        {"name": "Scholars passage lamp light", "type": "point", "position": {"x": -17, "y": 2.95, "z": 22}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14},
+        {"name": "East Range light", "type": "point", "position": {"x": 23, "y": 3.85, "z": 35}, "color": "#fff2d9", "intensity": 0.47, "distance": 25}
+    ]},
     "modelCatalog": {
         "pointedOakDoor": {"model": "models/runtime/architecture/pointed_oak_door.glb"},
         "masonryRoomArch": {"model": "models/runtime/architecture/arched_room_lintel.glb"},
@@ -21,13 +29,17 @@
     },
     "doorProfiles": {"pointedOak": {"width": 1.8, "rise": [0, 0.115, 0.211, 0.293, 0.368, 0.434, 0.493, 0.548, 0.6, 0.548, 0.493, 0.434, 0.368, 0.293, 0.211, 0.115, 0]}},
     "connections": [
-        {"from": "gatehouse", "to": "west-cloister", "aperture": {"axis": "x", "plane": -6, "min": 1, "max": 3, "floor": 0, "ceiling": 3.4}},
-        {"from": "west-cloister", "to": "east-range", "aperture": {"axis": "x", "plane": 10, "min": 33, "max": 35, "floor": 0, "ceiling": 3.45}},
-        {"from": "gatehouse", "to": "east-range", "aperture": {"axis": "x", "plane": 10, "min": 41, "max": 43, "floor": 0, "ceiling": 3.1}}
+        {"from": "gatehouse", "to": "west-cloister", "aperture": {"axis": "x", "plane": -6, "min": 1, "max": 3, "floor": 0, "ceiling": 3.4},
+            "approachFrom": [-23, -5, -16, 7], "approachTo": [-7, 5.5, 0, 27]},
+        {"from": "west-cloister", "to": "east-range", "aperture": {"axis": "x", "plane": 10, "min": 33, "max": 35, "floor": 0, "ceiling": 3.45},
+            "approachFrom": [-5, 10, 8, 36], "approachTo": [10, 42.5, 32, 45]},
+        {"from": "gatehouse", "to": "east-range", "aperture": {"axis": "x", "plane": 10, "min": 41, "max": 43, "floor": 0, "ceiling": 3.1},
+            "approachFrom": [-20, 10, 23, 44], "approachTo": [10, 23, 32, 44]}
     ],
     "areas": [
         {
             "id": "gatehouse",
+            "required": [[-30, 5.5, -17, 8], [-6.5, 5.5, 8, 16], [-24, -11, 4, 44], [-15, 20, 39.5, 44.5]],
             "definition": {
                 "platforms": [
                     {"name": "Reception flagstones", "x": -14.0, "y": -0.25, "z": -6.0, "width": 16, "height": 0.25, "depth": 20, "surfaceColor": "#c9b9a1", "surfaceFinish": "flags"},
@@ -245,11 +257,7 @@
                 ],
                 "lighting": {
                     "lights": [
-                        {"name": "Reception fill", "type": "point", "position": {"x": -14, "y": 4.8, "z": -7}, "color": "#ffe4bb", "intensity": 0.43, "distance": 23},
-                        {"name": "Lodge light", "type": "point", "position": {"x": -25.4, "y": 2.9, "z": -3}, "color": "#ffdfa8", "intensity": 0.47, "distance": 9},
-                        {"name": "Schoolroom lamp light", "type": "point", "position": {"x": -14.8, "y": 2.95, "z": 16}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14},
-                        {"name": "Cross passage lamp light", "type": "point", "position": {"x": -2, "y": 2.95, "z": 42}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14},
-                        {"name": "Scholars passage lamp light", "type": "point", "position": {"x": -17, "y": 2.95, "z": 22}, "color": "#ffe4ae", "intensity": 0.34, "distance": 14}
+                        {"name": "Lodge light", "type": "point", "position": {"x": -25.4, "y": 2.9, "z": -3}, "color": "#ffdfa8", "intensity": 0.47, "distance": 9}
                     ]
                 },
                 "surfaceFinishes": {"flags": {"asset": "flagstoneThreshold", "tileWidth": 3.15, "tileHeight": 3.15}, "boards": {"asset": "wornOak", "tileWidth": 1.45, "tileHeight": 3.8}},
@@ -269,6 +277,7 @@
         },
         {
             "id": "west-cloister",
+            "required": [[-30, 5.5, -17, 8], [-5.5, 10.6, 4, 36.5], [8, 43, 31, 47]],
             "definition": {
                 "platforms": [
                     {"name": "South porch flags", "x": -0.5, "y": -0.25, "z": 2.0, "width": 11, "height": 0.25, "depth": 4, "surfaceColor": "#c9b9a1", "surfaceFinish": "flags"},
@@ -398,6 +407,7 @@
         },
         {
             "id": "east-range",
+            "required": [[-5.5, 43, 22, 39.5], [-15, 43, 39.5, 47]],
             "definition": {
                 "platforms": [
                     {"name": "East Range boards", "x": 26.0, "y": -0.25, "z": 35.0, "width": 32, "height": 0.25, "depth": 6, "surfaceColor": "#c9b9a1", "surfaceFinish": "boards"},
@@ -510,7 +520,6 @@
                 ],
                 "lighting": {
                     "lights": [
-                        {"name": "East Range light", "type": "point", "position": {"x": 23, "y": 3.85, "z": 35}, "color": "#fff2d9", "intensity": 0.47, "distance": 25},
                         {"name": "Classroom light", "type": "point", "position": {"x": 26, "y": 3.25, "z": 42}, "color": "#fff0cf", "intensity": 0.41, "distance": 11}
                     ]
                 },

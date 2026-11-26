@@ -1,6 +1,6 @@
 # First Court seven-room blockout review
 
-**Start with the timed challenge.** Click Start Game and use the in-game timetable. After that run, use the development entry to inspect the same build at your own pace. All three areas stay loaded in both modes. [Play the timed challenge](http://localhost:8090/?level=4) · [Development exploration](http://localhost:8090/?level=4&mode=explore)
+**Start with the timed challenge.** Click Start Game and use the in-game timetable. After that run, use the development entry to inspect the same school at your own pace. Both entries now start with the gatehouse and cloister and stream the adjoining areas during play. [Play the timed challenge](http://localhost:8090/?level=4) · [Development exploration](http://localhost:8090/?level=4&mode=explore) · [Streaming evidence](milestone-20-new-school.md#8-streaming-stage-implementation-and-evidence)
 
 After your first run, record when you felt hurried, the clue that influenced your first turn, whether you recovered from a wrong turn, the time or place where the run ended, and a place you wanted to investigate. Then try returning by another route during untimed inspection. The opening allowance remains provisional pending that experience.
 
@@ -26,6 +26,18 @@ The revised build has seven numbered doors, five enterable rooms, two schedulabl
 **Cold startup.** At 1920 × 1080, DPR 1, 25 Mbit/s and 40 ms latency, three cold Chrome starts gave a median of 3.11 s for the entire new blockout. The 8,406,276 B of resource bodies include 7,506,936 B of GLBs. This puts the all-resident build 17,668 B over the 8 MiB target set for eventual A+B startup. Both teaching rooms share the desk and chair templates, so deferring area C alone should not be assumed to recover that margin. The original six-room prototype used 16,773,703–16,774,038 B and a median of 5.94 s. It remained under its 16 MiB and 7 s startup gates. These are startup measurements only.
 
 </details>
+
+## Product-owner playtest and layout decision — 24 November 2026
+
+The product owner played the seven-room First Court in **both timed and developer exploration modes**. The timed experience was **satisfying** and the basic layout and loop were **approved as the basis for the streaming stage**, not as final milestone acceptance.
+
+The playable school still feels small, which is acceptable for this first section: further milestones should grow it into a substantially larger connected institution. The long-term experience should allow players to wander far down wrong routes and run out of **time rather than available places**. This does not require adding rooms or new wings in milestone 20.
+
+**Visual issues to track:** The owner observed some glitchy visuals (exact positions and reproducible conditions not yet recorded), disliked the appearance of older procedural/factory furniture in parts of the school, and wants richer, more convincing institutional and architectural detail. Defects affecting boundaries, geometry, collision, sightlines or streaming visibility must be assessed before/during the streaming stage. Nonstructural furnishing and decorative improvements belong in the subsequent historic-art pass, ideally using optimized imported runtime GLB models.
+
+The owner did not supply independent first-time-player timing, detailed wrong-turn observations, or a list of particular tempting spaces; the existing scripted Chrome route timings are **not** substitutes for that playtest. The provisional 45-second allowance and unfamiliar-player fairness therefore remain items for final milestone evaluation.
+
+**Decision:** Proceed with the existing seven-room geometry to the streaming stage under [the milestone 20 specification](milestone-20-new-school.md#7-recorded-decision-and-scope-of-authorization). Keep the developer exploration mode for technical review; timed navigation remains the ordinary opening experience.
 
 ## Earlier three-area blockout (historical evidence)
 
@@ -74,6 +86,6 @@ Three fresh-cache navigations per school in desktop Chrome, 1920 × 1080, DPR 1,
 
 Compared with 19.5, the prototype downloaded 3,285–3,620 B more and made zero First Court manifest requests. First Court fetched one 36,927 B school manifest per start. Frame times during streaming, holds under delayed loads and ten-round-trip retained memory require the streaming stage.
 
-## Layout decision
+## Layout decision at the blockout stage
 
 Does reception offer a tempting choice under time pressure, and does recognizing the tower from the landing help place East Range on the other side of the court? The blockout uses simple plaster walls, rough furniture shapes and a plain tower. The scale, decision points and sightlines are ready for review. All three areas stay resident for this review. Selective streaming, safe loading holds, final finishes, first-time player observation and the full performance review are later stages of milestone 20.

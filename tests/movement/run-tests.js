@@ -990,6 +990,9 @@ test('First Court consistently presents a renumbered classroom and can schedule 
                 `, page);
             });
         assert.deepEqual(errors, []);
+        if (id === 'ER-G-01') {
+            await game.world.streamArea('east-range');
+        }
         const label = 'Room ' + number;
         const plaque = renderers[0].scene.children.find(object => object.name === label);
         assert.equal(plaque.material.map.image.text, label);
@@ -1003,12 +1006,79 @@ test('First Court consistently presents a renumbered classroom and can schedule 
         frames.shift()(45000);
         assert.ok(elements.get('screen-message').textContent.includes(label));
         start.dispatchEvent(new Event('click'));
+        if (id === 'ER-G-01') {
+            await game.world.streamArea('east-range');
+        }
         assert.ok(game.world.openDoor(door));
         game.player.position.set(inside.x, inside.y, inside.z);
         frames.shift()();
         assert.equal(game.session.phase, 'arrived');
         assert.equal(elements.get('screen-message').textContent, 'You arrived at ' + label + '.');
     }
+});
+
+test('First Court pauses safely at a delayed passage, retries a failure and keeps the deadline', async () => {
+    let game;
+    const { elements, document, frames, errors } = await loadGame({ ok: true, json: async () => ({ levels }) },
+        '?level=4', new Map(), localModelResponse, page => {
+            page.observeGame = value => { game = value; };
+            vm.runInContext(`
+                const init = Game.prototype.init;
+                Game.prototype.init = function () { observeGame(this); return init.call(this); };
+            `, page);
+        });
+    const { world, player, session } = game;
+    const start = elements.get('start-button');
+    const click = () => start.dispatchEvent(new Event('click'));
+    const tick = milliseconds => frames.shift()(milliseconds);
+    const [destination] = [...world.areas.keys()].filter(id => !world.initialAreaIds.includes(id));
+    const originalPrepare = world.cache.prepare.bind(world.cache);
+    let rejectLoad;
+    world.cache.prepare = () => new Promise((resolve, reject) => { rejectLoad = reject; });
+    click();
+    player.position.set(2.5, 0, 9);
+    tick(2000);
+    assert.equal(session.phase, 'running');
+    assert.equal(start.disabled, false);
+    assert.equal(world.passageState(destination), 'loading');
+    player.position.set(2.5, 0, 21.5);
+    player.pressAction('moveForward');
+    tick(1000);
+    assert.equal(player.position.z, 21.5);
+    assert.equal(player.pressedActions.size, 0);
+    assert.equal(document.pointerLockElement, null);
+    assert.equal(session.phase, 'paused');
+    assert.equal(elements.get('school-time').textContent, '08:18');
+    assert.equal(start.disabled, true);
+
+    const failed = world.area(destination).streaming;
+    rejectLoad(new Error('Injected area preparation failure'));
+    await failed;
+    tick(60000);
+    assert.equal(start.textContent, 'Retry passage');
+    assert.equal(elements.get('school-time').textContent, '08:18');
+    assert.equal(errors.length, 1);
+    world.cache.prepare = originalPrepare;
+    click();
+    await world.area(destination).streaming;
+    tick(2000);
+    assert.equal(start.textContent, 'Resume');
+    assert.equal(session.phase, 'paused');
+    click();
+    assert.equal(session.phase, 'running');
+    assert.equal(elements.get('school-time').textContent, '08:18');
+
+    game.restart();
+    world.cache.prepare = () => new Promise(() => {});
+    click();
+    player.position.set(2.5, 0, 21.5);
+    tick(45000);
+    assert.equal(session.phase, 'late');
+    assert.equal(world.area(destination).status, 'unloaded');
+    assert.equal(start.textContent, 'Retry');
+    click();
+    assert.equal(elements.get('school-time').textContent, '08:15');
+    assert.equal(player.position.z, -13);
 });
 
 test('a live game keeps play access, objective and clock through area activation and reload', async () => {

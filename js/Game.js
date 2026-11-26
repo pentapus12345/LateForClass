@@ -135,6 +135,17 @@ class Game {
     }
 
     start() {
+        if (this.blockedArea) {
+            const state = this.world.passageState(this.blockedArea);
+            if (state === 'failed') {
+                this.world.retryPassage(this.blockedArea);
+                this.updateInterface();
+            }
+            if (state !== 'ready') {
+                return;
+            }
+            this.blockedArea = null;
+        }
         if (this.session.isFinished) {
             this.restart();
         }
@@ -151,7 +162,7 @@ class Game {
     }
 
     hasPlayAccess() {
-        return !this.ui.optionsOpen && !document.hidden && document.hasFocus() &&
+        return !this.blockedArea && !this.ui.optionsOpen && !document.hidden && document.hasFocus() &&
             document.pointerLockElement === this.renderer.domElement;
     }
 
@@ -159,8 +170,7 @@ class Game {
         return this.session.isRunning && this.hasPlayAccess();
     }
 
-    syncPlayState() {
-        const now = performance.now();
+    syncPlayState(now = performance.now()) {
         const finished = this.session.setPlayAccess(this.hasPlayAccess(), now);
         this.frameClock.getDelta();
         if (finished) {
@@ -182,6 +192,7 @@ class Game {
     }
 
     resetRun() {
+        this.blockedArea = null;
         this.player.resetPosition(this.definition.playerStart, this.definition.playerLookAt, this.world);
         this.session.reset();
         this.pointerLockFailed = false;
@@ -242,6 +253,7 @@ class Game {
     }
 
     presentResult(now) {
+        this.blockedArea = null;
         this.player.clearInput();
         this.updateInterface(now);
         if (document.pointerLockElement === this.renderer.domElement) {
@@ -251,7 +263,8 @@ class Game {
 
     updateInterface(now = performance.now()) {
         const running = this.session.isRunning;
-        this.ui.renderSession(this.session.snapshot(now), this.pointerLockFailed);
+        this.passageState = this.blockedArea ? this.world.passageState(this.blockedArea) : null;
+        this.ui.renderSession(this.session.snapshot(now), this.pointerLockFailed, this.passageState);
         this.ui.renderView(this.world.debugView, running);
         if (running) {
             this.updateObjective();
@@ -312,11 +325,21 @@ class Game {
 
         const now = performance.now();
         if (!this.isPlaying()) {
+            if (this.blockedArea && this.passageState !== this.world.passageState(this.blockedArea)) {
+                this.updateInterface(now);
+            }
             return;
         }
         // Timeout takes precedence over moving into a room on this frame.
         if (this.session.checkDeadline(now)) {
             this.presentResult(now);
+            return;
+        }
+        const reach = this.config.moveSpeed * deltaTime + this.config.playerRadius;
+        this.blockedArea = this.world.updateResidency(this.player.position, now, reach);
+        if (this.blockedArea) {
+            this.syncPlayState(now);
+            document.exitPointerLock();
             return;
         }
         this.player.update(deltaTime, this.world);

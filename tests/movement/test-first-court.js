@@ -11,8 +11,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
         const scene = new THREE.Scene();
         try {
             world.attach(scene, new LightingManager(scene, { shadowMap: {} }));
-            await Promise.all(world.initialAreaIds.map(id => world.loadArea(id)));
-            for (const id of world.initialAreaIds) {
+            await Promise.all([...world.areas.keys()].map(id => world.loadArea(id)));
+            for (const id of world.areas.keys()) {
                 world.activateArea(id);
             }
             run(world, scene);
@@ -33,6 +33,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             [[ab], /Unreachable scheduled room/],
             [[ab, bc, ab], /Invalid school connection/],
             [[ab, { ...bc, to: 'missing' }], /Invalid school connection/],
+            [[ab, { ...bc, approachFrom: [0, 1, 2] }], /Invalid school connection/],
+            [[ab, { ...bc, approachFrom: [0, 8, 8, 36] }], /Streaming regions must cover/],
             [[ab, { ...bc, aperture: { ...bc.aperture, max: bc.aperture.min } }], /Invalid school connection/]
         ]) {
             let message = '';
@@ -43,7 +45,217 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             }
             check(expected.test(message), 'Invalid graph accepted or incorrect error: ' + message);
         }
+        for (const mutate of [
+            data => { data.areas[1].id = data.areas[0].id; },
+            data => { data.areas[1].required = []; },
+            data => { data.areas[1].definition.rooms[0].id = data.areas[0].definition.rooms[0].id; },
+            data => { data.challenge.schedule.roomId = 'unknown-room'; }
+        ]) {
+            const invalid = JSON.parse(JSON.stringify(manifest));
+            mutate(invalid);
+            let accepted = false;
+            try {
+                registerSchoolAreas(schoolFromManifest(invalid));
+                accepted = true;
+            } catch (error) {
+                check(/Invalid|Duplicate|Unreachable/.test(error.message), error.message);
+            }
+            check(!accepted, 'Invalid area or room was accepted');
+        }
     });
+
+    test('First Court streams ten alternating loops with reversals, stable resources and restored door swings', async () => {
+        const world = new World(schoolFromManifest(manifest), GAME_CONFIG, levelsUrl);
+        const scene = new THREE.Scene();
+        world.attach(scene, new LightingManager(scene, { shadowMap: {} }));
+        const requests = new Map();
+        const readTemplate = world.cache.readTemplate.bind(world.cache);
+        world.cache.readTemplate = url => {
+            requests.set(url, (requests.get(url) ?? 0) + 1);
+            return readTemplate(url);
+        };
+        const doors = [[-21, -3], [1, 23], [26, 37]];
+        const [a, b, c] = manifest.areas.map(area => area.id);
+        const retained = [];
+        const retired = new Set();
+        const route = [[-19.8, 2], [-7, 2], [-5, 2], [-7, 2], [2.45, 2], [2.45, 34],
+            [9, 34], [11, 34], [9, 34], [18, 34], [18, 35], [26, 35], [26, 37], [26, 35],
+            [18, 35], [18, 42], [11, 42], [9, 42], [11, 42], [-13, 42], [-13, 22], [-19.8, 22], [-19.8, 2]];
+        const player = new Player(GAME_CONFIG);
+        let now = 0;
+        async function update(delta) {
+            now += delta * 1000;
+            const missing = world.updateResidency(player.position, now, GAME_CONFIG.moveSpeed * delta + GAME_CONFIG.playerRadius);
+            check(!missing, 'Hold on a prepared route: ' + missing);
+            await Promise.all([...world.areas.values()].map(area => area.streaming));
+            for (const id of [a, b, c]) {
+                if (!world.active.has(id)) {
+                    retired.add(id);
+                }
+            }
+            player.update(delta, world);
+        }
+        async function walk(x, z, airborne) {
+            const dx = x - player.position.x;
+            const dz = z - player.position.z;
+            const distance = Math.hypot(dx, dz);
+            player.turnCamera(Math.atan2(-dx, -dz) - player.yaw, 0);
+            player.pressAction('moveForward');
+            const orientation = player.camera.quaternion.clone();
+            let remaining = distance / GAME_CONFIG.moveSpeed;
+            while (remaining > 1e-8) {
+                const delta = Math.min(1 / 30, remaining);
+                await update(delta);
+                remaining -= delta;
+            }
+            player.clearInput();
+            check(Math.hypot(player.position.x - x, player.position.z - z) < 0.01, 'Broken streamed route at ' + [x, z]);
+            check(airborne ? player.position.y > 0.1 : Math.abs(player.position.y) < 0.001,
+                'Unexpected seam height at ' + [x, z]);
+            check(orientation.angleTo(player.camera.quaternion) < 1e-6, 'Streaming changed orientation');
+        }
+        function open(x, z) {
+            check(world.openDoor({ x, y: 0, z }), 'Door did not open at ' + [x, z]);
+        }
+        function swing(id) {
+            const [doorId] = world.area(id).doors.keys();
+            return [doorId, world.active.get(id).doors.find(door => door.id === doorId).panel.rotation.y];
+        }
+        function verifySwing(id, [doorId, angle]) {
+            const level = world.active.get(id);
+            const door = level?.doors.find(door => door.id === doorId);
+            check(door?.isOpen, 'Restored door was closed: ' + id);
+            check(angle === door.panel.rotation.y, 'Restored door changed swing: ' + id);
+        }
+        function measure() {
+            return JSON.stringify([
+                [...world.active.keys()].sort(), world.cache.templates.size, scene.children.length,
+                [...world.active.values()].reduce((sum, level) => sum + level.solids.length, 0),
+                world.lighting.fixtures.length, world.lighting.lights.filter(light => light.castShadow).length
+            ]);
+        }
+        try {
+            await Promise.all(world.initialAreaIds.map(id => world.streamArea(id)));
+            check(world.active.has(a) && world.active.has(b) && !world.active.has(c), 'Startup did not defer the range');
+            player.resetPosition({ x: -19.8, y: 0, z: 2 }, null, world);
+            open(...doors[0]);
+            open(...doors[1]);
+            const original = [swing(a), swing(b)];
+            for (let loop = 0; loop < 10; loop++) {
+                const points = loop % 2 ? route.slice().reverse() : route;
+                for (let index = 1; index < points.length; index++) {
+                    const point = points[index];
+                    const reversing = loop === 0 && points[index - 1].join() === points[index + 1]?.join();
+                    if (reversing) {
+                        player.pressAction('jump');
+                        await walk(...point, true);
+                        await walk(...points[++index], true);
+                        await update(0.4);
+                        check(player.isGrounded, 'Player lost floor support after reversing in the air');
+                    } else {
+                        await walk(...point, false);
+                    }
+                    if (point[0] === 26 && point[1] === 37 && !original[2]) {
+                        open(...doors[2]);
+                        original[2] = swing(c);
+                    }
+                    for (const [index, id] of [a, b, c].entries()) {
+                        if (original[index] && world.active.has(id)) {
+                            verifySwing(id, original[index]);
+                        }
+                    }
+                }
+                // Let the area keep interval elapse in the same A+B viewpoint each lap.
+                await update(0.6);
+                retained.push(measure());
+            }
+            check(retired.size === 3 && !world.active.has(c), 'One or more areas never retired');
+            check(retained.every(value => value === retained[0]), 'Retained resources grew: ' + retained);
+            check(requests.size === world.cache.templates.size &&
+                [...requests.values()].every(count => count === 1), 'Shared template fetched or parsed twice');
+            world.reset();
+            check(world.active.has(a) && world.active.has(b) && !world.active.has(c) &&
+                [...world.areas.values()].every(area => !area.doors.size), 'Restart did not restore the initial area and doors');
+        } finally {
+            world.dispose();
+        }
+        check(scene.children.length === 0 && world.cache.templates.size === 0 &&
+            world.lighting.registrations.size === 0, 'World teardown retained resources');
+    });
+
+    test('First Court ignores a late preparation after retreat and can immediately request it again', async () => {
+        const world = new World(schoolFromManifest(manifest), GAME_CONFIG, levelsUrl);
+        try {
+            const scene = new THREE.Scene();
+            world.attach(scene, new LightingManager(scene, { shadowMap: {} }));
+            await Promise.all(world.initialAreaIds.map(id => world.streamArea(id)));
+            const destination = [...world.areas.keys()].find(id => !world.initialAreaIds.includes(id));
+            const prepare = world.cache.prepare.bind(world.cache);
+            let complete;
+            world.cache.prepare = () => new Promise(resolve => { complete = resolve; });
+            const approach = { x: 2.45, z: 9 };
+            const spawn = manifest.playerStart;
+            check(!world.updateResidency(approach, 0, 0.4), 'Prefetch held movement');
+            const obsolete = world.area(destination).streaming;
+            check(obsolete, 'No prefetch started');
+            world.updateResidency(spawn, 600, 0.4);
+            world.cache.prepare = prepare;
+            world.updateResidency(approach, 700, 0.4);
+            await world.area(destination).streaming;
+            const activeLevel = world.active.get(destination);
+            complete();
+            await obsolete;
+            check(activeLevel && world.active.get(destination) === activeLevel &&
+                world.passageState(destination) === 'ready', 'Stale load replaced the current request');
+        } finally {
+            world.dispose();
+        }
+    });
+
+    if (typeof window !== 'undefined') {
+        test('First Court unload leaves the same rendered scenery and lighting at sheltered viewpoints', async () => {
+            const world = new World(schoolFromManifest(manifest), GAME_CONFIG, levelsUrl);
+            const scene = new THREE.Scene();
+            const renderer = new THREE.WebGLRenderer();
+            const camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, GAME_CONFIG.fogFar);
+            const target = new THREE.WebGLRenderTarget(320, 180);
+            const before = new Uint8Array(target.width * target.height * 4);
+            const after = before.slice();
+            const [a, b, c] = manifest.areas.map(area => area.id);
+            function capture(buffer) {
+                renderer.render(scene, camera);
+                renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, buffer);
+            }
+            try {
+                scene.background = new THREE.Color(manifest.skyColor);
+                scene.fog = new THREE.Fog(manifest.skyColor, GAME_CONFIG.fogNear, GAME_CONFIG.fogFar);
+                world.attach(scene, new LightingManager(scene, renderer));
+                renderer.setRenderTarget(target);
+                for (const [id, from, to] of [
+                    [c, [-16, 1.6, -13], [-6, 1.8, 2]],
+                    [c, [2.45, 1.6, 2], [-6, 1.8, 2]],
+                    [a, [4.23, 1.6, 29], [17.7, 9.5, 28.5]],
+                    [a, [4.23, 1.6, 29], [0, 1.8, 23]],
+                    [a, [34.63, 3.04, 41.85], [17.7, 9.5, 28.5]],
+                    [b, [-13, 1.6, 30], [-13, 1.8, 42]]
+                ]) {
+                    await Promise.all([a, b, c].map(areaId => world.streamArea(areaId)));
+                    camera.position.set(...from);
+                    camera.lookAt(...to);
+                    capture(before);
+                    world.unloadArea(id);
+                    capture(after);
+                    check(before.every((value, index) => Math.abs(value - after[index]) <= 1),
+                        'Visible geometry or lighting changed at ' + from);
+                }
+            } finally {
+                world.dispose();
+                renderer.setRenderTarget(null);
+                target.dispose();
+                renderer.dispose();
+            }
+        });
+    }
 
     test('First Court seams support walking, jumping and immediate reversal across their clear width', () =>
         withSchool(world => {
@@ -106,7 +318,6 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
 
     test('Seven numbered rooms have physical doors, two scheduled destinations and unique public labels', () =>
         withSchool((world, scene) => {
-            check(world.active.size === 3, 'All three blockout areas must remain active');
             const numbers = [...world.roomNumbers.values()].sort().join(',');
             check(numbers === '12,13,14,15,24,25,26', 'Unexpected room schedule: ' + numbers);
             for (const [id, number] of world.roomNumbers) {

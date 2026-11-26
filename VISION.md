@@ -17,6 +17,7 @@ The school should initially seem like a functioning, centuries-old English board
 - The school is **far larger than the player initially understands**. A first visit reveals only a small part; distant buildings, galleries, stairs, courtyards and branching passages suggest much more beyond it.
 - Navigation offers choices: meaningful junctions, optional detours, alternative routes and places worth investigating even when they do not serve the current class.
 - The player builds a mental map. Previously learned routes, landmarks, numbering conventions and shortcuts remain useful over time. **Accumulated knowledge is a primary form of progression.**
+- **Players should run out of time, not places to go.** As the campus grows, a player may choose an unhelpful passage, wander deep into another wing, or pursue an intriguing detour and consequently miss class. The timetable—not artificial invisible boundaries, forced redirects, or convenient dead ends—should impose the cost of those choices. Ordinary institutional restrictions such as genuinely locked staff rooms are compatible with this principle. This is a long-term world-design goal, not a requirement to expand First Court within milestone 20.
 - The existing Hallway, Physics Playground and six-classroom school are **development and regression prototypes**, not the required geography of the final school. Future school-building should not be constrained by those layouts.
 
 ## 2. Timetable-driven navigation and escalating challenges

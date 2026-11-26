@@ -8,6 +8,12 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-25 — Stream First Court’s three areas
+
+- First Court starts with the gatehouse and cloister, then prefetches and retires areas using the three authored connections and the approved layout’s routes and sightlines. Door swings survive reloading. Cross-boundary lighting stays active, and reusing detached local lights bounds Three.js’s per-light uniform cache.
+- A delayed passage pauses the active clock and clears movement before the player reaches missing scenery or collision. Retry passage and Resume keep the current attempt. Restart restores the initial area set, clock and closed doors.
+- All 119 Node and 92 Chrome regressions passed. Three cold approaches had zero holds, and ten alternating loops kept the same retained area resources. Both startup byte budgets were exceeded. The streaming stage awaits product-owner review. [Measurements and verification](docs/milestone-20-new-school.md#8-streaming-stage-implementation-and-evidence)
+
 ### 2026-11-24 — Seven-room First Court blockout ready for timed-first review
 
 - Connected both arms of First Court with a third physical passage. Added the seven approved room plaques, five working entrances and two furnished teaching rooms. Both the ordinary timed entry and optional development entry keep all three areas active.
