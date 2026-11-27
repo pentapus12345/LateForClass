@@ -8,6 +8,19 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-27 — Open the Library Court walkable blockout
+
+- Connected East Range to three new areas around Library Court. Added Rooms 31–33 and 41–45, a public stair and 2.4 m upper gallery in the Old Library, and paths around both sides of the court.
+- Added an opt-in Latin trial to the same school with a provisional 55-second allowance. Mathematics remains the default. The court windows and existing tower provide visible landmarks across the loop.
+- All 126 Node and 98 Chrome tests passed. Desktop Chrome completed both timed classes and visited the district with zero loading holds. The largest startup was 8,314,290 B and traversal p95 peaked at 10.1 ms.
+- Stage 1 awaits a timed-first owner walkthrough. [As-built plan, play links and measurements](docs/milestone-21-library-court.md#stage-1-walkable-blockout)
+
+### 2026-11-27 — Fit First Court’s pointed stone doorways
+
+- Replaced the deep classroom head and separate jamb finishes with one wall-depth stone assembly across the seven First Court openings. Continued the stone texture around the reveal, fitted the plaster above the arch and stopped the oak and signs at the casing.
+- Kept the original head collision dimensions, oak door leaves and room access. A shared regression checks clear reveal surfaces and collision bounds for all seven openings. [Matched doorway captures](docs/first-court-visual-spec.md#13-pointed-doorway-repair)
+- All 124 Node and 97 Chrome tests passed. The desktop walkthrough covered both Mathematics routes, the five public rooms, the two staff doors, reverse traversal and retry. The product owner approved the repair.
+
 ### 2026-11-27 — Reuse the Scholars’ Passage finish preset
 
 - The Gatehouse passage and East Range vestibule builders share the Scholars’ oak, limewash and runner defaults. They read straight wall faces and supported opening dimensions from the First Court manifest, while fitted junctions and runner lengths stay explicitly authored.

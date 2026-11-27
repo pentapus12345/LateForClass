@@ -74,11 +74,13 @@ function schoolFromManifest(manifest) {
             reachable.add(neighbor);
         }
     }
-    const destination = manifest.challenge.schedule.roomId;
-    if (!areas.some(area => reachable.has(area.id) && areaRooms(area.definition).some(room =>
-        room.id === destination && (!area.definition.rooms || room.kind === 'classroom') && room.bounds &&
-        area.definition.doors?.some(door => door.roomId === room.id)))) {
-        throw new Error(`Unreachable scheduled room: ${destination}`);
+    for (const challenge of [manifest.challenge, ...Object.values(manifest.challenges ?? {})]) {
+        const destination = challenge?.schedule?.roomId;
+        if (!destination || !areas.some(area => reachable.has(area.id) && areaRooms(area.definition).some(room =>
+            room.id === destination && (!area.definition.rooms || room.kind === 'classroom') && room.bounds &&
+            area.definition.doors?.some(door => door.roomId === room.id)))) {
+            throw new Error(`Unreachable scheduled room: ${destination}`);
+        }
     }
     if (reachable.size !== areas.length) {
         throw new Error('Disconnected school area');

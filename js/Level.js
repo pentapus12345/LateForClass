@@ -556,9 +556,11 @@ class Level {
         const profile = this.definition.doorProfiles[archOpening];
         const angle = rotationY * Math.PI / 180;
         const widthAlongX = angle % Math.PI === 0;
-        const fullWidth = widthAlongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ;
-        const depth = widthAlongX ? bounds.maxZ - bounds.minZ : bounds.maxX - bounds.minX;
-        const headHeight = bounds.maxY - y;
+        // A fitted casing may have different render bounds from the structural head.
+        const openingBounds = profile.openingBounds;
+        const fullWidth = openingBounds?.width ?? (widthAlongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ);
+        const depth = openingBounds?.depth ?? (widthAlongX ? bounds.maxZ - bounds.minZ : bounds.maxX - bounds.minX);
+        const headHeight = openingBounds?.height ?? (bounds.maxY - y);
         const bands = this.archBands(profile, profile.width);
         const shoulder = (fullWidth - profile.width) / 2;
         if (shoulder > CONTACT_TOLERANCE) {

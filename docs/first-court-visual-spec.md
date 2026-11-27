@@ -424,3 +424,26 @@ blender --background --python-exit-code 1 --python scripts/build_first_court_int
 ```
 
 Both GLBs rebuilt byte-for-byte against the finish-pass exports. A temporary manifest check moved wall faces, widened and moved the Bursar opening, and raised its arch spring. The corresponding panel runs and jambs followed those edits. Missing and duplicate references and misaligned passage bays raised build errors. All 123 Node and 96 Chrome tests passed.
+
+## 13. Pointed doorway repair
+
+The screenshot shows the Reading Room doorway from inside Room 15, looking onto the Scholars’ Passage runner. First Court used the 0.8 m deep classroom head from the six-room prototype in its 0.36 m walls. The stock head also projected its stone face and soffit separately. At Room 15, separate oak and stone jamb pieces overlapped on top of the wall reveal.
+
+All seven First Court doorways now use a fitted variant in `first_court_joints.glb`. One continuous stone lining runs from each jamb through the pointed head, with UVs following the opening and wrapping onto its faces. The adjoining wall finish continues over the arch, and the panelling ends at the casing. Adjacent plaques sit clear of the stone. The two stock room heads in the six-room prototype suit its deeper walls and still use the original asset.
+
+The visible lining sits 1 mm clear of each underlying jamb face to avoid depth fighting. The authored opening is still 1.8 m wide with a 2.25 m spring and a 2.85 m crown. First Court stores the original head collision separately from the new mesh bounds. The door leaves, hinges, room bounds and access rules use their original definitions.
+
+| Matched Chrome view | Before | After |
+| --- | --- | --- |
+| Reading Room, toward Scholars’ Passage | [Before](references/first-court-doorway/reading-room-before.jpg) | [After](references/first-court-doorway/reading-room-after.jpg) |
+| Scholars’ Passage, into the Reading Room | [Before](references/first-court-doorway/reading-passage-before.jpg) | [After](references/first-court-doorway/reading-passage-after.jpg) |
+| Porter’s Lodge | [Before](references/first-court-doorway/lodge-before.jpg) | [After](references/first-court-doorway/lodge-after.jpg) |
+| Bursar | [Before](references/first-court-doorway/bursar-before.jpg) | [After](references/first-court-doorway/bursar-after.jpg) |
+| Gatehouse Schoolroom | [Before](references/first-court-doorway/schoolroom-before.jpg) | [After](references/first-court-doorway/schoolroom-after.jpg) |
+| Cloakroom | [Before](references/first-court-doorway/cloakroom-before.jpg) | [After](references/first-court-doorway/cloakroom-after.jpg) |
+| Mathematics | [Before](references/first-court-doorway/mathematics-before.jpg) | [After](references/first-court-doorway/mathematics-after.jpg) |
+| Map Store | [Before](references/first-court-doorway/map-store-before.jpg) | [After](references/first-court-doorway/map-store-after.jpg) |
+
+[Reading Room collision view](references/first-court-doorway/collision-outline.jpg)
+
+All 124 Node and 97 Chrome tests passed. The new shared case checks the original head collision dimensions and rays against both jambs and the soffit at all seven openings. Desktop Chrome reached Mathematics through both routes, visited the five public rooms, verified both staff doors, walked the loop in reverse with collision outlines and reset to the original spawn with the doors closed.

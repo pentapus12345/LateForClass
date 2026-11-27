@@ -18,6 +18,9 @@ from build_collegiate_bay import material_with_image
 FIRST_COURT_MANIFEST = OUTPUT.parents[2] / 'schools' / 'first-court.json'
 OAK_CAP = 1.065
 OAK_CAP_DEPTH = 0.045
+PORTAL_CASING_WIDTH = 0.12
+PORTAL_WALL_HALF_DEPTH = 0.18
+WALL_FINISH_OFFSET = 0.008
 SCHOLARS_PASSAGE_FINISH = {
     'wallMaterials': (
         ('Aged lime plaster', 'Soft limewash', (0.75, 0.70, 0.61), 0.34),
@@ -132,11 +135,39 @@ def finish_quad(mesh, points, uv_axes, period):
               [tuple(point[axis] / period for axis in uv_axes) for point in points])
 
 
-def wall_faces(mesh, path, bottom, top, depth=0.008, period=1.8):
+def wall_faces(mesh, path, bottom, top, depth=WALL_FINISH_OFFSET, period=1.8):
     for a, b, near, far in wall_edges(path):
         first, last = offset(a, near, depth), offset(b, far, depth)
         uv_axes = (0 if a[0] != b[0] else 1, 2)
         finish_quad(mesh, [(*first, bottom), (*last, bottom), (*last, top), (*first, top)], uv_axes, period)
+
+
+def portal_edges(profile):
+    """Pair the clear opening and the casing edge, from jamb to jamb at the spring."""
+    radius = profile['width'] / 2
+    for i, rise in enumerate(profile['rise']):
+        fraction = 2 * i / (len(profile['rise']) - 1) - 1
+        yield ((fraction * radius, rise),
+               (fraction * (radius + PORTAL_CASING_WIDTH), rise + 0.15 * (1 - abs(fraction))))
+
+
+def portal_wall(mesh, area, profiles, name, side, top, period=1.8):
+    """Continue the adjoining wall finish from the outer arch to its ceiling."""
+    opening = finish_source(area['environmentObjects'], name)
+    profile = profiles[opening['archOpening']]
+    along_x = opening['rotationY'] == 0
+    axes = (0 if along_x else 1, 2)
+
+    def point(across, height):
+        face = side * (PORTAL_WALL_HALF_DEPTH + WALL_FINISH_OFFSET)
+        x, z = (across, face) if along_x else (face, -across)
+        return opening['x'] + x, opening['z'] + z, height
+
+    outer = [edge for _, edge in portal_edges(profile)]
+    for (a, low_a), (b, low_b) in zip(outer, outer[1:]):
+        points = [point(a, opening['y'] + low_a), point(b, opening['y'] + low_b),
+                  point(b, top), point(a, top)]
+        finish_quad(mesh, points if side > 0 else points[::-1], axes, period)
 
 
 def panelled_walls(plaster, field, oak, path, top=4, height=1):
@@ -261,31 +292,21 @@ def build(temporary):
     reading_face = passage_wall_face(reading_before, reading_after, 1)
     paths = [
         # West wall past the bursary, then around the outside of the first turn.
-        [(west_face, platform_edge(west_before, 'z', 1)), (west_face, reception_end)],
-        [(reading_face, platform_edge(reading_before, 'z', 1)), (reading_face, 23.32),
-         (west_face, 23.32), (west_face, platform_edge(west_after, 'z', -1))],
+        [(west_face, platform_edge(west_before, 'z', 1) - PORTAL_CASING_WIDTH), (west_face, reception_end)],
+        [(reading_face, platform_edge(reading_before, 'z', 1) - PORTAL_CASING_WIDTH), (reading_face, 23.32),
+         (west_face, 23.32), (west_face, platform_edge(west_after, 'z', -1) + PORTAL_CASING_WIDTH)],
         # East wall past the Schoolroom, around the short return and the north turn.
-        [(east_face, reception_end), (east_face, platform_edge(east_before, 'z', 1))],
-        [(east_face, platform_edge(east_after, 'z', -1)), (east_face, east_turn_end),
+        [(east_face, reception_end), (east_face, platform_edge(east_before, 'z', 1) - PORTAL_CASING_WIDTH)],
+        [(east_face, platform_edge(east_after, 'z', -1) + PORTAL_CASING_WIDTH), (east_face, east_turn_end),
          (east_after['x'], east_turn_end), (east_after['x'], 20.68),
          (-11.68, 20.68), (-11.68, 40.68), (9.82, 40.68)],
-        [(9.82, 43.32), (reading_face, 43.32), (reading_face, platform_edge(reading_after, 'z', -1))],
+        [(9.82, 43.32), (reading_face, 43.32), (reading_face, platform_edge(reading_after, 'z', -1) + PORTAL_CASING_WIDTH)],
     ]
     scholars_panelling(plaster, wood, trim, paths, 4)
 
-    # Use the masonry head for the opening centre and spring, including the closed Bursary.
-    reveals = [(west_before, 1, 'Bursar masonry head'),
-               (east_before, -1, 'Gatehouse schoolroom door arched head'),
-               (reading_before, 1, 'Reading room door arched head')]
-    for wall, inward, head in reveals:
-        opening = finish_source(gatehouse['environmentObjects'], head)
-        radius = manifest['doorProfiles'][opening['archOpening']]['width'] / 2
-        west = platform_edge(wall, 'x', -1) - (OAK_CAP_DEPTH if inward < 0 else 0)
-        east = platform_edge(wall, 'x', 1) + (OAK_CAP_DEPTH if inward > 0 else 0)
-        for sign in (1, -1):
-            edge = opening['z'] - sign * radius
-            a, b = sorted((edge - sign * 0.083, edge + sign * 0.002))
-            passage_box(trim, (west + 0.003, 0, a), (east - 0.003, opening['y'] + 0.001, b), 0.64)
+    for head, side in [('Bursar masonry head', 1), ('Gatehouse schoolroom door arched head', -1),
+                       ('Reading room door arched head', 1)]:
+        portal_wall(plaster, gatehouse, manifest['doorProfiles'], head, side, 4)
 
     # Run the plates around the turns and seat a tie at each leg of the approach.
     perimeter = [

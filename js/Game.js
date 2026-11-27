@@ -43,8 +43,11 @@ class Game {
             const manifest = await response.json();
             school = schoolFromManifest(manifest);
             const explore = params.get('mode') === 'explore';
+            const challengeId = params.get('challenge');
+            const challenge = manifest.challenges && Object.hasOwn(manifest.challenges, challengeId)
+                ? manifest.challenges[challengeId] : manifest.challenge;
             levelDefinition = {
-                ...levelDefinition, ...(explore ? {} : manifest.challenge),
+                ...levelDefinition, ...(explore ? {} : challenge),
                 playerStart: manifest.playerStart,
                 playerLookAt: manifest.playerLookAt,
                 skyColor: manifest.skyColor,

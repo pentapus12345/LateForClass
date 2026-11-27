@@ -1,6 +1,7 @@
 """Export local First Court render meshes for existing architectural joins."""
 
 import json
+from math import copysign, dist
 from pathlib import Path
 import struct
 import sys
@@ -11,7 +12,10 @@ import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True
 from build_vaulted_bays import Mesh, OUTPUT, SEGMENTS, elevation, door_material
-from build_scholars_passage import finish_quad, passage_box, wall_faces
+from build_scholars_passage import (
+    FIRST_COURT_MANIFEST, OAK_CAP_DEPTH, PORTAL_CASING_WIDTH, PORTAL_WALL_HALF_DEPTH,
+    WALL_FINISH_OFFSET, finish_quad, finish_source, passage_box, portal_edges, portal_wall, wall_faces,
+)
 from build_collegiate_bay import material_with_image
 
 
@@ -78,18 +82,18 @@ def masonry_opening(mesh, x, z, near, far, top, height, *, east_face=True):
     finish_quad(mesh, [(x - 0.188, z0, top), (x + 0.188, z0, top),
                        (x + 0.188, z1, top), (x - 0.188, z1, top)], (0, 1), 2.4)
 
-def cloister_faces(masonry):
+def cloister_faces(masonry, area, profiles):
     # The solid spine and the porches use the same stone as the arcade piers and ribs.
+    left, right = 22.1 - PORTAL_CASING_WIDTH, 23.9 + PORTAL_CASING_WIDTH
     for path, bottom, top in [
         ([(-5.82, 0.18), (4.82, 0.18), (4.82, 4)], 0, 3.7),
-        ([(0.18, 22.1), (0.18, 3.82), (-5.82, 3.82)], 0, 3.7),
-        ([(0.18, 22.1), (0.18, 4)], 3.7, 5.9),
-        ([(0.18, 23.9), (0.18, 22.1)], 3.9, 5.9),
-        ([(0.18, 35.82), (0.18, 23.9)], 0, 4.4),
-        ([(0.18, 35.82), (0.18, 23.9)], 4.4, 5.9),
+        ([(0.18, left), (0.18, 3.82), (-5.82, 3.82)], 0, 3.7),
+        ([(0.18, left), (0.18, 4)], 3.7, 5.9),
+        ([(0.18, 35.82), (0.18, right)], 0, 5.9),
         ([(5.18, 32.18), (9.82, 32.18)], 0, 4.4),
     ]:
         wall_faces(masonry, path, bottom, top, period=2.4)
+    portal_wall(masonry, area, profiles, 'Cloakroom door arched head', 1, 5.9, period=2.4)
 
     for x0, x1, y, z0, z1 in [(-5.82, 4.82, 3.698, 0.18, 3.82),
                               (4.99, 9.82, 4.398, 32.18, 35.82),
@@ -97,25 +101,64 @@ def cloister_faces(masonry):
         finish_quad(masonry, [(x0, z0, y), (x1, z0, y), (x1, z1, y), (x0, z1, y)], (0, 1), 2.4)
 
     masonry_opening(masonry, 10, (33, 35), 32.18, 35.82, 3.45, 4.4, east_face=False)
-    wall_faces(masonry, [(-0.18, 23.9), (-0.18, 25.82), (-4.32, 25.82),
-                         (-4.32, 20.18), (-0.18, 20.18), (-0.18, 22.1)], 0, 0.145, period=2.4)
+    wall_faces(masonry, [(-0.18, right), (-0.18, 25.82), (-4.32, 25.82),
+                         (-4.32, 20.18), (-0.18, 20.18), (-0.18, left)], 0, 0.145, period=2.4)
 
 
-def jamb(mesh, axis, x, z):
-    """Finish the existing plaster reveals directly below the stone spring."""
-    across, depth = (z, x) if axis == 'x' else (x, z)
-    for side in (-1, 1):
-        a, b = sorted((across + side * 0.898, across + side * 0.954))
-        left, right = depth - 0.186, depth + 0.186
-        low, high = ((left, 0, a), (right, 2.251, b)) if axis == 'x' else (
-            (a, 0, left), (b, 2.251, right))
-        passage_box(mesh, low, high, 2.8)
+def pointed_room_portal(profile, spring, material):
+    """Build jambs and arch as one lining on the original clear opening."""
+    # Seat the render surface just ahead of the original box jambs to avoid coplanar faces.
+    radius = profile['width'] / 2
+    casing = [((x - copysign(0.001, x), y) if abs(x) == radius else (x, y), outer)
+              for (x, y), outer in portal_edges(profile)]
+    casing.insert(0, tuple((x, -spring) for x, _ in casing[0]))
+    casing.append(tuple((x, -spring) for x, _ in casing[-1]))
+    half_depth = PORTAL_WALL_HALF_DEPTH + OAK_CAP_DEPTH
+    period = 2.4
+    distance = 0
+    mesh = Mesh()
+
+    def point(edge, depth):
+        x, y = edge
+        return x, -depth, y
+
+    for (inner_a, outer_a), (inner_b, outer_b) in zip(casing, casing[1:]):
+        end = distance + dist(inner_a, inner_b)
+        u0, u1 = distance / period, end / period
+        depth_uv = half_depth / period
+        for side in (1, -1):
+            depth = side * half_depth
+            points = [point(inner_a, depth), point(inner_b, depth),
+                      point(outer_b, depth), point(outer_a, depth)]
+            uv = [(u0, side * depth_uv), (u1, side * depth_uv),
+                  (u1, side * (depth_uv + dist(inner_b, outer_b) / period)),
+                  (u0, side * (depth_uv + dist(inner_a, outer_a) / period))]
+            mesh.quad(points if side > 0 else points[::-1], uv if side > 0 else uv[::-1])
+            # The exposed outer edge returns to the adjacent wall finish plane.
+            wall = side * (PORTAL_WALL_HALF_DEPTH + WALL_FINISH_OFFSET)
+            points = [point(outer_a, depth), point(outer_b, depth),
+                      point(outer_b, wall), point(outer_a, wall)]
+            return_uv = (depth - wall) / period
+            uv = [uv[3], uv[2], (u1, uv[2][1] + return_uv), (u0, uv[3][1] + return_uv)]
+            mesh.quad(points if side > 0 else points[::-1], uv if side > 0 else uv[::-1])
+        mesh.quad([point(inner_a, -half_depth), point(inner_b, -half_depth),
+                   point(inner_b, half_depth), point(inner_a, half_depth)],
+                  [(u0, -depth_uv), (u1, -depth_uv), (u1, depth_uv), (u0, depth_uv)])
+        distance = end
+
+    root = bpy.data.objects.new('PointedRoomPortal', None)
+    bpy.context.collection.objects.link(root)
+    mesh.make_object('Fitted limestone arch and jambs', material)
+    bpy.data.objects['Fitted limestone arch and jambs'].parent = root
 
 
 def build(temporary):
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete(use_global=False)
     stone = sampled_stone(temporary)
+    manifest = json.loads(FIRST_COURT_MANIFEST.read_text())
+    profiles = manifest['doorProfiles']
+    cloister = finish_source(manifest['areas'], 'west-cloister', key='id')['definition']
     oak = finish('75503a', 'Reception soffit oak')
     plaster = finish('eadfc8', 'Existing reception plaster')
     arrival = finish('c9b9a1', 'Existing arrival plaster')
@@ -138,8 +181,6 @@ def build(temporary):
             for x in (-18, -10):
                 for near, far in [(-16.01, -15.36), (-6.23, -5.77), (3.36, 4.01)]:
                     passage_box(masonry, (x - 0.23, 4.397, near), (x + 0.23, 4.53, far), 2.8)
-            jamb(masonry, 'x', -14.5, 32)
-            jamb(masonry, 'x', -22, -3)
             # The porch begins at the stone reveal. Scholars’ oak begins past its gable.
             masonry_opening(masonry, -6, (1, 3), 1, 3, 3.4, 4.55)
             wall_faces(masonry, [(-20.8, 4.18), (-18.8, 4.18)], 3.2, 4, period=2.4)
@@ -151,7 +192,7 @@ def build(temporary):
                                    (-18.8, 4.188, 3.198), (-20.8, 4.188, 3.198)], (0, 1), 2.4)
             masonry_opening(masonry, 10, (41, 43), 40.68, 43.32, 3.1, 4)
         elif variant == 'CloisterJoints':
-            cloister_faces(masonry)
+            cloister_faces(masonry, cloister, profiles)
             vault_end(masonry, 2.5, 3.2225, 1.25, 3.86, 3.85, 4.035)
             vault_end(masonry, 2.5, 3.2225, 1.25, 4.749, 28.97, 29.13)
             passage_box(masonry, (0, 4.39, 31.96), (5, 5.0, 32.035), 2.8)
@@ -159,16 +200,15 @@ def build(temporary):
             for z in (4, 10.25, 16.5, 22.75, 29):
                 passage_box(masonry, (0.17, 2.96, z - 0.16), (0.26, 3.13, z + 0.16), 2.8)
                 passage_box(masonry, (0.17, 3.13, z - 0.21), (0.32, 3.35, z + 0.21), 2.8)
-                passage_box(masonry, (0.17, 3.35, z - 0.17), (0.30, 4.64, z + 0.17), 2.8)
-            jamb(masonry, 'x', 0, 23)
+                # Seat the socket beside the Cloakroom crown behind the rib's end plane.
+                socket_face = 0.298 if z == 22.75 else 0.30
+                passage_box(masonry, (0.17, 3.35, z - 0.17), (socket_face, 4.64, z + 0.17), 2.8)
         else:
             # Complete the existing recessed exterior below the lookout.
             # These are exterior skins on the classroom and range walls.
             passage_box(masonry, (30.176, -0.16, 38.175), (30.192, 4.095, 46.04), 2.8)
             passage_box(masonry, (30.192, -0.16, 38.176), (33.85, 4.487, 38.192), 2.8)
             passage_box(ground, (30.016, -0.23, 38.12), (34.06, -0.12, 46.10), 2.8)
-            jamb(masonry, 'z', 26, 38)
-            jamb(masonry, 'z', 39.5, 38)
             # The low vestibule portal and the taller stair opening end the range's dado.
             for path, bottom, top in [
                 ([(16.598, 38.188), (19.402, 38.188)], 3.348, 4),
@@ -200,6 +240,8 @@ def build(temporary):
             if obj.type == 'MESH' and obj.parent is None:
                 obj.parent = root
 
+    cloakroom_door = finish_source(cloister['doors'], 'cloakroom', key='id')
+    pointed_room_portal(profiles[cloakroom_door['arch']], cloakroom_door['height'], stone)
     bpy.ops.export_scene.gltf(filepath=str(OUTPUT / 'first_court_joints.glb'), export_format='GLB')
 
 

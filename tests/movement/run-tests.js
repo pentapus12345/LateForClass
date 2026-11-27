@@ -969,6 +969,27 @@ test('First Court starts timed by default and its development entry remains play
     }
 });
 
+test('Library Court Latin uses the shared school, exact deadline and normal retry', async () => {
+    const response = { ok: true, json: async () => ({ levels }) };
+    const { elements, errors, frames, renderers } = await loadGame(response, '?level=4&challenge=latin');
+    assert.deepEqual(errors, []);
+    const start = elements.get('start-button');
+    start.dispatchEvent(new Event('click'));
+    assert.equal(elements.get('schedule-room').textContent, 'Room 42');
+    assert.equal(elements.get('school-time').textContent, '09:05');
+    frames.shift()(54999);
+    assert.equal(elements.get('start-screen').hidden, true);
+    frames.shift()(55000);
+    assert.equal(start.textContent, 'Retry');
+    start.dispatchEvent(new Event('click'));
+    assert.equal(elements.get('school-time').textContent, '09:05');
+    assert.equal(renderers[0].camera.position.z, -13);
+    const fallback = await loadGame(response, '?level=4&challenge=constructor');
+    assert.equal(fallback.elements.get('schedule-room').textContent, 'Room 25');
+    const explore = await loadGame(response, '?level=4&mode=explore&challenge=latin');
+    assert.equal(explore.elements.get('schedule-panel').hidden, true);
+});
+
 test('First Court consistently presents a renumbered classroom and can schedule either teaching room', async () => {
     for (const [id, number, door, inside] of [
         ['ER-G-01', '25a', { x: 26, y: 0, z: 37 }, { x: 26, y: 0, z: 40 }],

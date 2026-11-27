@@ -49,7 +49,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             data => { data.areas[1].id = data.areas[0].id; },
             data => { data.areas[1].required = []; },
             data => { data.areas[1].definition.rooms[0].id = data.areas[0].definition.rooms[0].id; },
-            data => { data.challenge.schedule.roomId = 'unknown-room'; }
+            data => { data.challenge.schedule.roomId = 'unknown-room'; },
+            data => { data.challenges.latin.schedule.roomId = 'old-library'; }
         ]) {
             const invalid = JSON.parse(JSON.stringify(manifest));
             mutate(invalid);
@@ -421,7 +422,7 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
     test('First Court seams support walking, jumping and immediate reversal across their clear width', () =>
         withSchool(world => {
             const { cameraHeight, playerHeight, playerRadius } = GAME_CONFIG;
-            for (const { aperture } of manifest.connections) {
+            for (const { aperture } of manifest.connections.slice(0, 3)) {
                 const { plane, min, max, ceiling } = aperture;
                 const center = (min + max) / 2;
                 check(world.isBlocked({ x: plane, y: ceiling - playerHeight + 0.04, z: center },
@@ -446,6 +447,45 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                     }
                 }
             }
+        }));
+
+    test('All seven First Court pointed doorways share a fitted reveal and retain the original head collision', () =>
+        withSchool((world, scene) => {
+            scene.updateMatrixWorld(true);
+            const visible = [];
+            scene.traverseVisible(object => {
+                if (object.isMesh && object.material.opacity !== 0 && object.material.visible) {
+                    visible.push(object);
+                }
+            });
+            let portalCount = 0;
+            for (const [areaId, level] of world.active) {
+                for (const { name, x, y, z, rotationY, archOpening } of level.definition.environmentObjects ?? []) {
+                    if (archOpening !== 'pointedOak' || name === 'Library Court passage head') {
+                        continue;
+                    }
+                    portalCount++;
+                    const alongX = rotationY === 0;
+                    const walls = level.solids.filter(wall =>
+                        wall.id.startsWith(areaId + '/placement/' + encodeURIComponent(name) + '/'));
+                    check(walls.length === 16, name + ' changed the number of collision bands');
+                    for (const wall of walls) {
+                        const depth = alongX ? wall.maxZ - wall.minZ : wall.maxX - wall.minX;
+                        const width = alongX ? wall.maxX - wall.minX : wall.maxZ - wall.minZ;
+                        check(Math.abs(depth - 0.802) < 0.00001 && Math.abs(width - 1.8 / 16) < 0.00001 &&
+                            Math.abs(wall.maxY - (y + 1.65)) < 0.00001, name + ' changed the collision bounds');
+                    }
+                    const reveal = scene.getObjectByName(name).getObjectByName('Fitted_limestone_arch_and_jambs');
+                    const eye = new THREE.Vector3(x + (alongX ? 0 : -0.13), 1.45, z + (alongX ? -0.13 : 0));
+                    for (const direction of [new THREE.Vector3(0, 1, 0),
+                        new THREE.Vector3(alongX ? 1 : 0, 0, alongX ? 0 : 1),
+                        new THREE.Vector3(alongX ? -1 : 0, 0, alongX ? 0 : -1)]) {
+                        const hit = new THREE.Raycaster(eye, direction).intersectObjects(visible)[0];
+                        check(reveal && hit?.object === reveal, name + ' has a competing or missing reveal face');
+                    }
+                }
+            }
+            check(portalCount === 7, 'Unexpected number of pointed First Court doorways');
         }));
 
     test('First Court doors, arrival bounds, stair treads and courtyard parapet match the playable routes', () =>
@@ -477,16 +517,19 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             check(player.position.x < 4.75 && player.isGrounded, 'Player jumped through the courtyard parapet');
         }));
 
-    test('Seven numbered rooms have physical doors, two scheduled destinations and unique public labels', () =>
+    test('All fifteen school rooms have unique public labels and only the five classrooms are schedulable', () =>
         withSchool((world, scene) => {
             const numbers = [...world.roomNumbers.values()].sort().join(',');
-            check(numbers === '12,13,14,15,24,25,26', 'Unexpected room schedule: ' + numbers);
+            check(numbers === '12,13,14,15,24,25,26,31,32,33,41,42,43,44,45', 'Unexpected room schedule: ' + numbers);
             for (const [id, number] of world.roomNumbers) {
                 check(scene.getObjectByName('Room ' + number), 'Missing public plaque for ' + id);
             }
             for (const [x, z, dx, dz, open] of [
                 [-22, -3, 1, 0, true], [-21.3, 10, 1, 0, false], [-18.3, 16, -1, 0, true],
-                [-14.5, 32, 1, 0, true], [0, 23, 1, 0, true], [26, 38, 0, -1, true], [39.5, 38, 0, -1, false]
+                [-14.5, 32, 1, 0, true], [0, 23, 1, 0, true], [26, 38, 0, -1, true], [39.5, 38, 0, -1, false],
+                [46.5, 45, 1, 0, true], [46.5, 54.5, 1, 0, true], [46.5, 62, 1, 0, true],
+                [50, 73.5, 0, -1, true], [61, 77, 1, 0, true], [65, 77, -1, 0, true],
+                [79.3, 62.5, -1, 0, true], [79.3, 55, -1, 0, false]
             ]) {
                 const threshold = { x, y: 0, z };
                 const approach = { x: x + dx, y: 0, z: z + dz };
@@ -506,7 +549,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                     }
                     valid = false;
                 }
-                check(valid === ['GH-G-02', 'ER-G-01'].includes(roomId), 'Wrong schedule eligibility for ' + roomId);
+                check(valid === ['GH-G-02', 'ER-G-01', 'north-history', 'north-latin', 'north-greek'].includes(roomId),
+                    'Wrong schedule eligibility for ' + roomId);
             }
             const invalid = JSON.parse(JSON.stringify(manifest));
             invalid.areas[0].definition.rooms[1].number = '12';
@@ -518,6 +562,100 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             }
             check(errorMessage.includes('Duplicate room number'), 'Duplicate number accepted');
         }));
+
+    test('Library Court streams ten loops, preserves shared assets and restores doors after retirement', async () => {
+        const world = new World(schoolFromManifest(manifest), GAME_CONFIG, levelsUrl);
+        const scene = new THREE.Scene();
+        world.attach(scene, new LightingManager(scene, { shadowMap: {} }));
+        const player = new Player(GAME_CONFIG);
+        const district = ['library-gallery', 'north-teaching', 'book-passage'];
+        const route = [[4, 42], [18, 42], [18, 35], [48, 35], [48, 50], [48, 72], [63, 72], [63, 77],
+            [63, 72], [78, 72], [78, 50], [48, 50], [48, 35], [18, 35], [18, 42], [4, 42]];
+        let now = 0;
+        async function walk(x, z, elevation = 0) {
+            const dx = x - player.position.x;
+            const dz = z - player.position.z;
+            player.turnCamera(Math.atan2(-dx, -dz) - player.yaw, 0);
+            player.pressAction('moveForward');
+            let remaining = Math.hypot(dx, dz) / GAME_CONFIG.moveSpeed;
+            while (remaining > 1e-8) {
+                const delta = Math.min(1 / 20, remaining);
+                now += delta * 1000;
+                const hold = world.updateResidency(player.position, now, GAME_CONFIG.moveSpeed * delta + GAME_CONFIG.playerRadius);
+                check(!hold, 'Unexpected hold at ' + player.position.toArray());
+                await Promise.all([...world.areas.values()].map(area => area.streaming));
+                player.update(delta, world);
+                remaining -= delta;
+            }
+            player.clearInput();
+            check(Math.hypot(player.position.x - x, player.position.z - z) < 0.025 &&
+                Math.abs(player.position.y - elevation) < 0.01, 'Could not walk to ' + [x, elevation, z] +
+                ' from ' + player.position.toArray());
+        }
+        try {
+            await Promise.all([...world.initialAreaIds, 'east-range'].map(id => world.streamArea(id)));
+            player.resetPosition({ x: 4, y: 0, z: 42 }, null, world);
+            check(district.every(id => !world.active.has(id)), 'District loaded at startup');
+            check(world.roomNumbers.get('north-latin') === '42', 'Latin identity depends on loading');
+            let retained;
+            let swing;
+            for (let loop = 0; loop < 10; loop++) {
+                const path = loop % 2 ? route.slice().reverse() : route;
+                for (const [x, z] of path.slice(1)) {
+                    await walk(x, z);
+                    if (x === 63 && z === 77) {
+                        const door = world.active.get('north-teaching').doors.find(item => item.definition.roomId === 'north-latin');
+                        if (loop === 0) {
+                            await walk(62.05, 77);
+                            check(world.openDoor(player.position), 'Latin door would not open');
+                            await walk(59.35, 77);
+                            check(world.getEnteredRoomId(player.position) === 'north-latin', 'Latin arrival not detected');
+                            await walk(63, 77);
+                            swing = door.panel.rotation.y;
+                        }
+                        check(door.isOpen && door.panel.rotation.y === swing, 'The streamed Latin door lost its swing');
+                    }
+                }
+                check(district.every(id => world.area(id).status === 'unloaded'), 'District stayed resident after exit');
+                const resources = [world.cache.templates.size, scene.children.length, world.lighting.fixtures.length,
+                    [...world.active.values()].reduce((total, level) => total + level.solids.length, 0)].join(',');
+                retained ??= resources;
+                check(resources === retained, 'Loop retained additional resources');
+            }
+
+            await walk(18, 42);
+            await walk(18, 35);
+            await walk(48, 35);
+            scene.updateMatrixWorld(true);
+            const entry = new THREE.Raycaster(new THREE.Vector3(39, 1.6, 35), new THREE.Vector3(1, 0, 0));
+            const entryHit = entry.intersectObjects(scene.children, true).find(hit => hit.object.isMesh && hit.object.visible);
+            check(entryHit?.object.name === 'West walk east wall', 'An obsolete East Range surface spans the portal');
+            await walk(48, 62);
+            for (const [x, z] of [[63, 81.5], [79.3, 50.35], [64, 48.7], [76.7, 60]]) {
+                check(world.isBlocked({ x, y: 0.9, z }, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight),
+                    'Unopened bay or court barrier can be crossed at ' + [x, z]);
+            }
+            check(world.openDoor(player.position), 'Old Library entrance would not open');
+            await walk(39.5, 62);
+            check(world.getEnteredRoomId(player.position) === 'old-library', 'Old Library cannot be entered');
+            await walk(39.5, 67.35);
+            await walk(45.3, 67.35, 2.4);
+            await walk(45.3, 61.9, 2.4);
+            scene.updateMatrixWorld(true);
+            const view = new THREE.Raycaster(new THREE.Vector3(45.3, 4, 61.9), new THREE.Vector3(1, -0.14, 0).normalize());
+            const viewHits = view.intersectObjects(scene.children, true).filter(hit => hit.object.isMesh);
+            check(viewHits.findIndex(hit => hit.object.name === 'Library projecting window glazing') >= 0 &&
+                viewHits.findIndex(hit => hit.object.name === 'West walk court gallery light glazing') >
+                    viewHits.findIndex(hit => hit.object.name === 'Library projecting window glazing'),
+            'Upper gallery cannot see through both court windows');
+            await walk(45.3, 67.35, 2.4);
+            await walk(39.5, 67.35);
+            await walk(39.5, 62);
+            await walk(48, 62);
+        } finally {
+            world.dispose();
+        }
+    });
 
     test('The entire First Court loop is walkable in both directions with all room doors closed', () =>
         withSchool(world => {

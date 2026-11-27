@@ -14,8 +14,8 @@ from build_vaulted_bays import Mesh, OUTPUT
 from build_collegiate_bay import material_with_image
 from build_first_court_joints import finish
 from build_scholars_passage import (
-    FIRST_COURT_MANIFEST, finish_source, oak_ties, oak_wall_plates, panelled_walls, passage_box,
-    platform_edge, reuse_wall_material, runner_material, runner_strip, scholars_materials,
+    FIRST_COURT_MANIFEST, PORTAL_CASING_WIDTH, finish_source, oak_ties, oak_wall_plates, panelled_walls,
+    passage_box, platform_edge, portal_wall, reuse_wall_material, runner_material, runner_strip, scholars_materials,
     scholars_panelling, wall_faces,
 )
 
@@ -178,20 +178,30 @@ def build(temporary):
             if obj.type == 'MESH' and obj.parent is None:
                 obj.parent = root
 
-    def room_finish(name, paths, top, wall_material=plaster, height=1, extra_plaster=()):
+    manifest = json.loads(FIRST_COURT_MANIFEST.read_text())
+    profiles = manifest['doorProfiles']
+    gatehouse = finish_source(manifest['areas'], 'gatehouse', key='id')['definition']
+    east_range = finish_source(manifest['areas'], 'east-range', key='id')['definition']
+    cloister = finish_source(manifest['areas'], 'west-cloister', key='id')['definition']
+    casing = PORTAL_CASING_WIDTH
+
+    def room_finish(name, paths, top, wall_material=plaster, height=1, extra_plaster=(), portal=None):
         wall, panel, trim = Mesh(), Mesh(), Mesh()
         for path in paths:
             panelled_walls(wall, panel, trim, path, top, height)
         for path, bottom, ceiling in extra_plaster:
             wall_faces(wall, path, bottom, ceiling)
+        if portal:
+            area, head, side, ceiling = portal
+            portal_wall(wall, area, profiles, head, side, ceiling)
         group(name, [('Limewash', wall, wall_material), ('Recessed panels', panel, dark), ('Oak mouldings', trim, oak)])
 
     # Both sides of the hall wrap onto the gables. The oak stops at the three portals.
     room_finish('ReceptionFinish', [
-        [(-21.82, -3.9), (-21.82, -15.82), (-6.18, -15.82), (-6.18, 1)],
-        [(-20.8, 3.82), (-21.82, 3.82), (-21.82, -2.1)],
+        [(-21.82, -3.9 - casing), (-21.82, -15.82), (-6.18, -15.82), (-6.18, 1)],
+        [(-20.8, 3.82), (-21.82, 3.82), (-21.82, -2.1 + casing)],
         [(-6.18, 3), (-6.18, 3.82), (-18.8, 3.82)],
-    ], 4.55, extra_plaster=[
+    ], 4.55, portal=(gatehouse, 'Porter’s door arched head', 1, 4.55), extra_plaster=[
         # Continue the same finish above the side soffits into the vault.
         ([(-21.82, -15.82), (-6.18, -15.82)], 4.55, 9),
         ([(-6.18, 3.82), (-21.82, 3.82)], 4.55, 9),
@@ -199,28 +209,27 @@ def build(temporary):
     ])
 
     room_finish('LodgeFinish', [
-        [(-22.18, -2.1), (-22.18, 0.82), (-28.82, 0.82), (-28.82, -6.82),
-         (-22.18, -6.82), (-22.18, -3.9)],
-    ], 0.944, height=0.88, extra_plaster=[
+        [(-22.18, -2.1 + casing), (-22.18, 0.82), (-28.82, 0.82), (-28.82, -6.82),
+         (-22.18, -6.82), (-22.18, -3.9 - casing)],
+    ], 0.944, height=0.88, portal=(gatehouse, 'Porter’s door arched head', -1, 3.8), extra_plaster=[
         # A lower dado fits below the sill. Leave the opening and its reveals in stone.
-        ([(-22.18, -2.1), (-22.18, 0.82), (-28.82, 0.82), (-28.82, -1.2)], 0.944, 3.8),
-        ([(-28.82, -4.8), (-28.82, -6.82), (-22.18, -6.82), (-22.18, -3.9)], 0.944, 3.8),
+        ([(-22.18, -2.1 + casing), (-22.18, 0.82), (-28.82, 0.82), (-28.82, -1.2)], 0.944, 3.8),
+        ([(-28.82, -4.8), (-28.82, -6.82), (-22.18, -6.82), (-22.18, -3.9 - casing)], 0.944, 3.8),
     ])
 
     room_finish('SchoolroomFinish', [
-        [(-18.12, 15.1), (-18.12, 12.18), (-11.48, 12.18), (-11.48, 19.82),
-         (-18.12, 19.82), (-18.12, 16.9)],
-    ], 4)
+        [(-18.12, 15.1 - casing), (-18.12, 12.18), (-11.48, 12.18), (-11.48, 19.82),
+         (-18.12, 19.82), (-18.12, 16.9 + casing)],
+    ], 4, portal=(gatehouse, 'Gatehouse schoolroom door arched head', 1, 4))
     room_finish('ReadingRoomFinish', [
-        [(-14.68, 32.9), (-14.68, 35.32), (-19.82, 35.32), (-19.82, 28.68),
-         (-14.68, 28.68), (-14.68, 31.1)],
-    ], 4)
+        [(-14.68, 32.9 + casing), (-14.68, 35.32), (-19.82, 35.32), (-19.82, 28.68),
+         (-14.68, 28.68), (-14.68, 31.1 - casing)],
+    ], 4, portal=(gatehouse, 'Reading room door arched head', -1, 4))
 
     # The vestibule belongs to the passage until its low opening into the taller range.
     wall, panel, trim, runner = Mesh(), Mesh(), Mesh(), Mesh()
     passage_plaster, passage_field, passage_trim = scholars_materials(temporary)
-    manifest = json.loads(FIRST_COURT_MANIFEST.read_text())
-    range_platforms = finish_source(manifest['areas'], 'east-range', key='id')['definition']['platforms']
+    range_platforms = east_range['platforms']
     south = platform_edge(finish_source(range_platforms, 'Vestibule south turn bay 1'), 'z', 1)
     north = platform_edge(finish_source(range_platforms, 'Vestibule north side bay 1'), 'z', -1)
     west = platform_edge(finish_source(range_platforms, 'Vestibule west reveal bay 1'), 'x', 1)
@@ -239,14 +248,23 @@ def build(temporary):
                                ('Passage mouldings', trim, passage_trim), ('Vestibule runner', runner, runner_material(temporary))])
 
     range_wall, range_panel, range_trim = Mesh(), Mesh(), Mesh()
+    exit_head = 'Library Court passage head'
+    exit_center = finish_source(east_range['environmentObjects'], exit_head)['z']
+    exit_half_width = profiles['pointedOak']['width'] / 2 + casing
+    exit_south, exit_north = exit_center - exit_half_width, exit_center + exit_half_width
     for path in [
-        [(10.18, 32.18), (41.82, 32.18), (41.82, 37.82), (40.4, 37.82)],
-        [(38.6, 37.82), (37.08, 37.82)],
-        [(33.92, 37.82), (26.9, 37.82)],
-        [(25.1, 37.82), (19.52, 37.82)],
+        [(10.18, 32.18), (41.82, 32.18), (41.82, exit_south)],
+        [(41.82, exit_north), (41.82, 37.82), (40.4 + casing, 37.82)],
+        [(38.6 - casing, 37.82), (37.08, 37.82)],
+        [(33.92, 37.82), (26.9 + casing, 37.82)],
+        [(25.1 - casing, 37.82), (19.52, 37.82)],
         [(16.48, 37.82), (10.18, 37.82), (10.18, 35)],
     ]:
         panelled_walls(range_wall, range_panel, range_trim, path, 4.5)
+    for head in ['Mathematics door arched head', 'Map store masonry head']:
+        portal_wall(range_wall, east_range, profiles, head, -1, 4.5)
+    portal_wall(range_wall, east_range, profiles, exit_head, -1, 4.5)
+    portal_wall(range_wall, east_range, profiles, exit_head, 1, 3.55)
     wall_faces(range_wall, [(10.18, 35), (10.18, 33)], 3.45, 4.5)
     oak_wall_plates(range_trim, [(10.18, 32.18), (41.82, 32.18), (41.82, 37.82), (37, 37.82),
                                  (37, 38), (34, 38), (34, 37.82), (10.18, 37.82), (10.18, 32.18)], 4.5)
@@ -256,9 +274,9 @@ def build(temporary):
 
     maths_plaster = reuse_wall_material('Aged lime plaster', 'Pale sage limewash', temporary, (0.71, 0.735, 0.64), 0.24)
     room_finish('MathematicsFinish', [
-        [(25.1, 38.18), (22.18, 38.18), (22.18, 45.82), (29.82, 45.82),
-         (29.82, 38.18), (26.9, 38.18)],
-    ], 4.1, maths_plaster)
+        [(25.1 - casing, 38.18), (22.18, 38.18), (22.18, 45.82), (29.82, 45.82),
+         (29.82, 38.18), (26.9 + casing, 38.18)],
+    ], 4.1, maths_plaster, portal=(east_range, 'Mathematics door arched head', 1, 4.1))
 
     stair = Mesh()
     wall_faces(stair, [(36.82, 38.0), (36.82, 42.57), (34.06, 42.57)], 0, 7.6)
@@ -266,8 +284,9 @@ def build(temporary):
 
     cloak_walls = Mesh()
     # The service room keeps washable plaster down to its stone plinth.
-    wall_faces(cloak_walls, [(-0.18, 23.9), (-0.18, 25.82), (-4.32, 25.82),
-                            (-4.32, 20.18), (-0.18, 20.18), (-0.18, 22.1)], 0.145, 4)
+    wall_faces(cloak_walls, [(-0.18, 23.9 + casing), (-0.18, 25.82), (-4.32, 25.82),
+                            (-4.32, 20.18), (-0.18, 20.18), (-0.18, 22.1 - casing)], 0.145, 4)
+    portal_wall(cloak_walls, cloister, profiles, 'Cloakroom door arched head', -1, 4)
     group('CloakroomFinish', [('Service limewash', cloak_walls, plaster)])
 
     copywork, geometry = Mesh(), Mesh()
