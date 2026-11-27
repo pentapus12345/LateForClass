@@ -976,13 +976,13 @@ test('Library Court Latin uses the shared school, exact deadline and normal retr
     const start = elements.get('start-button');
     start.dispatchEvent(new Event('click'));
     assert.equal(elements.get('schedule-room').textContent, 'Room 42');
-    assert.equal(elements.get('school-time').textContent, '09:05');
-    frames.shift()(54999);
+    assert.equal(elements.get('school-time').textContent, '09:30');
+    frames.shift()(29999);
     assert.equal(elements.get('start-screen').hidden, true);
-    frames.shift()(55000);
+    frames.shift()(30000);
     assert.equal(start.textContent, 'Retry');
     start.dispatchEvent(new Event('click'));
-    assert.equal(elements.get('school-time').textContent, '09:05');
+    assert.equal(elements.get('school-time').textContent, '09:30');
     assert.equal(renderers[0].camera.position.z, -13);
     const fallback = await loadGame(response, '?level=4&challenge=constructor');
     assert.equal(fallback.elements.get('schedule-room').textContent, 'Room 25');

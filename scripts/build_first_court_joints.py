@@ -12,7 +12,7 @@ import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True
 from build_vaulted_bays import Mesh, OUTPUT, SEGMENTS, elevation, door_material
-from build_scholars_passage import (
+from architectural_finishes import (
     FIRST_COURT_MANIFEST, OAK_CAP_DEPTH, PORTAL_CASING_WIDTH, PORTAL_WALL_HALF_DEPTH,
     WALL_FINISH_OFFSET, finish_quad, finish_source, passage_box, portal_edges, portal_wall, wall_faces,
 )

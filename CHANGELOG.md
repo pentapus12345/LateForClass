@@ -8,6 +8,24 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-27 — Correct visible streaming gaps and shader stalls in First Court
+
+- Aligned the Library Court sightline guards and prefetch approaches with the north porch, East Range, west walk, language lobby and candidates’ landing. Grouped the existing stair-well roof with the cloister skyline.
+- Registered the school's eleven fixed local light sources alongside its existing global lights. Area transitions triggered 33 GPU program links on the original exploration route and zero after the fix. The longest observed gap between presented frames fell from 58.33 to 33.33 ms on the reference desktop and from 75.00 to 41.67 ms with CPU and network constraints.
+- Passed 130 Node and 103 Chrome tests. The original 549-position sightline survey went from 91 uncovered positions to zero. Stage 2 is awaiting owner review. [Before/after evidence and Chrome traces](docs/milestone-21-library-court.md#stage-2-streaming-correction)
+
+### 2026-11-27 — Give Library Court its architectural identity
+
+- Fitted the Old Library and its accessible gallery with oak, bookcases, warm pendants and a furnished reading floor. Distinguished the later North Teaching Range from the Court arcade, book-carriers’ service corridor and former candidates’ entrance. Finished three glazed future bays and retained the First Court tower view.
+- Reused the existing furniture and the shared offline architectural profiles. One area-variant GLB supplies the district finishes. Both First Court finish assets rebuilt byte-identically after the shared helpers moved.
+- Passed 129 Node and 101 Chrome tests, 68 matched residency comparisons and the injected model-load failure and retry. Peak startup was 8,334,785 B and traversal p95 was 9.2 ms, with zero ordinary loading holds. Stage 2 awaits visual and gameplay review with the configured 30-second Latin trial. [Matched screenshots and results](docs/milestone-21-library-court.md#stage-2-as-built)
+
+### 2026-11-27 — Give Library Court two historic passage circuits
+
+- Connected the Book Office crossroads to the Old Library through a book-carriers’ passage, and the northwest arcade to Latin through a former candidates’ entrance behind History. Seven new signs and the revised fork board distinguish the formal approaches from the direct teaching route.
+- Verified both circuits in both directions, both Mathematics routes, three Latin journeys, the gallery, four door swings across area retirement, and restart. Direct Latin arrived at 09:33 and the two historic passages at 09:37. All 128 Node and 100 shared Chrome tests passed.
+- Cold startup increased by 6,698 B. Sampled decoded assets peaked at 63.99 MiB, frame p95 at 9.2 ms, with zero ordinary-play holds. Stage 1A awaits owner review. Latin’s 55-second allowance awaits a blind playtest. [Annotated plan, captures and measurements](docs/milestone-21-library-court.md#stage-1a-as-built)
+
 ### 2026-11-27 — Open the Library Court walkable blockout
 
 - Connected East Range to three new areas around Library Court. Added Rooms 31–33 and 41–45, a public stair and 2.4 m upper gallery in the Old Library, and paths around both sides of the court.

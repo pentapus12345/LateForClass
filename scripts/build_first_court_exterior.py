@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True
 from build_collegiate_bay import finish_tile
 from build_courtyard import pointed_head
 from build_first_court_joints import finish, sampled_stone
-from build_scholars_passage import passage_box
+from architectural_finishes import passage_box
 from build_vaulted_bays import Mesh, OUTPUT
 
 

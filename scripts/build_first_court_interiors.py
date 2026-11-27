@@ -13,7 +13,7 @@ sys.dont_write_bytecode = True
 from build_vaulted_bays import Mesh, OUTPUT
 from build_collegiate_bay import material_with_image
 from build_first_court_joints import finish
-from build_scholars_passage import (
+from architectural_finishes import (
     FIRST_COURT_MANIFEST, PORTAL_CASING_WIDTH, finish_source, oak_ties, oak_wall_plates, panelled_walls,
     passage_box, platform_edge, portal_wall, reuse_wall_material, runner_material, runner_strip, scholars_materials,
     scholars_panelling, wall_faces,

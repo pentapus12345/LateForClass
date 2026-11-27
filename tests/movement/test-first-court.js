@@ -15,7 +15,7 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             for (const id of world.areas.keys()) {
                 world.activateArea(id);
             }
-            run(world, scene);
+            await run(world, scene);
         } finally {
             world.dispose();
         }
@@ -213,7 +213,83 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
         }
     });
 
+    test('First Court requests scenery before the corner and guards views in either direction', () =>
+        withSchool(async world => {
+            for (const [id, approach, view] of [
+                ['library-gallery', [2.5, 25], [2.5, 30.2]],
+                ['library-gallery', [18, 42], [18, 41]],
+                ['north-teaching', [37, 35], [45.3, 35]],
+                ['book-passage', [40, 35], [45.3, 35]]
+            ]) {
+                // The previous view had all areas resident. Retire the destination
+                // and inspect the upcoming physics step before its load resolves.
+                for (const area of world.areas.values()) {
+                    area.keepUntil = 500;
+                }
+                world.unloadArea(id);
+                check(!world.updateResidency({ x: approach[0], z: approach[1] }, 0, 0.4),
+                    'Premature hold on approach to ' + id);
+                const pending = world.area(id).streaming;
+                check(pending, 'No request before the turn to ' + id);
+                check(world.updateResidency({ x: view[0], z: view[1] }, 1, 0.4) === id,
+                    'Pending scenery could be revealed at ' + view);
+                await pending;
+                check(world.passageState(id) === 'ready', 'Passage did not become ready');
+            }
+        }));
+
     if (typeof window !== 'undefined') {
+        test('First Court corridor panoramas match all six areas using only guaranteed residency', () =>
+            withSchool((world, scene) => {
+                const renderer = new THREE.WebGLRenderer();
+                const target = new THREE.WebGLRenderTarget(384, 216);
+                const camera = new THREE.PerspectiveCamera(80, 16 / 9, 0.1, 160);
+                const full = new Uint8Array(target.width * target.height * 4);
+                const resident = full.slice();
+                scene.background = new THREE.Color(manifest.skyColor);
+                scene.fog = new THREE.Fog(manifest.skyColor, GAME_CONFIG.fogNear, GAME_CONFIG.fogFar);
+                const capture = buffer => {
+                    renderer.render(scene, camera);
+                    renderer.readRenderTargetPixels(target, 0, 0, target.width, target.height, buffer);
+                };
+                try {
+                    renderer.setRenderTarget(target);
+                    for (const level of world.active.values()) {
+                        for (const door of level.doors) {
+                            level.swingDoor(door, 1);
+                        }
+                    }
+                    for (const [x, y, z] of [[2.5, 0, 33.5], [18, 0, 38.4], [48, 0, 35],
+                        [48, 0, 39], [64.45, 0, 75.8], [58, 0, 84], [45.3, 2.4, 62]]) {
+                        const optional = [...world.areas].filter(([, area]) =>
+                            !area.required.some(region => withinRegion({ x, z }, region))).map(([id]) => id);
+                        for (const h of [1.6, 2.55]) {
+                            for (const [dx, dz] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+                                camera.position.set(x, y + h, z);
+                                camera.lookAt(x + dx, y + h, z + dz);
+                                capture(full);
+                                const programs = renderer.info.programs.length;
+                                for (const id of optional) {
+                                    world.deactivateArea(id);
+                                }
+                                capture(resident);
+                                check(renderer.info.programs.length === programs,
+                                    'Retirement compiled a new shader for the same view at ' + [x, z]);
+                                check(full.every((value, i) => Math.abs(value - resident[i]) <= 1),
+                                    'Visible unloaded area at ' + [x, y + h, z, dx, dz]);
+                                for (const id of optional) {
+                                    world.activateArea(id);
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    renderer.setRenderTarget(null);
+                    target.dispose();
+                    renderer.dispose();
+                }
+            }));
+
         test('First Court unload leaves the same rendered scenery and lighting at sheltered viewpoints', async () => {
             const world = new World(schoolFromManifest(manifest), GAME_CONFIG, levelsUrl);
             const scene = new THREE.Scene();
@@ -529,7 +605,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                 [-14.5, 32, 1, 0, true], [0, 23, 1, 0, true], [26, 38, 0, -1, true], [39.5, 38, 0, -1, false],
                 [46.5, 45, 1, 0, true], [46.5, 54.5, 1, 0, true], [46.5, 62, 1, 0, true],
                 [50, 73.5, 0, -1, true], [61, 77, 1, 0, true], [65, 77, -1, 0, true],
-                [79.3, 62.5, -1, 0, true], [79.3, 55, -1, 0, false]
+                [79.3, 62.5, -1, 0, true], [79.3, 55, -1, 0, false],
+                [40, 58.5, 0, -1, true], [58.5, 81.5, 0, 1, true]
             ]) {
                 const threshold = { x, y: 0, z };
                 const approach = { x: x + dx, y: 0, z: z + dz };
@@ -604,7 +681,7 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                 for (const [x, z] of path.slice(1)) {
                     await walk(x, z);
                     if (x === 63 && z === 77) {
-                        const door = world.active.get('north-teaching').doors.find(item => item.definition.roomId === 'north-latin');
+                        const door = world.active.get('north-teaching').doors.find(item => item.definition.id === 'north-latin');
                         if (loop === 0) {
                             await walk(62.05, 77);
                             check(world.openDoor(player.position), 'Latin door would not open');
@@ -629,7 +706,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             scene.updateMatrixWorld(true);
             const entry = new THREE.Raycaster(new THREE.Vector3(39, 1.6, 35), new THREE.Vector3(1, 0, 0));
             const entryHit = entry.intersectObjects(scene.children, true).find(hit => hit.object.isMesh && hit.object.visible);
-            check(entryHit?.object.name === 'West walk east wall', 'An obsolete East Range surface spans the portal');
+            check(Math.abs(entryHit?.point.x - 49.312) < 0.02,
+                'The East Range sightline ends before the far wall of the district');
             await walk(48, 62);
             for (const [x, z] of [[63, 81.5], [79.3, 50.35], [64, 48.7], [76.7, 60]]) {
                 check(world.isBlocked({ x, y: 0.9, z }, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight),
@@ -656,6 +734,84 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             world.dispose();
         }
     });
+
+    test('Library Court shares its fitted model and keeps each Latin surround out of the opening', () =>
+        withSchool((world, scene) => {
+            const [gallery, teaching, books] = ['library-gallery', 'north-teaching', 'book-passage'].map(id =>
+                world.area(id).level);
+            const finishModel = [...gallery.models.keys()].find(path => path.endsWith('/library_court.glb'));
+            check(finishModel && teaching.models.get(finishModel) === gallery.models.get(finishModel) &&
+                books.models.get(finishModel) === gallery.models.get(finishModel), 'District copied the finish template');
+            scene.updateMatrixWorld(true);
+            const oriel = new THREE.Raycaster(new THREE.Vector3(46.4, 2.6, 62.5),
+                new THREE.Vector3(0, -1, 0), 0, 0.25);
+            const deck = oriel.intersectObjects(gallery.objects, true).find(hit => hit.object.isMesh);
+            check(deck?.object.material.name === 'Worn oak', 'The projecting window deck exposes a bare door head');
+            const fittings = scene.getObjectByName('NorthTeaching fitted surfaces');
+            for (const [doorId, start, across, direction, finish] of [
+                ['north-latin', [62.05, 0, 77], [61, 1.55, 77], [0, 0, 1], 'Painted olive joinery'],
+                ['north-latin-candidates', [58.5, 0, 82.55], [58.5, 1.55, 81.5], [1, 0, 0], 'Dressed limestone']
+            ]) {
+                const door = teaching.doors.find(item => item.definition.id === doorId);
+                check(door.panel.children.length === 1, 'Door is missing its finished leaf');
+                const [x, y, z] = start;
+                check(world.openDoor({ x, y, z }), 'Cannot open ' + doorId);
+                check(!world.isBlocked({ x: across[0], y: 0, z: across[2] },
+                    GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight), 'Finished surround obstructs ' + doorId);
+                const ray = new THREE.Raycaster(new THREE.Vector3(...across), new THREE.Vector3(...direction), 0, 0.8);
+                const first = ray.intersectObject(fittings, true)[0];
+                check(first?.object.material.name === finish && Math.abs(first.distance - .774) < .005,
+                    'Ill-fitting jamb at ' + doorId);
+            }
+            world.toggleDebugView();
+            check(!fittings.visible && scene.getObjectByName('Library gallery guard collision').visible,
+                'Architectural finish obscures the collision view');
+        }));
+
+    for (const reverse of [false, true]) {
+        test('Library Court passage circuits work with doors first opened from the ' +
+            (reverse ? 'reverse' : 'forward') + ' approach', () => withSchool((world, scene) => {
+            // Stop within interaction range on both sides. Each direction starts with all doors closed.
+            const circuits = [
+                { room: 'old-library', route: [[48, 49.25], [40, 49.25], [40, 57.45, 'old-library-carriers'],
+                    [40, 59.55, 'old-library-carriers'], [40, 62], [45.45, 62, 'old-library'],
+                    [47.55, 62, 'old-library'], [48, 62], [48, 49.25]], interior: [40, 62] },
+                { room: 'north-latin', route: [[48, 72], [44.4, 72], [44.4, 82.5], [56.85, 82.5],
+                    [56.85, 83.75], [58.5, 83.75], [58.5, 82.55, 'north-latin-candidates'],
+                    [58.5, 80.45, 'north-latin-candidates'], [58.5, 77], [59.95, 77, 'north-latin'],
+                    [62.05, 77, 'north-latin'], [63, 77], [63, 72], [48, 72]], interior: [58.5, 77] }
+            ];
+            const player = new Player(GAME_CONFIG);
+            for (const { room, route, interior } of circuits) {
+                const path = reverse ? [...route].reverse() : route;
+                const [startX, startZ] = path[0];
+                player.resetPosition({ x: startX, y: 0, z: startZ }, null, world);
+                player.pressAction('moveForward');
+                const opened = new Set();
+                for (const [x, z, door] of path.slice(1)) {
+                    const dx = x - player.position.x;
+                    const dz = z - player.position.z;
+                    player.turnCamera(Math.atan2(-dx, -dz) - player.yaw, 0);
+                    player.update(Math.hypot(dx, dz) / GAME_CONFIG.moveSpeed, world);
+                    check(player.isGrounded && Math.hypot(player.position.x - x, player.position.z - z) < 0.001,
+                        'Broken circuit at ' + [x, z]);
+                    if (door && !opened.has(door)) {
+                        check(world.nearbyDoor(player.position)?.door.definition.id === door &&
+                            world.openDoor(player.position), 'Cannot open ' + door + ' at ' + [x, z]);
+                        opened.add(door);
+                    }
+                    if (x === interior[0] && z === interior[1]) {
+                        check(world.getEnteredRoomId(player.position) === room, 'Wrong room after doorway');
+                    }
+                }
+            }
+            world.toggleDebugView();
+            for (const name of ['Carriers return floor', 'Candidates north return floor']) {
+                check(scene.getObjectByName(name + ' collision').visible && !scene.getObjectByName(name).visible,
+                    'Missing passage collision outline for ' + name);
+            }
+        }));
+    }
 
     test('The entire First Court loop is walkable in both directions with all room doors closed', () =>
         withSchool(world => {
