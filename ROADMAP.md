@@ -1053,7 +1053,7 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 
 ### 20. Large-school area and connection architecture
 
-**Status:** In Progress. The product owner approved the seven-room [First Court layout](docs/first-court-blockout.md). Area streaming is implemented and ready for product-owner review. The timed trial remains the default and the developer entry supports untimed inspection. [Streaming evidence and open benchmark gates](docs/milestone-20-new-school.md#8-streaming-stage-implementation-and-evidence)
+**Status:** Implementation complete, pending milestone approval. The seven-room [First Court layout](docs/first-court-blockout.md) now has three streaming areas with the four visual stages and the requested architectural finish pass implemented. The timed trial is the default and the developer entry supports untimed inspection. [Milestone 20 review](docs/milestone-20-new-school.md#9-final-milestone-20-review)
 
 **Complexity:** Large
 
@@ -1065,7 +1065,9 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 
 **Acceptance criteria:** The default first-time experience creates an immediate, fair sense of urgency: a timed start, a legible but not prescriptive route choice, room plaques, a recoverable wrong turn, and intriguing optional spaces the player may wish to revisit. Test with at least one unfamiliar player in timed mode before showing them the map or explore mode. The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
 
-**Stage decision and remaining work:** Stage V1 is provisionally accepted. Stage V2's architectural repairs are ready for review. The startup budget remains open. Furnishing, exterior composition, unfamiliar-player validation and final milestone acceptance are separate review items. [Stage V2 evidence](docs/first-court-visual-spec.md#9-stage-v2-architectural-geometry-review)
+**Stage decision and remaining work:** Stage V1 is provisionally accepted, the product owner accepted Stage V2 and marked Stage V3 complete, and Stage V4 and the finish pass are ready for visual approval. First Court meets its measured performance targets. Unfamiliar-player validation, the legacy prototype’s startup byte exception and final milestone approval remain open. [Finish gallery and results](docs/first-court-visual-spec.md#12-architectural-finish-consistency-pass)
+
+The product owner approved the offline finish preset pilot in Scholars’ Passage and the East Range vestibule as the foundation for future school expansion. Both exports match the finish-pass assets byte for byte. [Authoring notes and verification](docs/first-court-visual-spec.md#offline-finish-preset)
 
 **Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
 
@@ -1080,6 +1082,8 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 **Scope:** Add a connected set of distinctive locations, chosen and approved individually from a maintenance room/passage, cafeteria kitchen, changing room/showers, courtyard, and football-field path. Start with one indoor service shortcut and one traversable exterior route; use the approved architectural assets and lighting styles. Give each route visual clues and navigational purpose rather than treating it as decoration. Preserve room numbering, scheduling and fair deadlines.
 
 **Dependencies:** Milestones 18–20, plus approved route layout and individual environment choices.
+
+**Technical follow-up for the next expansion.** While implementing another area, assess whether moving the reusable finish functions and presets from `build_scholars_passage.py` into a neutral architectural finishing module would make them easier to reuse. Extract them only when that area demonstrates a concrete reuse benefit. Keep bespoke junctions, runner lengths and intentional architectural variations explicitly authored where appropriate.
 
 **Acceptance criteria:** One challenge has at least two meaningful routes, including an optional service or outdoor passage. The player can infer and traverse them using in-world clues; doors, floors, exits, collision, lighting and level transitions function. The route is tested for fairness and browser performance.
 

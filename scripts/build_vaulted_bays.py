@@ -56,14 +56,15 @@ class Mesh:
         ]:
             self.quad(points, [tuple((p[axis] + uv_shift[axis]) / period for axis in axes) for p in points])
 
-    def make_object(self, name, material):
+    def make_object(self, name, material, use_uv=True):
         data = bpy.data.meshes.new(name)
         data.from_pydata(self.vertices, [], self.faces)
         data.update()
-        uv = data.uv_layers.new()
-        for face, coordinates in zip(data.polygons, self.uv):
-            for index, texcoord in zip(face.loop_indices, coordinates):
-                uv.data[index].uv = texcoord
+        if use_uv:
+            uv = data.uv_layers.new()
+            for face, coordinates in zip(data.polygons, self.uv):
+                for index, texcoord in zip(face.loop_indices, coordinates):
+                    uv.data[index].uv = texcoord
         obj = bpy.data.objects.new(name, data)
         bpy.context.collection.objects.link(obj)
         obj.data.materials.append(material)

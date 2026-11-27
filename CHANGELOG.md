@@ -8,6 +8,33 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-27 — Reuse the Scholars’ Passage finish preset
+
+- The Gatehouse passage and East Range vestibule builders share the Scholars’ oak, limewash and runner defaults. They read straight wall faces and supported opening dimensions from the First Court manifest, while fitted junctions and runner lengths stay explicitly authored.
+- Both rebuilt runtime GLBs match their pre-change bytes. A temporary manifest test verified that moved walls and a resized arched opening move the derived finishes, and that missing, duplicate or misaligned sources fail the build. All 123 Node and 96 Chrome tests passed. The product owner approved the pilot as the foundation for future school expansion. [Authoring notes](docs/first-court-visual-spec.md#offline-finish-preset)
+
+### 2026-11-27 — Make First Court’s architectural finishes consistent
+
+- Carried the existing profiled oak, limewash, runner and ceiling assembly through Scholars’ Passage, the Reading Room leg, the cross passage and the East Range vestibule. Fitted the panel returns and doorway stops to the existing geometry.
+- Completed the reception, teaching and reading room wall finishes. Used a lower dado in the lodge and a stone plinth in the cloakroom. Continued the cloister stone through its porches and fitted the East Range and lookout reveals.
+- Captured 29 matched Chrome views. All 123 Node and 96 Chrome tests passed. The timed and untimed walks, restart, and 1,877-pose streaming visibility sweep passed.
+- Peak startup transfer was 8,372,705 B against the 8 MiB limit. Timed routes peaked at 8.4 ms p95 with zero streaming holds. The finish pass awaits visual review. [Gallery and verification](docs/first-court-visual-spec.md#12-architectural-finish-consistency-pass)
+
+### 2026-11-27 — Finish First Court’s courtyard and tower
+
+- Rebuilt the existing tower as a limestone belfry with recessed louvres, a crenellated crown and four pinnacles. The same tower anchors both the cloister and stair lookout views.
+- Varied the existing ranges with lancets, tall transomed hall windows, flat-headed mullioned windows and continuous slate roof sections. Added a flagstone walk, clipped lawn, and a small date plaque by the court gate.
+- Fitted the cloister piers and coping, north porch wall, and the teaching roof and plinth below the lookout. Closed a jump-height sightline to an unloaded stair roof with the far court gable.
+- All 123 Node and 96 Chrome tests passed. Both timed routes, both directions of the untimed loop, restart and area-load recovery passed. The visibility sweep found zero absent-area pixels across 1,877 poses.
+- First Court startup peaked at 8,317,781 B, 70,827 B under 8 MiB. Peak estimated decoded assets were 59.87 MiB. Timed runs peaked at 9.2 ms p95 with zero streaming holds. Stage V4 awaits visual approval, with unfamiliar-player validation and the existing legacy startup exception still open. [V4 gallery and measurements](docs/first-court-visual-spec.md#11-stage-v4-courtyard-tower-and-final-review)
+
+### 2026-11-26 — Furnish First Court’s teaching and public rooms
+
+- Replaced the teaching furniture placeholders in Rooms 14 and 25 with optimized shared furniture, with copywork in the schoolroom and a geometry exercise in Mathematics. Furnished the Reading Room with bookcases, a reading table, upholstered chairs, a rug and a warm lantern.
+- Fitted the lodge counter, pigeonholes and waiting bench. Added selective oak and limewash in reception and East Range, a working-room peg shelf in the cloakroom and one plaque in the stone arcade.
+- All 122 Node and 95 Chrome tests passed, including streaming continuity and retained-resource checks. Chrome reached Room 25 via both routes and completed the untimed loop in both directions.
+- First Court startup measured 7,596,007–7,596,342 B, down about 1.10 MB from V2 and below the unchanged 8 MiB gate. Peak estimated decoded assets fell to 57.89 MiB. Standard routes had a 9.1 ms p95 and zero streaming holds. V3 awaits visual review. [Matched Chrome views and measurements](docs/first-court-visual-spec.md#10-stage-v3-furnishings-and-room-identities)
+
 ### 2026-11-26 — Repair First Court’s architectural joins
 
 - Joined the separate Scholars’ Passage plaster faces at the bright corner seam. Set the reception soffits back from the vault masonry and fitted the gable tops to the existing profile.

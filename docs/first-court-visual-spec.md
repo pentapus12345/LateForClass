@@ -1,10 +1,10 @@
 # First Court — visual quality specification and defect review
 
-**Status:** Stage V1 is provisionally accepted. Stage V2 is implemented and awaits product-owner review. Stage V3 and V4 remain proposed.
+**Status:** Stage V1 is provisionally accepted. The product owner accepted Stage V2 and marked Stage V3 complete. Stage V4 and the subsequent architectural finish pass await product-owner review.
 
 **Scope:** The existing seven-room First Court, without layout changes, additional rooms, inventory, changes to the Mathematics timetable, or changes to the approved area-streaming architecture.
 
-**References:** [Visual target sheet](first-court-visual-references.md) · [Current screenshots](references/first-court-visual-review/review-contact-sheet.jpg) · [Established historic-school reference](historic-school-reference.md) · [Historic slice](historic-slice.md) · [First Court blockout](first-court-blockout.md) · [Product vision](../VISION.md).
+**References:** [Visual target sheet](first-court-visual-references.md) · [Original defect photos](references/first-court-visual-review/review-contact-sheet.jpg) · [Finish consistency screenshots](#12-architectural-finish-consistency-pass) · [Stage V4 screenshots](#11-stage-v4-courtyard-tower-and-final-review) · [Established historic-school reference](historic-school-reference.md) · [Historic slice](historic-slice.md) · [First Court blockout](first-court-blockout.md) · [Product vision](../VISION.md).
 
 ## 1. Creative objective
 
@@ -190,4 +190,237 @@ All 121 Node and 94 Chrome tests passed. The new ray tests hit both plaster face
 
 One cold Chrome reference start at 1920 × 1080, DPR 1, 25 Mbit/s and 40 ms recorded 8,695,772 B and 3.188 s to Start. Compared with the V1 reference maximum, V2 adds 111,730 B and stands 307,164 B above the existing 8 MiB gate. The unthrottled route ran at 9.1 ms p95, with a 41.7 ms largest frame near activation and zero streaming holds. Chrome released pointer lock twice at the start of that capture, so the driver resumed and frame statistics cover active play. Decoded storage peaked at an estimated 70.06 MiB in the three-area overlap, up from V1's 69.65 MiB. Shared JavaScript and the legacy level assets carry zero V2 byte delta.
 
-The known classroom furnishing and exterior composition issues, including the tower’s simple silhouette, remain for their proposed stages. The architectural sample awaits owner review.
+The product owner accepted the architectural corrections and approved the furnishing stage below. Exterior composition, including the tower’s simple silhouette, remains within Stage V4.
+
+## 10. Stage V3 furnishings and room identities
+
+| Place | Furnishings and finishes |
+| --- | --- |
+| Room 14, Gatehouse Schoolroom | Shared teacher’s desk and standing slate beside the existing rows of student desks and chairs. Large chalk copywork, a recitation notice and amber light mark the teaching wall. |
+| Room 15, Reading Room | Two bookcases with books at different heights, a reading table with two upholstered chairs, a sage and russet rug, a framed cloister study and a warm lantern. The table and chairs sit to one side of the entrance. |
+| Room 12, Porter’s Lodge | Oak enquiries counter with pigeonholes, post, a ledger and a bell. The bench and waiting notice sit beside the existing yard window. |
+| Reception and East Range | Reception has broad fitted oak bays beneath the vault, the existing framed portrait style and a term noticeboard. East Range has short stretches of oak and a lesson noticeboard in the plastered bay between the classroom and stair. |
+| Room 24 and West Cloister | A work lantern, shelf and two aprons sit over the cloakroom pegs. The stone arcade has a small foundation plaque. |
+| Room 25, Mathematics | Matching teaching furniture keeps the central aisle clear. A triangle exercise on the slate, a geometry assignment and a pale sage teaching wall distinguish it from Room 14. |
+
+The room plans, wall and floor collision, original passage widths, door definitions and room arrival regions match V2. The lodge counter and bench retain their collision footprints. Replaced and newly placed room furniture uses fitted bounds. Wall dressings, notices and the rug contribute no collision. Each fitting and light belongs to its area through the existing model catalog and lighting lifecycle.
+
+Build the fitted groups with `blender -b --python-exit-code 1 --python scripts/build_first_court_interiors.py`. The 211,440 B GLB uses the established limewash and oak materials. The six smaller furniture GLBs in `assets/models/runtime/first-court/` are reproducible from the same-named models in `assets/models/runtime/` with `scripts/optimize_glb.py` and macOS `sips`. Use `--max-edge 512` for the student desk and display shelves, 256 for the teacher’s desk, chalkboard and green chair, and 128 for the book set. These variants are specific to First Court.
+
+### Matched first-person views
+
+Each V2 and V3 pair uses the same player position, eye height, look target, door state and 1440 × 900 Chrome viewport.
+
+| View | Before | Stage V3 |
+| --- | --- | --- |
+| Room 14, Gatehouse Schoolroom | [Before](references/first-court-v3/room-14-before.jpg) | [After](references/first-court-v3/room-14-after.jpg) |
+| Room 15, Reading Room | [Before](references/first-court-v3/room-15-before.jpg) | [After](references/first-court-v3/room-15-after.jpg) |
+| Room 25, Mathematics | [Before](references/first-court-v3/room-25-before.jpg) | [After](references/first-court-v3/room-25-after.jpg) |
+| Reception hall | [Before](references/first-court-v3/reception-before.jpg) | [After](references/first-court-v3/reception-after.jpg) |
+| Porter’s counter | [Before](references/first-court-v3/lodge-before.jpg) | [After](references/first-court-v3/lodge-after.jpg) |
+| Lodge waiting area and yard window | [Before](references/first-court-v3/lodge-waiting-before.jpg) | [After](references/first-court-v3/lodge-waiting-after.jpg) |
+| East Range corridor | [Before](references/first-court-v3/east-range-before.jpg) | [After](references/first-court-v3/east-range-after.jpg) |
+| East Range notice and stair | [Before](references/first-court-v3/east-range-notice-before.jpg) | [After](references/first-court-v3/east-range-notice-after.jpg) |
+| Room 24, Cloakroom | [Before](references/first-court-v3/cloakroom-before.jpg) | [After](references/first-court-v3/cloakroom-after.jpg) |
+| West Cloister | [Before](references/first-court-v3/cloister-before.jpg) | [After](references/first-court-v3/cloister-after.jpg) |
+
+[Room 14 with V collision outlines](references/first-court-v3/collision-outline.jpg)
+
+### Verification
+
+All 122 Node and 95 Chrome regression tests passed. The furnishing test checks that the two teaching rooms share desk and board geometry, the reading books fit their cases, the rug sits clear of the floor, room IDs resolve inside their existing arrivals and the classroom aisles remain clear. Chrome compared the furnished gatehouse interiors with East Range loaded and unloaded. A separate WebGL sweep found zero absent-area pixels across 1,877 standing and jump-height poses. Existing streaming regressions passed, including ten alternating loops with reversals, stable retained resources, restored door swings, and slow-load recovery and retry.
+
+The desktop timed walks arrived in Room 25 at 08:30 via the cloister and at 08:35 via Scholars’ Passage, including a wrong turn into Room 14. Untimed play visited all five accessible rooms and returned to the lodge on the reverse loop with V enabled. The two staff doors stayed restricted. The driver resumed after Chrome released Pointer Lock during the walks.
+
+### Performance against V2
+
+Measured in desktop Chrome 158 on the Apple M5 Pro with ANGLE Metal at 1920 × 1080, DPR 1. Three starts used a disabled cache, 25 Mbit/s and 40 ms latency. The timed cloister routes were unthrottled after Start. The driver resumed on external Pointer Lock pauses and frame timings cover active play.
+
+| Metric | V2 reference | V3 reference |
+| --- | ---: | ---: |
+| First Court startup resource bodies | 8,695,772 B | 7,596,007–7,596,342 B |
+| Median time to Start | 3.188 s on one start | 2.844 s |
+| GLB bodies at startup | 7,786,336 B | 6,679,404 B |
+| Manifest | 67,617 B | 75,119 B |
+| Shared JavaScript and levels index | 100,161 B and 41,041 B | 100,161 B and 41,041 B |
+| Full first visit resource bodies | 8,695,772 B | 7,596,007–7,596,342 B |
+| Estimated peak decoded assets | 70.06 MiB | 57.89 MiB |
+| Route p50 frame intervals | 8.3 ms | 8.3 / 8.3 / 8.3 ms |
+| Route p95 frame intervals | 9.1 ms | 9.1 / 9.1 / 9.1 ms |
+| Maximum frame within ±1 s of East Range activation | 41.7 ms | 33.3 / 33.4 / 25.8 ms |
+| Maximum frame within ±1 s of Gatehouse reactivation | 9.4 ms | 9.4 / 9.4 / 9.3 ms |
+| East Range request to first activation | 8.4 ms | 7.0 / 5.2 / 2.5 ms |
+| Gatehouse request to reactivation | 10.2 ms | 4.6 / 9.1 / 9.3 ms |
+| Streaming holds | 0 | 0 / 0 / 0 |
+
+The worst V3 startup was 1,099,430 B smaller than V2 and 792,266 B below the 8 MiB gate. First Court’s smaller student desk and shelving textures saved 2,723,452 B. The four additional furniture variants and fitted interiors added 1,616,520 B. The manifest added 7,502 B. The first visit issued no additional GLB requests after Start.
+
+The fourth benchmark, via Scholars’ Passage, reached Room 25 at 08:34. Its p50 and p95 were 8.3 ms and 9.2 ms, its largest frame near an activation was 33.4 ms, and it recorded zero holds. East Range and the cloister activated in 6.1 and 7.3 ms respectively.
+
+The decoded estimate counts 2,197,470 geometry-buffer bytes and 58,504,748 bytes of mipmapped texture data in shared templates and live placements. At the sampled three-area overlap, Chrome reported 384 uploaded geometries and 98 uploaded textures, with zero shadow maps. The stable retained counts after ten alternating loops were verified by the regression suite.
+
+The product owner marked V3 complete. The legacy prototype’s previously measured 2,688 B startup overage remained open at this stage. The legacy entry and its runtime resources have no V3 byte delta.
+
+## 11. Stage V4 courtyard, tower and final review
+
+The belfry has stepped limestone courses, alternating quoins, twin recessed louvred openings on all four faces, and a crenellated crown with four pointed pinnacles. It stands on the existing tower axis at X 17.7, Z 28.5 and remains owned by West Cloister. From the stair lookout, the crown rises above the lower teaching-room slate roof.
+
+The existing ranges have three window rhythms. The east range surrounds a gabled oak gate and small dated plaque with paired lancets. The north range has taller transomed hall windows, and the low south and arrival ranges have flat-headed mullioned windows. The panes sit behind masonry reveals. Continuous slate courses and closed roof ends replace repeated overlapping roof sections. Pale flags and a clipped lawn bring the court to the foot of the ranges, with a wider path beside the tower.
+
+The textured stone piers meet the arcade caps at the original springing height. The coping follows the original barrier. At the north passage, the end wall uses the existing vault stone. The roof over Room 25 and the stonework beneath the lookout terminate against the existing walls and reveals. One edge of the distant stair roof was briefly visible through the south porch at jump height during the first V4 sweep. A full gable at the far court junction closes that gap. The original layout, colliders, apertures, navigation signs, door definitions, streaming regions and timetable match V3.
+
+The exterior uses one First Court runtime GLB with area-owned variants, the existing vault stone texture and compact ashlar, slate and lawn textures. Rebuild it with `blender -b --python-exit-code 1 --python scripts/build_first_court_exterior.py`.
+
+### Matched first-person views
+
+Each pair uses the same camera position, eye height, look target and 1440 × 900 viewport in Chrome. The two tower views use the original cloister and stair lookout positions.
+
+| View | V3 | V4 |
+| --- | --- | --- |
+| Tower from the cloister | [Before](references/first-court-v4/cloister-tower-before.jpg) | [After](references/first-court-v4/cloister-tower-after.jpg) |
+| Tower from the lookout | [Before](references/first-court-v4/lookout-tower-before.jpg) | [After](references/first-court-v4/lookout-tower-after.jpg) |
+| East range and gate across the court | [Before](references/first-court-v4/cloister-court-before.jpg) | [After](references/first-court-v4/cloister-court-after.jpg) |
+| Lawn and flagstones at jump height | [Before](references/first-court-v4/cloister-lawn-before.jpg) | [After](references/first-court-v4/cloister-lawn-after.jpg) |
+| Lookout recess | [Before](references/first-court-v4/lookout-recess-before.jpg) | [After](references/first-court-v4/lookout-recess-after.jpg) |
+| North cloister and range approach | [Before](references/first-court-v4/cloister-north-before.jpg) | [After](references/first-court-v4/cloister-north-after.jpg) |
+| Porter’s Lodge and yard | [Before](references/first-court-v4/lodge-yard-before.jpg) | [After](references/first-court-v4/lodge-yard-after.jpg) |
+
+The completed route moves from the tall public reception to warm oak in Scholars’ Passage, austere stone and daylight in the cloister, and the practical teaching bays and furnishings of East Range. [Reception](references/first-court-v4/reception-after.jpg) · [Scholars’ Passage](references/first-court-v4/scholars-passage-after.jpg) · [East Range](references/first-court-v4/east-range-after.jpg) · [Reading Room](references/first-court-v4/reading-room-after.jpg) · [Room 14](references/first-court-v4/schoolroom-after.jpg) · [Room 25](references/first-court-v4/mathematics-after.jpg) · [Parapet and tower in V collision view](references/first-court-v4/collision-outline.jpg)
+
+### Visual defect register
+
+| Defect | Review evidence |
+| --- | --- |
+| FC-V01, FC-V03 | V2 corrected reception soffit overlap and vault support, and V3 fitted the lower oak bays. [Reception joins](#9-stage-v2-architectural-geometry-review) |
+| FC-V02 | V1 fitted Scholars’ Passage and V2 removed the bright corner seam. [Passage views](#8-stage-v1-sample-for-visual-review) |
+| FC-V04 | V4 established the shared belfry landmark, pane reveals, masonry and distinct roof profiles. Both views appear above. |
+| FC-V05 | V2 closed the exposed recess below the lookout. V4 fitted the visible roof, coping and plinths to the existing walls. See the lookout recess pair above. |
+| FC-V06 | V3 replaced the classroom placeholders with optimized desks and standing chalkboards. [Furnished rooms](#10-stage-v3-furnishings-and-room-identities) |
+| FC-V07, FC-V08 | V2 closed both vault ends and connected the ribs and north soffit. V4 continued matching stone through the porch. [Vault ends](#9-stage-v2-architectural-geometry-review) |
+
+The distant roofs and recessed glazing remain stylized. At the lookout the existing walls screen the lower court, leaving the belfry framed above the roofs. No remaining seam, overlap or missing shell surface was found from the tested routes.
+
+### Verification
+
+All 123 Node and 96 Chrome regression tests passed. Rays from both viewpoints hit the same cloister-owned belfry, and a new test measures the recess on all four faces. Chrome rendered six matched views at 960 × 540 with adjacent areas loaded and unloaded. All six were pixel-identical. The expanded shared render test covers the south-porch jump and the belfry approach. The WebGL sweep found zero absent-area pixels across 1,877 standing and jump-height poses.
+
+In desktop Chrome the cloister route reached Room 25 at 08:30. The Scholars’ Passage route entered Room 14, then reached Room 25 at 08:35. The untimed walk visited all five accessible rooms, inspected both restricted doors, climbed the lookout and returned to the lodge along the reverse loop in V view. Restart restored the spawn, A+B and closed doors. A separate browser check delayed and rejected an area load. Retry and Resume preserved the clock and position. Browser timeout and retry used an 08:59 test start against the existing 09:00 deadline. The Node tests also exercised the full 45-second allowance and the precedence of a deadline over a hold.
+
+### First Court benchmark
+
+Desktop Chrome 158 on Apple M5 Pro with ANGLE Metal, 1920 × 1080 at DPR 1. Three cache-disabled starts used 25 Mbit/s and 40 ms latency, followed by the timed cloister route unthrottled. The driver resumed after external Pointer Lock pauses and frame statistics cover active play. Resource bytes count encoded response bodies, using the streaming-stage method.
+
+| Metric | V3 reference | V4 reference | Existing target |
+| --- | ---: | ---: | ---: |
+| Startup resources | 7,596,007–7,596,342 B | 8,317,446–8,317,781 B | ≤ 8 MiB |
+| Median Start enabled | 2.844 s | 3.110 s | ≤ 7 s |
+| GLB bodies at startup | 6,679,404 B | 7,401,928 B | — |
+| First Court manifest | 75,119 B | 74,034 B | — |
+| Shared JavaScript / levels index | 100,161 / 41,041 B | 100,161 / 41,041 B | — |
+| Full first visit | 7,596,007–7,596,342 B | 8,317,446–8,317,781 B | ≤ 16 MiB |
+| Estimated peak decoded assets | 57.89 MiB | 59.87 MiB | ≤ 256 MiB |
+| Route p50 frame intervals | 8.3 / 8.3 / 8.3 ms | 8.3 / 8.3 / 8.3 ms | — |
+| Route p95 frame intervals | 9.1 / 9.1 / 9.1 ms | 9.1 / 9.1 / 9.2 ms | ≤ 16.7 ms |
+| Maximum frame within ±1 s of East Range activation | 33.3 / 33.4 / 25.8 ms | 41.7 / 33.3 / 33.3 ms | ≤ 50 ms |
+| Maximum frame within ±1 s of Gatehouse reactivation | 9.4 / 9.4 / 9.3 ms | 9.4 / 9.2 / 9.4 ms | ≤ 50 ms |
+| East Range request to activation | 7.0 / 5.2 / 2.5 ms | 5.8 / 5.0 / 4.8 ms | Cold ≤ 2 s |
+| Gatehouse request to reactivation | 4.6 / 9.1 / 9.3 ms | 9.5 / 9.1 / 8.1 ms | Warm ≤ 150 ms |
+| Streaming holds | 0 / 0 / 0 | 0 / 0 / 0 | 0 |
+
+V4 adds 721,439 B to the V3 reference maximum. The 803,704 B exterior GLB replaces the 81,180 B First Court courtyard asset, and the manifest shrank by 1,085 B. The worst V4 start is 70,827 B under 8 MiB and 95,459 B below the original streaming-stage maximum. After Start the first visit made zero additional GLB requests. A fourth route through Scholars’ Passage arrived at 08:34 with p95 9.1 ms and zero holds. East Range and the cloister activated in 5.9 ms and 6.2 ms, with nearby maximum frames of 9.3 ms and 33.5 ms.
+
+At the three-area overlap the estimate counts 2,874,306 geometry-buffer bytes and 59,907,848 bytes of mipmapped textures across live instances and shared templates. Chrome reported 398 uploaded geometries and 101 textures with zero fixtures or shadow maps. In a separate ten-loop alternating run, the settled A+B pose retained 19 templates, 970 objects, 690 live geometries, 92 textures, 374 colliders and 58,448,090 decoded bytes throughout. Uploaded geometry and textures alternated between 295–327 and 89–92 with no growth. The 30 warm activations took 1.1–3.1 ms and had zero holds.
+
+The browser’s post-GC JavaScript heap ranged from 7.94 to 9.11 MB across those ten loops, measured separately from the retained assets.
+
+### Legacy prototype and acceptance
+
+Three fresh six-classroom prototype starts again measured 16,779,904 B, or 2,688 B over the 16 MiB limit. That matches the streaming-stage measurement and is 11,304 B above milestone 19.5. The 5.951 s median ready time, 9.0 / 9.2 / 9.1 ms route p95 and 238.14 MiB decoded estimate meet their limits. All three timed walks visited Rooms 003 and 101 before completing in Room 102. The default hallway and Physics Playground passed their desktop movement checks. [Milestone 19.5 benchmark](connected-school-architecture.md#browser-comparison)
+
+First Court meets the measured technical gates and is ready for visual approval. The legacy byte exception and an unfamiliar player’s first timed attempt remain open for milestone acceptance. [Acceptance review](milestone-20-new-school.md#9-final-milestone-20-review)
+
+## 12. Architectural finish consistency pass
+
+The first fitted oak stopped at the initial Scholars’ turn. Farther along, flat dado boxes took over, and classroom and East Range finishes covered only selected walls. The finish pass uses the same oak profile and material families through each zone. Stone door and passage reveals mark the changes between zones.
+
+| Zone | Finish scheme |
+| --- | --- |
+| Reception | Continuous oak and limewash around the side aisles and gables. The panelling stops at the lodge and passage openings. Flagstones, side soffits and the tall stone vault define the public hall. |
+| Scholars’ Passage, Reading Room leg and north cross passage | The sample’s 1.065 m oak cap, recessed panels, stepped skirting and warm limewash continue through the two turns. Mitred profiles follow wall returns, and dedicated oak jambs end the dado at Rooms 13–15. Continuous ceiling plates carry transverse ties. Straight lengths of the same runner leave exposed boards at the turns and stone portals. |
+| Scholars’ vestibule and East Range | The vestibule carries the passage oak, limewash, runner and ceiling assembly through the area boundary. Its low stone opening leads to the taller East Range hall, with cream limewash, darker oak, bare boards and a wider tie-beam assembly. Stone jambs finish the entrance to the lookout stair. |
+| West Cloister and porches | Existing weathered stone ties the arcade, spine, porch walls, soffits and doorway reveals together. Flagstones continue under the vault and porches. |
+| Five accessible rooms | The lodge has a lower oak dado below its window. Rooms 14 and 15 carry warm limewash and oak around their perimeters. Mathematics uses pale sage limewash and the same oak profile. The Reading Room keeps its existing rug, and the cloakroom uses washable limewash and a low stone plinth over flags. |
+| Lookout stair and landing | Limewash continues up the stairwell, with weathered stone at the entrance, sill and window reveals. |
+
+The rebuilt meshes reuse the First Court runtime bundles and continue to hide in collision view. The manifest retains the same structural dimensions, collision placements, doors, room data, schedule and streaming regions. The exports omit unused texture coordinates on solid-colour meshes to reduce download and geometry storage.
+
+### Matched first-person views
+
+The 29 pairs use desktop Chrome at 1440 × 900, with identical camera positions, look targets and open door states in both images. The fixed views cover the beginning, middle, end and junctions of each route leg, plus the five accessible room interiors and the lookout landing. [Scholars’ turn in collision view](references/first-court-finishes/collision-outline.jpg)
+
+| Route | View | Before | After |
+| --- | --- | --- | --- |
+| Reception | Entry | [Before](references/first-court-finishes/reception-entry-before.jpg) | [After](references/first-court-finishes/reception-entry-after.jpg) |
+|  | Middle aisle | [Before](references/first-court-finishes/reception-middle-before.jpg) | [After](references/first-court-finishes/reception-middle-after.jpg) |
+|  | Fork | [Before](references/first-court-finishes/reception-fork-before.jpg) | [After](references/first-court-finishes/reception-fork-after.jpg) |
+|  | Scholars threshold | [Before](references/first-court-finishes/scholars-reception-threshold-before.jpg) | [After](references/first-court-finishes/scholars-reception-threshold-after.jpg) |
+| Scholars’ Passage | Start | [Before](references/first-court-finishes/scholars-start-before.jpg) | [After](references/first-court-finishes/scholars-start-after.jpg) |
+|  | Room 14 threshold | [Before](references/first-court-finishes/scholars-schoolroom-before.jpg) | [After](references/first-court-finishes/scholars-schoolroom-after.jpg) |
+|  | First turn | [Before](references/first-court-finishes/scholars-first-turn-before.jpg) | [After](references/first-court-finishes/scholars-first-turn-after.jpg) |
+|  | Return toward Room 15 | [Before](references/first-court-finishes/scholars-return-before.jpg) | [After](references/first-court-finishes/scholars-return-after.jpg) |
+|  | Reading Room leg | [Before](references/first-court-finishes/scholars-reading-before.jpg) | [After](references/first-court-finishes/scholars-reading-after.jpg) |
+|  | Turn to north cross passage | [Before](references/first-court-finishes/scholars-north-turn-before.jpg) | [After](references/first-court-finishes/scholars-north-turn-after.jpg) |
+| North cross passage | Middle | [Before](references/first-court-finishes/cross-passage-before.jpg) | [After](references/first-court-finishes/cross-passage-after.jpg) |
+|  | Stone threshold into East Range | [Before](references/first-court-finishes/cross-threshold-before.jpg) | [After](references/first-court-finishes/cross-threshold-after.jpg) |
+|  | End, looking back | [Before](references/first-court-finishes/cross-passage-end-before.jpg) | [After](references/first-court-finishes/cross-passage-end-after.jpg) |
+|  | Vestibule into East Range hall | [Before](references/first-court-finishes/east-vestibule-before.jpg) | [After](references/first-court-finishes/east-vestibule-after.jpg) |
+| West Cloister | South porch | [Before](references/first-court-finishes/cloister-south-porch-before.jpg) | [After](references/first-court-finishes/cloister-south-porch-after.jpg) |
+|  | Vault start | [Before](references/first-court-finishes/cloister-start-before.jpg) | [After](references/first-court-finishes/cloister-start-after.jpg) |
+|  | Middle and Room 24 | [Before](references/first-court-finishes/cloister-middle-before.jpg) | [After](references/first-court-finishes/cloister-middle-after.jpg) |
+|  | Vault end and north porch | [Before](references/first-court-finishes/cloister-end-before.jpg) | [After](references/first-court-finishes/cloister-end-after.jpg) |
+|  | East Range threshold | [Before](references/first-court-finishes/cloister-east-threshold-before.jpg) | [After](references/first-court-finishes/cloister-east-threshold-after.jpg) |
+| East Range | Start from cloister | [Before](references/first-court-finishes/east-start-before.jpg) | [After](references/first-court-finishes/east-start-after.jpg) |
+|  | Middle and Room 25 | [Before](references/first-court-finishes/east-middle-before.jpg) | [After](references/first-court-finishes/east-middle-after.jpg) |
+|  | End by the map store | [Before](references/first-court-finishes/east-end-before.jpg) | [After](references/first-court-finishes/east-end-after.jpg) |
+|  | Stair entrance | [Before](references/first-court-finishes/east-stair-before.jpg) | [After](references/first-court-finishes/east-stair-after.jpg) |
+|  | Lookout landing | [Before](references/first-court-finishes/lookout-landing-before.jpg) | [After](references/first-court-finishes/lookout-landing-after.jpg) |
+| Rooms | Porter’s lodge | [Before](references/first-court-finishes/lodge-before.jpg) | [After](references/first-court-finishes/lodge-after.jpg) |
+|  | Room 14 Schoolroom | [Before](references/first-court-finishes/schoolroom-before.jpg) | [After](references/first-court-finishes/schoolroom-after.jpg) |
+|  | Room 15 Reading Room | [Before](references/first-court-finishes/reading-room-before.jpg) | [After](references/first-court-finishes/reading-room-after.jpg) |
+|  | Room 24 Cloakroom | [Before](references/first-court-finishes/cloakroom-before.jpg) | [After](references/first-court-finishes/cloakroom-after.jpg) |
+|  | Room 25 Mathematics | [Before](references/first-court-finishes/mathematics-before.jpg) | [After](references/first-court-finishes/mathematics-after.jpg) |
+
+### Verification
+
+All 123 Node and 96 shared Chrome tests passed. Finish regressions verify oak cap height, limewash, runners and ceiling ties on the passage legs, along with visible plaques, collision overlays and fitted masonry at the openings. Chrome compared 15 views with neighbouring areas loaded and unloaded. The standing and jump-height WebGL sweep found zero visible pixels from absent areas across 1,877 poses.
+
+With pointer lock in desktop Chrome, the timed Cloister route reached Room 25 at 08:30. The Scholars’ Passage route visited Room 14 first and reached Room 25 at 08:35. The untimed walk entered all five accessible rooms, checked both restricted doors, climbed to the lookout, returned in collision view and restarted at the original spawn with the doors closed.
+
+The benchmark used Chrome 158 on Apple M5 Pro at 1920 × 1080, DPR 1, with cache-disabled starts at 25 Mbit/s and 40 ms latency. Three Cloister routes and one Scholars’ Passage route ran unthrottled after startup.
+
+| Metric | Finish pass | Existing target |
+| --- | ---: | ---: |
+| Startup and full first-visit resources | 8,372,370–8,372,705 B | Startup ≤ 8 MiB, first visit ≤ 16 MiB |
+| Median Start enabled | 3.095 s | ≤ 7 s |
+| Peak estimated decoded assets | 60.24 MiB | ≤ 256 MiB |
+| Active route p95 frame interval | 8.4 ms | ≤ 16.7 ms |
+| Maximum frame within ±1 s of any activation | 41.7 ms | ≤ 50 ms |
+| Longest request to area activation | 9.0 ms | Cold ≤ 2 s, warm ≤ 150 ms |
+| Streaming holds | 0 | 0 |
+
+Peak startup transfer was 15,903 B below 8 MiB. Each first visit loaded its GLBs at startup. The finish pass awaits visual review as part of milestone 20. [Milestone acceptance record](milestone-20-new-school.md#9-final-milestone-20-review)
+
+### Offline finish preset
+
+The product owner approved this pilot as the foundation for future school expansion.
+
+The Scholars’ Passage and East Range vestibule builders share one preset for the limewash and oak palette, cap height, and runner width and pattern spacing. The builders refer to named wall platforms and lintels in the First Court manifest. The passage also uses the existing masonry head placements and door profile for the oak reveals. When editing the layout, keep the two wall bays across each opening aligned so they can carry one continuous ceiling plate. Author the bespoke turns, stone threshold stops, tie positions and runner lengths in the builders.
+
+Rebuild from the repository root with Blender’s offline Python.
+
+```sh
+blender --background --python-exit-code 1 --python scripts/build_scholars_passage.py
+blender --background --python-exit-code 1 --python scripts/build_first_court_interiors.py
+```
+
+Both GLBs rebuilt byte-for-byte against the finish-pass exports. A temporary manifest check moved wall faces, widened and moved the Bursar opening, and raised its arch spring. The corresponding panel runs and jambs followed those edits. Missing and duplicate references and misaligned passage bays raised build errors. All 123 Node and 96 Chrome tests passed.

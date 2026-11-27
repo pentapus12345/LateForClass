@@ -1,6 +1,6 @@
 # Milestone 20 proposal — First Court
 
-**Status — streaming implemented and ready for review.** The product owner approved the seven-room geography after playing both the timed challenge and developer exploration. The implementation follows that layout and uses the same tower at both overlooks. First Court remains the fourth development environment, with the timed challenge as its ordinary entry. [Playable blockout](first-court-blockout.md) · [Product vision](../VISION.md) · [Streaming evidence](#8-streaming-stage-implementation-and-evidence)
+**Status — implementation complete, pending milestone approval.** The product owner approved the seven-room geography after playing both the timed challenge and developer exploration. The three areas stream independently and the four visual stages are implemented. First Court uses the same tower at both overlooks. It remains the fourth development environment, with the timed challenge as its ordinary entry. [Playable blockout](first-court-blockout.md) · [Product vision](../VISION.md) · [Final milestone review](#9-final-milestone-20-review)
 
 ## 1. Long-term campus idea — flexible, not a locked master map
 
@@ -207,7 +207,22 @@ At the three-area overlap, the decoded estimate counts 1,077,032 geometry-buffer
 
 Post-GC JavaScript heap was 7.03 MB at loop 10 and 7.33 MB at loop 40. Snapshots confirmed stable counts for Levels, walls, meshes, lights and sign textures. Reusing light IDs eliminated the former per-reload increase in Three.js light uniforms. The remaining heap increase includes V8 compiled code, internal array storage and Chrome performance records. Overall heap has a measured increase separate from the stable area resources.
 
-### Open benchmark gates
+### Benchmark gates at the streaming stage
 
 - First Court exceeded its proposed 8 MiB startup gate by 24,297–24,632 B. Its full first visit, startup time, activation times, frame intervals and decoded assets met their targets. The A+B GLBs already contain all templates needed by C, so deferring C's instances saves live objects without reducing model transfer. Recovering 25 KB from the shared First Court runtime assets or their delivery would close the byte gap.
 - The prototype exceeded the existing 16 MiB gate by 2,688 B. Compared with milestone 19.5, the measured total rose 11,304 B. Shared JavaScript grew from 88,954 to 100,161 B, including 6,201 B from this streaming stage. The shared levels index rose from 40,944 to 41,041 B with the First Court entry, and the HTML entry rose from 10,894 to 10,926 B. Both index documents are unchanged by this stage. Prototype GLB bytes are identical. Its time-to-ready, p95 and decoded assets still meet the baseline gates. Product-owner approval is requested for the measured 2,688 B overage. Deferring the manifest validation code on prototype entries is a targeted alternative if the byte gate remains strict.
+
+## 9. Final milestone 20 review
+
+First Court has its approved seven rooms and three physical connections. Streaming keeps both timed routes, the developer exploration mode and the existing 60× challenge. The visual stages completed the inhabited rooms, vault and wall joins, courtyard ranges and the single belfry landmark. The final screenshots use the original positions for both landmark views. [V4 gallery, defect register and benchmarks](first-court-visual-spec.md#11-stage-v4-courtyard-tower-and-final-review) · [Architectural finish gallery and verification](first-court-visual-spec.md#12-architectural-finish-consistency-pass)
+
+| Acceptance area | Evidence and status |
+| --- | --- |
+| First Court layout, routes and scheduled arrival | Verified. Both timed routes reached Room 25, including a wrong-room entry. Untimed play visited all five open rooms, found both staff doors restricted, completed both loop directions and restarted at the original spawn. |
+| Seam traversal, residency and resource lifecycle | Verified. The shared suites crossed each seam at multiple offsets, reversed during jumps, restored door swings through unload, and checked load failure, retry, restart and teardown. |
+| Visual continuity and landmark | Verified at the sampled views. The fixed-camera pairs and the 1,877-pose standing and jump-height sweep found no exposed scenery from an absent area. A ray from each landmark viewpoint hit the same cloister-owned belfry. The finish pass covers oak profiles, limewash, masonry, runners and ceiling assemblies. Its 29 matched pairs await product-owner review. |
+| First Court performance | Meets the existing measured startup, first visit, activation, frame interval and decoded asset gates. The ten-loop browser repeat retained 58,448,090 decoded bytes at the settled pose with zero holds. |
+| Legacy development environments | Regression tests and desktop walks passed. Three prototype starts measured 16,779,904 B, reconfirming the 2,688 B startup exception from the streaming stage. |
+| Unfamiliar-player experience | Open. The owner reviewed the original blockout and the scripted browser routes prove reachability and recovery. An unfamiliar player’s first timed attempt is still needed to validate clue readability and the 45-second allowance. |
+
+The milestone is ready for product-owner review. Overall acceptance remains open for the visual decision, unfamiliar-player observation and legacy startup exception.

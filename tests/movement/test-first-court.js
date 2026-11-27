@@ -237,8 +237,12 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                     [c, [-19.88, 1.6, 6.35], [-19.6, 1.45, 16.1]],
                     [c, [-19.8, 1.6, 19.4], [-19.97, 1.43, 10.7]],
                     [c, [-19.95, 2.55, 19.72], [-16.7, 1.48, 22.65]],
+                    [c, [-16.60, 1.6, 16.03], [-14.45, 1.46, 19.20]],
+                    [c, [-15.44, 1.6, 32.15], [-18.95, 1.50, 32.13]],
                     [c, [2.55, 1.6, 7.45], [2.5, 4.65, 3.94]],
                     [c, [2.53, 2.55, 25.15], [2.5, 4.8, 30.1]],
+                    [c, [2.81, 2.55, 3.70], [34, 7.73, 41.25]],
+                    [c, [4.23, 1.6, 17.08], [17.7, 7.3, 28.5]],
                     [a, [4.23, 1.6, 29], [17.7, 9.5, 28.5]],
                     [a, [4.23, 1.6, 29], [0, 1.8, 23]],
                     [a, [34.63, 3.04, 41.85], [17.7, 9.5, 28.5]],
@@ -262,6 +266,52 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
         });
     }
 
+    test('Furnished First Court classrooms share their models and keep the teaching aisles clear', () =>
+        withSchool((world, scene) => {
+            const object = name => {
+                const instance = scene.getObjectByName(name);
+                check(instance, 'Missing room fitting: ' + name);
+                return instance;
+            };
+            const bounds = name => new THREE.Box3().setFromObject(object(name));
+            for (const kind of ['teacher desk', 'standing chalkboard']) {
+                const schoolroom = object('Schoolroom ' + kind);
+                const mathematics = object('Mathematics ' + kind);
+                check(schoolroom.getObjectByProperty('isMesh', true).geometry ===
+                    mathematics.getObjectByProperty('isMesh', true).geometry, 'Teaching model is not shared: ' + kind);
+            }
+            for (const [caseName, rows] of [['west', ['books', 'lower books']], ['east', ['books', 'upper books']]]) {
+                const shelf = bounds('Reading bookcase ' + caseName);
+                for (const row of rows) {
+                    check(shelf.containsBox(bounds('Reading bookcase ' + caseName + ' ' + row)),
+                        'Reading books extend past their case');
+                }
+            }
+            const rug = bounds('Reading_room_rug');
+            check(rug.min.y > 0.005 && rug.max.y < 0.012, 'Reading rug is not separated from the floor');
+            for (const name of ['Reading room print and rug', 'Schoolroom copywork on slate', 'Mathematics geometry on slate',
+                'Porter counter and waiting area', 'Reception plaster and oak',
+                'East Range plaster and oak', 'Cloakroom peg shelf and work aprons']) {
+                object(name);
+                check(!scene.getObjectByName(name + ' collision'), 'Unexpected decorative collision: ' + name);
+            }
+            for (const [approach, aisle, roomId] of [
+                [[-19.35, 16], [[-18.3, 16], [-17, 16], [-16.65, 16], [-14.5, 16.4], [-14.5, 17.45]], 'GH-G-02'],
+                [[26, 37], [[26, 38], [26, 40], [26, 41.2], [26, 43.5]], 'ER-G-01']
+            ]) {
+                const [x, z] = approach;
+                check(world.openDoor({ x, y: 0, z }), 'Cannot open classroom ' + roomId);
+                for (const [aisleX, aisleZ] of aisle) {
+                    check(!world.isBlocked({ x: aisleX, y: 0, z: aisleZ }, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight),
+                        'Obstructed classroom aisle in ' + roomId + ' at ' + [aisleX, aisleZ]);
+                }
+                const [insideX, insideZ] = aisle.at(-1);
+                check(world.getEnteredRoomId({ x: insideX, y: 0, z: insideZ }) === roomId, 'Room identity changed');
+            }
+            check(world.isBlocked({ x: -18.23, y: 0, z: 32.6 }, GAME_CONFIG.playerRadius, GAME_CONFIG.playerHeight),
+                'Reading table has no fitted collision');
+        }));
+
     test('First Court roof joints, plaster corner and lookout recess cover the former visible defects', () =>
         withSchool((world, scene) => {
             const meshes = [];
@@ -272,8 +322,8 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                 }
             });
             for (const [from, to, name] of [
-                [[-19.5, 2, 20.506], [-18.2, 2, 20.506], 'Warm_lime_plaster'],
-                [[-19.5, 2, 20.510], [-18.2, 2, 20.510], 'Warm_lime_plaster'],
+                [[-19.5, 2, 20.506], [-18.2, 2, 20.506], 'Soft_limewash'],
+                [[-19.5, 2, 20.510], [-18.2, 2, 20.510], 'Soft_limewash'],
                 [[-14.45, 1.6, -8.65], [-14, 9.26, -15.82], 'GatehouseJoints_arrival_gable'],
                 [[2.55, 1.6, 7.45], [2.5, 5.1, 4.035], 'CloisterJoints_stone_joints'],
                 [[2.53, 2.55, 25.15], [2.5, 5.77, 28.97], 'CloisterJoints_stone_joints'],
@@ -290,27 +340,25 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
             }
         }));
 
-    test('Scholars’ Passage finishes fit the corridor, leave plaques clear and add no collision', () =>
+    test('Scholars’ Passage finishes continue through both turns and leave thresholds clear', () =>
         withSchool((world, scene) => {
             const [gatehouse] = world.initialAreaIds;
             const level = world.active.get(gatehouse);
             const finishes = scene.getObjectByName('Scholars Passage finishes');
             const portrait = scene.getObjectByName('Scholars Passage portrait');
             const runner = scene.getObjectByName('Worn_Scholars_Passage_runner');
-            const trim = scene.getObjectByName('Oak_mouldings_and_fitted_ledge');
+            const trim = scene.getObjectByName('Scholars_oak_moulding');
             const notice = scene.getObjectByName('Schoolroom notices');
-            check(finishes && portrait && runner && trim && notice, 'Sample finishes are missing');
+            check(finishes && portrait && runner && trim && notice, 'Passage finishes are missing');
             check(!level.solids.some(solid => solid.id.startsWith(gatehouse + '/placement/Scholars')),
-                'Sample dressing added a collider');
+                'Passage finishes added a collider');
             const runnerBounds = new THREE.Box3().setFromObject(runner);
-            check(runnerBounds.min.y > 0.005 && runnerBounds.max.y < 0.012 &&
-                runnerBounds.min.x > -20.3 && runnerBounds.max.x < -19.3 &&
-                runnerBounds.min.z > 5 && runnerBounds.max.z < 20,
-            'Runner is coplanar with the floor or extends beyond the centre aisle');
-            const trimBounds = new THREE.Box3().setFromObject(finishes);
-            check(trimBounds.min.z >= 4.17 && trimBounds.max.z <= 23.33 &&
-                trimBounds.min.x >= -21.49 && trimBounds.max.x <= -11.67,
-            'Finish mesh extends outside the sample');
+            check(runnerBounds.min.y > 0.005 && runnerBounds.max.y < 0.012,
+                'Runner is coplanar with the floor or raised above the boards');
+            const finishBounds = new THREE.Box3().setFromObject(finishes);
+            check(finishBounds.min.z >= 4.17 && finishBounds.max.z <= 43.33 &&
+                finishBounds.min.x >= -21.49 && finishBounds.max.x <= 9.83,
+            'Finish mesh extends outside the passage');
 
             scene.updateMatrixWorld(true);
             const visible = [];
@@ -319,6 +367,36 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                     visible.push(object);
                 }
             });
+            function materialAt(position, direction) {
+                const ray = new THREE.Raycaster(new THREE.Vector3(...position), new THREE.Vector3(...direction));
+                return ray.intersectObjects(visible)[0]?.object.material.name;
+            }
+
+            const runs = [
+                [-19.8, 6.6, 1, 0], [-17.8, 22, 0, 1], [-13, 28.25, 1, 0],
+                [-7.25, 42, 0, 1], [13.45, 42, 0, 1]
+            ];
+            for (const [x, z, dx, dz] of runs) {
+                for (const direction of [-1, 1]) {
+                    const towardWall = [dx * direction, 0, dz * direction];
+                    check(materialAt([x, 1.85, z], towardWall) === 'Soft limewash',
+                        'Limewash interrupted at ' + [x, z]);
+                    check(/^Scholars (recessed oak|oak moulding)$/.test(materialAt([x, 0.55, z], towardWall)),
+                        'Panel run interrupted at ' + [x, z]);
+                    check(materialAt([x, 1.046, z], towardWall) === 'Scholars oak moulding',
+                        'Cap height changed at ' + [x, z]);
+                }
+                check(materialAt([x, 0.4, z], [0, -1, 0]) === 'Faded russet wool',
+                    'Missing runner at ' + [x, z]);
+            }
+            for (const [x, z] of [[-19.4, 12.55], [-13, 36.5], [-6, 42], [13.45, 42]]) {
+                check(materialAt([x, 3, z], [0, 1, 0]) === 'Scholars oak moulding',
+                    'Missing transverse tie at ' + [x, z]);
+            }
+            check(materialAt([9.92, 2.0, 42], [0, 0, -1]) === 'Existing weathered stone',
+                'Scholars cross-passage reveal lost its masonry');
+            check(materialAt([2.45, 1.6, 14.0], [-1, 0, 0]) === 'Existing weathered stone',
+                'Cloister spine lost its continuous stone');
             for (const [label, x, z] of [['Room 13', -19.8, 11.48], ['Room 14', -19.8, 14.47],
                 ['Room 15', -13, 33.52]]) {
                 const plaque = scene.getObjectByName(label);
@@ -468,12 +546,36 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                     meshes.push(object);
                 }
             });
-            const tower = scene.getObjectByName('Court tower shaft');
+            const tower = scene.getObjectByName('Courtyard bell tower');
             check(world.area('west-cloister').level.objects.includes(tower), 'Tower owner changed');
+            const towerMeshes = new Set();
+            tower.traverse(node => {
+                if (node.isMesh) {
+                    towerMeshes.add(node);
+                }
+            });
             for (const eye of [new THREE.Vector3(4.23, 1.6, 17.08), new THREE.Vector3(34.63, 3.04, 41.85)]) {
                 const ray = new THREE.Raycaster(eye, target.clone().sub(eye).normalize());
                 const first = ray.intersectObjects(meshes)[0]?.object;
-                check(first === tower, 'Tower sightline blocked by ' + first?.name);
+                check(towerMeshes.has(first), 'Tower sightline blocked by ' + first?.name);
+            }
+        }));
+
+    test('First Court belfry openings are recessed on all four faces', () =>
+        withSchool((world, scene) => {
+            scene.updateMatrixWorld(true);
+            const tower = scene.getObjectByName('Courtyard bell tower');
+            const masonryDistance = 2.22;
+            for (const [dx, dz] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+                const center = new THREE.Vector3(17.7, 12.15, 28.5);
+                const outward = new THREE.Vector3(dx, 0, dz);
+                const jamb = new THREE.Raycaster(center.clone().addScaledVector(outward, 3), outward.clone().negate());
+                const origin = jamb.ray.origin.clone().add(new THREE.Vector3(dz * 0.71, 0, -dx * 0.71));
+                const opening = new THREE.Raycaster(origin, jamb.ray.direction);
+                const face = jamb.intersectObject(tower, true)[0];
+                const inset = opening.intersectObject(tower, true)[0];
+                check(face && Math.abs(face.distance - (3 - masonryDistance)) < 0.001, 'Tower face is open or displaced');
+                check(inset && inset.distance - face.distance > 0.24, 'Belfry mouth is filled in or missing its backing');
             }
         }));
 }

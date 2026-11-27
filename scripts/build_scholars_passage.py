@@ -1,4 +1,4 @@
-"""Build the fitted Scholars' Passage sample with Blender's offline Python."""
+"""Build the fitted Scholars' Passage finishes with Blender's offline Python."""
 
 import json
 from pathlib import Path
@@ -13,6 +13,42 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True
 from build_vaulted_bays import Mesh, OUTPUT
 from build_collegiate_bay import material_with_image
+
+
+FIRST_COURT_MANIFEST = OUTPUT.parents[2] / 'schools' / 'first-court.json'
+OAK_CAP = 1.065
+OAK_CAP_DEPTH = 0.045
+SCHOLARS_PASSAGE_FINISH = {
+    'wallMaterials': (
+        ('Aged lime plaster', 'Soft limewash', (0.75, 0.70, 0.61), 0.34),
+        ('Panelled oak', 'Scholars recessed oak', (0.31, 0.153, 0.073), 0.27),
+        ('Panelled oak', 'Scholars oak moulding', (0.46, 0.253, 0.123), 0.22),
+    ),
+    'capHeight': OAK_CAP,
+    'runnerWidth': 0.96,
+    'runnerRepeat': 1.12,
+}
+
+
+def finish_source(items, reference, key='name'):
+    """Resolve an explicit reference to an existing area, wall or opening."""
+    matches = [item for item in items if item.get(key) == reference]
+    if len(matches) != 1:
+        raise ValueError(f'Expected one finish source matching {key} {reference!r}, found {len(matches)}')
+    return matches[0]
+
+
+def platform_edge(platform, axis, side):
+    extent = platform[{'x': 'width', 'z': 'depth'}[axis]]
+    return platform[axis] + side * extent / 2
+
+
+def passage_wall_face(before, after, inward):
+    """Keep the ceiling plate on one line across the doorway."""
+    face = platform_edge(before, 'x', inward)
+    if not np.isclose(face, platform_edge(after, 'x', inward), rtol=0, atol=1e-9):
+        raise ValueError(f"Finish faces do not align across the opening between {before['name']!r} and {after['name']!r}")
+    return face
 
 
 def reuse_wall_material(name, label, temporary, color, texture_weight):
@@ -72,80 +108,209 @@ def passage_box(mesh, low, high, period):
     mesh.box((x, -far, y), (right, -z, top), period)
 
 
-def fitted_wall(plaster, wood, trim, axis, wall, inward, start, end, plaster_course=True):
-    def band(mesh, a, b, bottom, top, back, face, period):
-        near, far = sorted((wall + back * inward, wall + face * inward))
-        if axis == 'x':
-            passage_box(mesh, (near, bottom, a), (far, top, b), period)
-        else:
-            passage_box(mesh, (a, bottom, near), (b, top, far), period)
+def wall_edges(path):
+    """Walk finish faces with the room on the right. Include the closing point for a loop."""
+    normals = []
+    for (x, z), (end_x, end_z) in zip(path, path[1:]):
+        length = np.hypot(end_x - x, end_z - z)
+        normals.append(((z - end_z) / length, (end_x - x) / length))
 
-    if plaster_course:
-        band(plaster, start, end, 1.055, 3.998, -0.005, 0.008, 1.8)
-    band(wood, start, end, 0, 1.055, -0.006, 0.014, 0.71)
-    for bottom, top, depth in [(0, 0.102, 0.044), (0.102, 0.144, 0.036), (0.144, 0.207, 0.028),
-                               (0.875, 0.977, 0.028), (0.977, 1.028, 0.037), (1.028, 1.065, 0.045)]:
-        band(trim, start, end, bottom, top, 0.012, depth, 0.82)
-    bays = max(1, round((end - start) / 0.67))
-    for index in range(bays + 1):
-        joint = start + (end - start) * index / bays
-        band(trim, max(start, joint - 0.030), min(end, joint + 0.030), 0.207, 0.875, 0.012, 0.035, 0.67)
+    # At a right-angle turn, the sum locates the mitre at every moulding depth.
+    closed = path[0] == path[-1]
+    offsets = [normals[-1] if closed else (0, 0), *normals, normals[0] if closed else (0, 0)]
+    corners = [(x + end_x, z + end_z) for (x, z), (end_x, end_z) in zip(offsets, offsets[1:])]
+    for a, b, near, far in zip(path, path[1:], corners, corners[1:]):
+        yield a, b, near, far
+
+
+def offset(point, direction, distance):
+    return tuple(value + component * distance for value, component in zip(point, direction))
+
+
+def finish_quad(mesh, points, uv_axes, period):
+    mesh.quad([(x, -z, y) for x, z, y in points],
+              [tuple(point[axis] / period for axis in uv_axes) for point in points])
+
+
+def wall_faces(mesh, path, bottom, top, depth=0.008, period=1.8):
+    for a, b, near, far in wall_edges(path):
+        first, last = offset(a, near, depth), offset(b, far, depth)
+        uv_axes = (0 if a[0] != b[0] else 1, 2)
+        finish_quad(mesh, [(*first, bottom), (*last, bottom), (*last, top), (*first, top)], uv_axes, period)
+
+
+def panelled_walls(plaster, field, oak, path, top=4, height=1):
+    """Fit the sample's stepped skirting, recessed field, stiles and cap to one wall run."""
+    profile = [(0, 0.044), (0.102, 0.044), (0.102, 0.036), (0.144, 0.036),
+               (0.144, 0.028), (0.207, 0.028), (0.207, 0.014), (0.875, 0.014),
+               (0.875, 0.028), (0.977, 0.028), (0.977, 0.037), (1.028, 0.037),
+               (1.028, OAK_CAP_DEPTH), (OAK_CAP, OAK_CAP_DEPTH), (OAK_CAP, 0)]
+    wall_faces(plaster, path, OAK_CAP * height, top)
+    for a, b, near, far in wall_edges(path):
+        uv_axes = (0 if a[0] != b[0] else 1, 2)
+        for (low, back), (high, front) in zip(profile, profile[1:]):
+            first, last = offset(a, near, back), offset(b, far, back)
+            next_first, next_last = offset(a, near, front), offset(b, far, front)
+            is_field = low == 0.207 and high == 0.875
+            axes = (0, 1) if low == high else uv_axes
+            finish_quad(field if is_field else oak,
+                        [(*first, low * height), (*last, low * height),
+                         (*next_last, high * height), (*next_first, high * height)],
+                        axes, 0.71 if is_field else 0.82)
+
+        a_field, b_field = offset(a, near, 0.014), offset(b, far, 0.014)
+        delta = np.subtract(b_field, a_field)
+        length = np.linalg.norm(delta)
+        steps = max(1, round(length / 0.67))
+        first = np.array(a_field)
+        normal = (-delta[1] / length, delta[0] / length)
+        # End stiles meet at the mitre. Intermediate stiles expose both sides.
+        for index in range(steps + 1):
+            joint = length * index / steps
+            start = first + delta * (max(0, joint - 0.030) / length)
+            end = first + delta * (min(length, joint + 0.030) / length)
+            outside_start = offset(start, near if index == 0 else normal, 0.021)
+            outside_end = offset(end, far if index == steps else normal, 0.021)
+            stile = [start, outside_start, outside_end, end]
+            faces = list(zip(stile, stile[1:]))
+            if index == 0 and near != normal:
+                faces = faces[1:]
+            if index == steps and far != normal:
+                faces = faces[:-1]
+            for left, right in faces:
+                axes = (0 if abs(right[0] - left[0]) > abs(right[1] - left[1]) else 1, 2)
+                finish_quad(oak, [(*left, 0.207 * height), (*right, 0.207 * height),
+                                  (*right, 0.875 * height), (*left, 0.875 * height)], axes, 0.67)
+
+    # The casing hides the cut edge at openings, but the profile still needs a return.
+    if path[0] != path[-1]:
+        for point, neighbor, reverse in [(path[0], path[1], True), (path[-1], path[-2], False)]:
+            dx, dz = np.subtract(neighbor, point)
+            length = np.hypot(dx, dz)
+            normal = ((-1 if reverse else 1) * dz / length, (1 if reverse else -1) * dx / length)
+            axes = (0 if dx == 0 else 1, 2)
+            for (low, back), (high, front) in zip(profile, profile[1:]):
+                if low == high:
+                    continue
+                points = [(*point, low * height), (*offset(point, normal, back), low * height),
+                          (*offset(point, normal, front), high * height), (*point, high * height)]
+                finish_quad(oak, points if reverse else points[::-1], axes, 0.82)
+
+
+def oak_wall_plates(mesh, path, height):
+    """Follow the ceiling perimeter, mitring at both inside and outside corners."""
+    depth = 0.105
+    bottom = height - 0.26
+    wall_faces(mesh, path, bottom, height + 0.008, depth, 1.2)
+    for a, b, near, far in wall_edges(path):
+        first, last = offset(a, near, depth), offset(b, far, depth)
+        finish_quad(mesh, [(*a, bottom), (*b, bottom), (*last, bottom), (*first, bottom)], (0, 1), 1.2)
+
+
+def oak_ties(mesh, axis, left, right, height, centers):
+    """Seat transverse ties into the continuous wall plates."""
+    for center in centers:
+        low, high = (center - 0.094, height - 0.225, left + 0.105), (center + 0.094, height + 0.008, right - 0.105)
+        if axis == 'z':
+            low, high = low[::-1], high[::-1]
+        passage_box(mesh, low, high, 1.2)
+
+
+def runner_strip(mesh, axis, center, start, end):
+    width = SCHOLARS_PASSAGE_FINISH['runnerWidth']
+    near, far = center - width / 2, center + width / 2
+    repeat = round((end - start) / SCHOLARS_PASSAGE_FINISH['runnerRepeat'])
+    points = [(near, start), (far, start), (far, end), (near, end)]
+    uvs = [(0, 0), (1, 0), (1, repeat), (0, repeat)]
+    if axis == 'x':
+        points = [(z, x) for x, z in points]
+    else:
+        points.reverse()
+        uvs.reverse()
+    mesh.quad([(x, -z, 0.007) for x, z in points], uvs)
+
+
+def scholars_materials(temporary):
+    return tuple(reuse_wall_material(name, label, temporary, color, weight)
+                 for name, label, color, weight in SCHOLARS_PASSAGE_FINISH['wallMaterials'])
+
+
+def scholars_panelling(plaster, field, oak, paths, ceiling_height):
+    height_scale = SCHOLARS_PASSAGE_FINISH['capHeight'] / OAK_CAP
+    for path in paths:
+        panelled_walls(plaster, field, oak, path, ceiling_height, height_scale)
 
 
 def build(temporary):
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete(use_global=False)
     plaster, wood, trim, runner = Mesh(), Mesh(), Mesh(), Mesh()
-    walls = [
-        # Axis, wall face, inward direction and the start/end of each uninterrupted run.
-        ('x', -21.12, 1, 4.180, 9.097),
-        ('x', -21.12, 1, 10.903, 23.271),
-        ('x', -18.48, -1, 4.180, 15.097),
-        ('x', -18.48, -1, 16.903, 20.499, False),
-        ('z', 23.32, -1, -21.121, -14.526),
-        ('z', 20.68, 1, -18.301, -11.680, False),
+    manifest = json.loads(FIRST_COURT_MANIFEST.read_text())
+    gatehouse = finish_source(manifest['areas'], 'gatehouse', key='id')['definition']
+    walls = gatehouse['platforms']
+    west_before = finish_source(walls, 'West school wall bay 1')
+    west_after = finish_source(walls, 'West school wall bay 2')
+    east_before = finish_source(walls, 'East school wall bay 1')
+    east_after = finish_source(walls, 'East school wall bay 2')
+    reading_before = finish_source(walls, 'Library wall bay 1')
+    reading_after = finish_source(walls, 'Library wall bay 2')
+    reception_end = platform_edge(finish_source(walls, 'Reception gable lintel 1'), 'z', 1)
+    west_face = passage_wall_face(west_before, west_after, 1)
+    east_face = passage_wall_face(east_before, east_after, -1)
+    east_turn_end = platform_edge(east_after, 'z', 1)
+    reading_face = passage_wall_face(reading_before, reading_after, 1)
+    paths = [
+        # West wall past the bursary, then around the outside of the first turn.
+        [(west_face, platform_edge(west_before, 'z', 1)), (west_face, reception_end)],
+        [(reading_face, platform_edge(reading_before, 'z', 1)), (reading_face, 23.32),
+         (west_face, 23.32), (west_face, platform_edge(west_after, 'z', -1))],
+        # East wall past the Schoolroom, around the short return and the north turn.
+        [(east_face, reception_end), (east_face, platform_edge(east_before, 'z', 1))],
+        [(east_face, platform_edge(east_after, 'z', -1)), (east_face, east_turn_end),
+         (east_after['x'], east_turn_end), (east_after['x'], 20.68),
+         (-11.68, 20.68), (-11.68, 40.68), (9.82, 40.68)],
+        [(9.82, 43.32), (reading_face, 43.32), (reading_face, platform_edge(reading_after, 'z', -1))],
     ]
-    for row in walls:
-        fitted_wall(plaster, wood, trim, *row)
+    scholars_panelling(plaster, wood, trim, paths, 4)
 
-    # Cap the exposed wall ends beside the doors. Offset the visible reveal
-    # from the original shared end plane and meet the existing stone spring.
-    for west, east, opening in [(-21.48, -21.075, 10), (-18.525, -18.12, 16)]:
-        for edge, sign in [(opening - 0.9, 1), (opening + 0.9, -1)]:
+    # Use the masonry head for the opening centre and spring, including the closed Bursary.
+    reveals = [(west_before, 1, 'Bursar masonry head'),
+               (east_before, -1, 'Gatehouse schoolroom door arched head'),
+               (reading_before, 1, 'Reading room door arched head')]
+    for wall, inward, head in reveals:
+        opening = finish_source(gatehouse['environmentObjects'], head)
+        radius = manifest['doorProfiles'][opening['archOpening']]['width'] / 2
+        west = platform_edge(wall, 'x', -1) - (OAK_CAP_DEPTH if inward < 0 else 0)
+        east = platform_edge(wall, 'x', 1) + (OAK_CAP_DEPTH if inward > 0 else 0)
+        for sign in (1, -1):
+            edge = opening['z'] - sign * radius
             a, b = sorted((edge - sign * 0.083, edge + sign * 0.002))
-            passage_box(trim, (west + 0.003, 0, a), (east - 0.003, 2.25, b), 0.64)
+            passage_box(trim, (west + 0.003, 0, a), (east - 0.003, opening['y'] + 0.001, b), 0.64)
 
-    # Return the inside corner onto the cross passage, with its end grain hidden.
-    passage_box(trim, (-18.491, 0, 20.501), (-18.117, 1.065, 20.509), 0.67)
-    passage_box(trim, (-18.309, 0, 20.509), (-18.296, 1.065, 20.681), 0.67)
-    # Connect the actual finish planes. The old box ends left millimetre-wide
-    # strips of the lighter substrate visible at grazing angles.
-    corner = [(-18.488, 16.903), (-18.488, 20.508), (-18.308, 20.508),
-              (-18.308, 20.688), (-11.680, 20.688)]
-    for (x, z), (end_x, end_z) in zip(corner, corner[1:]):
-        plaster.quad([(x, -z, 1.055), (end_x, -end_z, 1.055),
-                      (end_x, -end_z, 3.998), (x, -z, 3.998)],
-                     [(0, 1.055 / 1.8), (np.hypot(end_x - x, end_z - z) / 1.8, 1.055 / 1.8),
-                      (np.hypot(end_x - x, end_z - z) / 1.8, 3.998 / 1.8), (0, 3.998 / 1.8)])
-    # Two shallow ceiling ties carry the straight passage lanterns.
-    for z in (8.2, 16.9):
-        passage_box(trim, (-21.114, 3.90, z - 0.082), (-18.487, 4.006, z + 0.082), 0.82)
+    # Run the plates around the turns and seat a tie at each leg of the approach.
+    perimeter = [
+        (west_face, reception_end), (east_face, reception_end), (east_face, east_turn_end),
+        (east_after['x'], east_turn_end), (east_after['x'], 20.68),
+        (-11.68, 20.68), (-11.68, 40.68), (9.82, 40.68), (9.82, 43.32),
+        (reading_face, 43.32), (reading_face, 23.32), (west_face, 23.32), (west_face, reception_end),
+    ]
+    oak_wall_plates(trim, perimeter, 4)
+    oak_ties(trim, 'z', west_face, east_face, 4, (8.2, 12.55, 16.9))
+    oak_ties(trim, 'x', 20.68, 23.32, 4, (-17, -14.57))
+    oak_ties(trim, 'z', -14.32, -11.68, 4, (23.63, 27.68, 32.25, 36.5))
+    oak_ties(trim, 'x', 40.68, 43.32, 4, (-10, -6, -2, 2, 6))
 
-    # Narrow wall-mounted ledge below the notice, off the walk and door lines.
     passage_box(trim, (-21.13, 1.106, 15.67), (-21.002, 1.142, 16.93), 0.67)
     for z in (15.80, 16.80):
         passage_box(trim, (-21.13, 1.063, z - 0.019), (-21.044, 1.107, z + 0.019), 0.67)
 
-    # One layer above the boards, with the centre aisle and thresholds unchanged.
-    runner.quad([(-20.28, -5.18, 0.007), (-19.32, -5.18, 0.007),
-                 (-19.32, -19.68, 0.007), (-20.28, -19.68, 0.007)][::-1],
-                [(0, 0), (1, 0), (1, 13), (0, 13)][::-1])
-    plaster.make_object('Warm lime plaster',
-                        reuse_wall_material('Aged lime plaster', 'Soft limewash', temporary, (0.75, 0.70, 0.61), 0.34))
-    wood.make_object('Fitted dark oak joinery',
-                     reuse_wall_material('Panelled oak', 'Recessed oak', temporary, (0.31, 0.153, 0.073), 0.27))
-    trim.make_object('Oak mouldings and fitted ledge',
-                     reuse_wall_material('Panelled oak', 'Polished oak moulding', temporary, (0.46, 0.253, 0.123), 0.22))
+    # Straight lengths of the same runner leave bare boards at both turns and the stone sill.
+    runner_strip(runner, 'z', -19.8, 5.18, 19.68)
+    runner_strip(runner, 'x', 22, -18.93, -14.12)
+    runner_strip(runner, 'z', -13, 24.48, 39.96)
+    runner_strip(runner, 'x', 42, -11.42, 8.87)
+    for mesh, material in zip((plaster, wood, trim), scholars_materials(temporary)):
+        mesh.make_object(material.name, material)
     runner.make_object('Worn Scholars Passage runner', runner_material(temporary))
     bpy.ops.export_scene.gltf(filepath=str(OUTPUT / 'scholars_passage.glb'), export_format='GLB',
                               export_image_format='AUTO', export_yup=True)
