@@ -48,7 +48,22 @@ class Finish:
     def box(self, finish, x0, x1, y0, y1, z0, z1, repeat=1.2):
         passage_box(self.mesh(finish), (x0, y0, z0), (x1, y1, z1), repeat)
 
-    def face(self, name, axis, side, finish, cap=0, limits=None, top=None, plinth=False):
+    def coat(self, path, finish, low, high):
+        """Continue painted or stone dados around the same mitres as the wall finish."""
+        wall_faces(self.mesh(finish), path, low, high)
+        if low != 0:
+            return
+        if finish == 'rough':
+            wall_faces(self.mesh('cut'), path, 0, min(.84, high), .013, 1.55)
+            if high > .84:
+                wall_faces(self.mesh('quoin'), path, .81, .863, .023)
+        if finish == 'chalk':
+            wall_faces(self.mesh('dado'), path, 0, min(.88, high), .013)
+            wall_faces(self.mesh('painted'), path, 0, min(.095, high), .024)
+            if high > .88:
+                wall_faces(self.mesh('painted'), path, .86, .925, .022)
+
+    def face(self, name, axis, side, finish, cap=0, limits=None, top=None):
         """Finish the surveyed wall face. For doors and windows, keep their reveals clear."""
         wall = self.wall(name)
         run = 'z' if axis == 'x' else 'x'
@@ -70,16 +85,7 @@ class Finish:
             if panel:
                 panelled_walls(self.mesh(finish), self.mesh('oak'), self.mesh('trim'), path, high, cap / OAK_CAP)
             else:
-                wall_faces(self.mesh(finish), path, low, high)
-                if plinth and low == 0:
-                    wall_faces(self.mesh('cut'), path, 0, min(.84, high), .013, 1.55)
-                    if high > .84:
-                        wall_faces(self.mesh('quoin'), path, .81, .863, .023)
-                if finish == 'chalk' and low == 0:
-                    wall_faces(self.mesh('dado'), path, 0, min(.88, high), .013)
-                    wall_faces(self.mesh('painted'), path, 0, min(.095, high), .024)
-                    if high > .88:
-                        wall_faces(self.mesh('painted'), path, .86, .925, .022)
+                self.coat(path, finish, low, high)
 
         opening = wall.get('windowOpening')
         if not opening:
@@ -184,8 +190,11 @@ class Finish:
                                                    (x1, ceiling), (x0, ceiling)], side)
                 soffit = [point(x0, y0, -.163), point(x0, y0, .163),
                           point(x1, y1, .163), point(x1, y1, -.163)]
-                band.quad(soffit if axis == 'x' else soffit[::-1],
-                          [(x0, 0), (x0, .326), (x1, .326), (x1, 0)])
+                uv = [(x0, 0), (x0, .326), (x1, .326), (x1, 0)]
+                if axis == 'z':
+                    soffit.reverse()
+                    uv.reverse()
+                band.quad(soffit, uv)
         for center in piers:
             for a, b, y0, y1 in [(center - .22, center + .22, floor - .035, floor + .105),
                                   (center - .22, center + .22, spring - .11, spring + .02)]:
@@ -208,8 +217,22 @@ class Finish:
 
 def library(f):
     # The west passage keeps the First Court oak profile, with limewash over it.
-    f.wall_path([(42, 33.68), (49.32, 33.68), (49.32, 48.52), (54, 48.52)], 3.55, cap=.93)
-    f.wall_path([(46.68, 43), (46.68, 36.68), (42, 36.68)], 3.55, cap=.93)
+    entry_return = f.wall('Entry north return')
+    west_walk = f.wall('West wall 36.5')
+    nib = platform_edge(entry_return, 'x', 1)
+    reveal = platform_edge(entry_return, 'z', -1)
+    wall_end = platform_edge(west_walk, 'z', -1)
+    walk_face = platform_edge(west_walk, 'x', 1)
+    entry_inner = [(walk_face, 43), (walk_face, wall_end), (nib, wall_end), (nib, reveal), (42.18, reveal)]
+    entry_outer = [(42.18, 33.68), (49.32, 33.68), (49.32, 48.52), (54, 48.52)]
+    f.wall_path(entry_inner, 3.55, cap=.93)
+    f.wall_path(entry_outer, 3.55, cap=.93)
+    for path in ([(walk_face, 47), *entry_inner[1:]], entry_outer):
+        oak_wall_plates(f.mesh('trim'), path, 3.55)
+    # The pointed opening belongs to East Range. Continue the dado up to both stone jambs.
+    for start, end in [(33.68, 33.98), (36.02, reveal)]:
+        f.wall_path([(42.18, end), (42.18, start)], 3.55, cap=.93)
+    # The inside path owns the entrance nib. Room doors still divide the remaining dado.
     for name in ('Book Office passage wall', 'Catalogue Room passage wall', 'West wall 47', 'West wall 57.5',
                  'Library east wall 58.5', 'Library east wall 64.25', 'Old Library doorway'):
         # Adjacent segments own the mitre at the first turn.
@@ -260,10 +283,10 @@ def library(f):
         for x, inward in ((38.68, 1), (46.32, -1)):
             near, far = sorted((x, x + .27 * inward))
             f.box('trim', near, far, 5.23, 5.48, z - .084, z + .084)
-    for z in (37.9, 41.7, 46.5, 52, 56.65):
+    for z in (52, 56.65):
         f.box('trim', 46.675, 49.325, 3.34, 3.56, z - .09, z + .09)
-    for x in (43.6, 46.5):
-        f.box('trim', x - .09, x + .09, 3.34, 3.56, 33.68, 36.32)
+    oak_ties(f.mesh('trim'), 'z', walk_face, 49.32, 3.55, (37.9, 41.7, 46.5))
+    oak_ties(f.mesh('trim'), 'x', 33.68, reveal, 3.55, (43.6, 45.75))
     for z in (59.45, 63.7, 66.9):
         f.box('trim', 46.68, 49.32, 5.49, 5.81, z - .10, z + .10)
 
@@ -325,10 +348,18 @@ def teaching(f):
         f.box('painted', x - 3.31, x + 3.31, 3.51, 3.71, 74.65, 74.77)
         f.box('painted', x - 3.31, x + 3.31, 3.51, 3.71, 79.3, 79.42)
 
-    for name in ('North back wall 53.5', 'North back wall 65', 'History entrance wall'):
-        f.face(name, 'z', -1, 'chalk')
-    f.face('Latin entrance wall', 'x', 1, 'chalk')
-    f.face('Greek entrance wall', 'x', -1, 'chalk')
+    f.face('History entrance wall', 'z', -1, 'chalk', limits=(46.68, 53.5))
+    # The corridor slabs and the lobby walls meet half a wall-thickness apart.
+    # Follow the two stepped cheeks into the lobby, as far as the classroom openings.
+    for name, side, end in [('Latin', 1, 53.5), ('Greek', -1, 79.12)]:
+        wall = f.wall(f'{name} entrance wall')
+        face = platform_edge(wall, 'x', side)
+        start = platform_edge(wall, 'z', -1)
+        opening = wall['windowOpening']
+        jamb = opening['center'] - opening['width'] / 2
+        path = [(end, 73.32), (wall['x'], 73.32), (wall['x'], start), (face, start), (face, jamb)]
+        f.coat(path if side < 0 else path[::-1], 'chalk', 0, 3.7)
+        f.face(f'{name} entrance wall', 'x', side, 'chalk', limits=(jamb, 81.32))
     f.opening('Latin north wall', 'cut')
     f.opening('North west end', 'cut')
     f.opening('North extension bay', 'cut', mullions=1)
@@ -351,13 +382,25 @@ def teaching(f):
     # Older examination route. Cut stone below a limewashed brick-toned upper wall.
     for name, axis, side in [
         ('Candidates south wall', 'z', 1), ('Candidates outer west wall', 'x', 1),
-        ('Candidates inner west return', 'x', -1), ('Candidates outer north wall', 'z', -1),
+        ('Candidates outer north wall', 'z', -1),
         ('Candidates landing back wall', 'z', -1), ('Candidates return end', 'x', -1),
-        ('History north wall', 'z', 1), ('Latin north wall', 'z', 1),
-        ('Candidates turn headwall', 'z', -1), ('Candidates landing cheek', 'x', 1)
+        ('Candidates landing cheek', 'x', 1)
     ]:
-        limits = (54, 59.55) if name == 'Latin north wall' else None
-        f.face(name, axis, side, 'rough', top=2.8, limits=limits, plinth=True)
+        f.face(name, axis, side, 'rough', top=2.8)
+    inner = f.wall('Candidates inner west return')
+    bend = f.wall('Candidates side passage stop')
+    corner_x = platform_edge(inner, 'x', -1)
+    corner_z = platform_edge(bend, 'z', 1)
+    latin = f.wall('Latin north wall')['windowOpening']
+    left = latin['center'] - latin['width'] / 2
+    right = latin['center'] + latin['width'] / 2
+    # The two small stop blocks sit 20 mm ahead of the classroom wall faces.
+    # Treat their front plane as the render line across the whole return.
+    turn_z = platform_edge(f.wall('Candidates turn headwall'), 'z', -1)
+    f.coat([(46.32, turn_z), (corner_x, turn_z), (corner_x, corner_z), (left, corner_z)],
+           'rough', 0, 2.8)
+    f.coat([(right, corner_z), (59.55, corner_z)], 'rough', 0, 2.8)
+    f.coat([(left, corner_z), (right, corner_z)], 'rough', latin['height'], 2.8)
     for x in (47.5, 51.4, 54.4):
         f.box('painted', x - .075, x + .075, 2.62, 2.805, 81.68, 83.3)
 

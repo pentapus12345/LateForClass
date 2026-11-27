@@ -768,6 +768,43 @@ function registerFirstCourtTests(test, manifest, levelsUrl) {
                 'Architectural finish obscures the collision view');
         }));
 
+    test('Library Court finishes cover the exposed junctions and the Book Office sign clears both door swings', () =>
+        withSchool((world, scene) => {
+            function firstSurface(from, to) {
+                scene.updateMatrixWorld(true);
+                const start = new THREE.Vector3(...from);
+                const direction = new THREE.Vector3(...to).sub(start).normalize();
+                const ray = new THREE.Raycaster(start, direction);
+                return ray.intersectObjects(scene.children, true).find(({ object }) =>
+                    object.isMesh && object.material.visible && !object.material.transparent)?.object;
+            }
+            for (const [from, to, finish] of [
+                [[13, 1.6, 35.6], [10.196, 1.6, 35.08], /Existing weathered stone/],
+                [[48.79, 1.6, 35.95], [46.5, 1.72, 36.5], /Soft limewash/],
+                [[47.6, 1.6, 35.05], [45.5, .5, 36.32], /Scholars recessed oak/],
+                [[72, 1.6, 72.15], [79.12, 1.75, 71.8], /Dressed limestone/],
+                [[44.3, 1.6, 82.55], [46, 1.65, 81.78], /Old passage lime render/]
+            ]) {
+                const surface = firstSurface(from, to);
+                check(finish.test(surface?.material.name), 'Unfinished face at ' + to + ': ' + surface?.name);
+            }
+            const gallery = world.area('library-gallery').level;
+            const door = gallery.doors.find(item => item.definition.id === 'book-office');
+            for (const swing of [0, 1, -1]) {
+                if (swing) {
+                    gallery.swingDoor(door, swing);
+                }
+                for (const from of [[48.6, 1.6, 47.1], [48.75, 1.6, 43.5]]) {
+                    const sign = scene.getObjectByName('Book Office');
+                    for (const offset of [-.55, 0, .55]) {
+                        const { x, y, z } = sign.position;
+                        check(firstSurface(from, [x, y, z + offset]) === sign,
+                            'Book Office caption obscured with door swing ' + swing);
+                    }
+                }
+            }
+        }));
+
     for (const reverse of [false, true]) {
         test('Library Court passage circuits work with doors first opened from the ' +
             (reverse ? 'reverse' : 'forward') + ' approach', () => withSchool((world, scene) => {

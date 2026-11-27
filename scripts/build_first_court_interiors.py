@@ -253,19 +253,19 @@ def build(temporary):
     exit_half_width = profiles['pointedOak']['width'] / 2 + casing
     exit_south, exit_north = exit_center - exit_half_width, exit_center + exit_half_width
     for path in [
-        [(10.18, 32.18), (41.82, 32.18), (41.82, exit_south)],
+        [(10.18, 32.85), (10.18, 32.18), (41.82, 32.18), (41.82, exit_south)],
         [(41.82, exit_north), (41.82, 37.82), (40.4 + casing, 37.82)],
         [(38.6 - casing, 37.82), (37.08, 37.82)],
         [(33.92, 37.82), (26.9 + casing, 37.82)],
         [(25.1 - casing, 37.82), (19.52, 37.82)],
-        [(16.48, 37.82), (10.18, 37.82), (10.18, 35)],
+        [(16.48, 37.82), (10.18, 37.82), (10.18, 35.15)],
     ]:
         panelled_walls(range_wall, range_panel, range_trim, path, 4.5)
     for head in ['Mathematics door arched head', 'Map store masonry head']:
         portal_wall(range_wall, east_range, profiles, head, -1, 4.5)
     portal_wall(range_wall, east_range, profiles, exit_head, -1, 4.5)
     portal_wall(range_wall, east_range, profiles, exit_head, 1, 3.55)
-    wall_faces(range_wall, [(10.18, 35), (10.18, 33)], 3.45, 4.5)
+    wall_faces(range_wall, [(10.18, 35.15), (10.18, 32.85)], 3.61, 4.5)
     oak_wall_plates(range_trim, [(10.18, 32.18), (41.82, 32.18), (41.82, 37.82), (37, 37.82),
                                  (37, 38), (34, 38), (34, 37.82), (10.18, 37.82), (10.18, 32.18)], 4.5)
     oak_ties(range_trim, 'x', 32.18, 37.82, 4.5, (13.5, 19.5, 25.5, 31.5, 37.5))

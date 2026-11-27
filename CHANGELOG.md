@@ -8,6 +8,12 @@ file paths and test status from the time of the change.
 
 ## [Unreleased]
 
+### 2026-11-27 — Fit Library Court thresholds, junctions and room signs
+
+- Finished the square East Range threshold with a fitted masonry return and flush sill. Wrapped oak and seated the ceiling ties at the Library Court entry.
+- Finished the North Teaching arcade end walls, lobby returns and Candidates’ Passage turn. Corrected arcade soffit texture mapping and moved room titles clear of their door frames and tested swings.
+- Passed 131 Node and 104 Chrome tests. All 783 collider bounds matched, both challenges passed on their direct routes, and the dense survey found zero uncovered sightlines. Desktop exploration peaked at a 33.33 ms gap between presented frames. [Diagnosis and matched images](docs/milestone-21-library-court.md#stage-2-architectural-integration-review)
+
 ### 2026-11-27 — Correct visible streaming gaps and shader stalls in First Court
 
 - Aligned the Library Court sightline guards and prefetch approaches with the north porch, East Range, west walk, language lobby and candidates’ landing. Grouped the existing stair-well roof with the cloister skyline.

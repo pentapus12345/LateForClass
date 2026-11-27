@@ -101,6 +101,17 @@ def cloister_faces(masonry, area, profiles):
         finish_quad(masonry, [(x0, z0, y), (x1, z0, y), (x1, z1, y), (x0, z1, y)], (0, 1), 2.4)
 
     masonry_opening(masonry, 10, (33, 35), 32.18, 35.82, 3.45, 4.4, east_face=False)
+    # Return the existing rectangular lining onto the East Range face.
+    # The dressed jambs and flat lintel stay outside the clear opening.
+    for path in [[(10.188, 33.002), (10.196, 33.002), (10.196, 32.85)],
+                 [(10.196, 35.15), (10.196, 34.998), (10.188, 34.998)]]:
+        wall_faces(masonry, path, 0, 3.448, depth=0, period=2.4)
+    wall_faces(masonry, [(10.196, 35.15), (10.196, 32.85)], 3.448, 3.61, depth=0, period=2.4)
+    finish_quad(masonry, [(10.188, 33.002, 3.448), (10.196, 33.002, 3.448),
+                           (10.196, 34.998, 3.448), (10.188, 34.998, 3.448)], (0, 1), 2.4)
+    # Bridge the two floor finishes with a flush stone threshold.
+    finish_quad(masonry, [(9.82, 33.002, .002), (9.82, 34.998, .002),
+                           (10.196, 34.998, .002), (10.196, 33.002, .002)], (0, 1), 2.4)
     wall_faces(masonry, [(-0.18, right), (-0.18, 25.82), (-4.32, 25.82),
                          (-4.32, 20.18), (-0.18, 20.18), (-0.18, left)], 0, 0.145, period=2.4)
 
