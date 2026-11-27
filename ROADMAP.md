@@ -1044,98 +1044,129 @@ Record relevant startup, loading, frame-time and memory measurements using the e
 ## Current limitations
 
 - The timed school uses six classrooms and one same-day deadline. The current default is Mathematics in Room 102, so Room 101 is available to explore during the run. First-time player comprehension and time allowance remain playtesting items.
-- Furniture mixes procedural placeholders and imported models. Solid models use enclosing collision boxes.
+- Original six-classroom regression scenes retain some procedural placeholders; First Court uses fitted finishes and optimized imported teaching furniture. Further Scholars’ Passage dressing is deferred visual debt. Solid models use enclosing collision boxes.
 - Much of the two-floor route still uses prototype finishes. The quadrangle is visible through two windows, and Room 102 still has the earlier wall-backed sample.
 - The earlier pitch-snap bug has regression coverage; the previously reported intermittent sideways roll was not reproduced in the cited hallway investigation.
 - The browser build requires WebGL and Pointer Lock. The repository serves its pinned Three.js build locally.
 
 ## Proposed milestones — priority order
 
-### 20. Large-school area and connection architecture
+### 20. First Court — connected-world foundation
 
-**Status:** Implementation complete, pending milestone approval. The seven-room [First Court layout](docs/first-court-blockout.md) now has three streaming areas with the four visual stages and the requested architectural finish pass implemented. The timed trial is the default and the developer entry supports untimed inspection. [Milestone 20 review](docs/milestone-20-new-school.md#9-final-milestone-20-review)
+**Status:** Implemented; final product-owner closure pending. The seven-room First Court loop, three-area streaming, timed Mathematics trial, V1–V4 visual work, architectural finish consistency work, and **approved offline finish-preset pilot** are implemented. The user has confirmed that streaming is imperceptible during ordinary play and that the timed route is satisfying. These statements do not imply final visual perfection. [First Court technical specification](docs/milestone-20-new-school.md) · [Visual review and pilot](docs/first-court-visual-spec.md) · [Playtest evidence](docs/first-court-blockout.md)
 
-**Complexity:** Large
+**Objective and delivered foundation:** A coherent first fragment of the same enormous historic school, with two routes to Room 25, discoverable public room numbers, believable institutional rooms, continuous traversal and recoverable area streaming. Previously completed prototypes remain regression environments. The 60× clock and timed arrival remain the default; untimed exploration exists for development and playtesting, not as the promised core game.
 
-**Objective:** Support the sensation of an overwhelmingly large school without loading and maintaining the entire world as one simultaneous scene.
+**Technical evidence:** The offline-finish pilot reported **123 Node and 96 Chrome tests passing**. The same visual GLBs rebuilt byte-for-byte, and a temporary modified-manifest test showed that selected oak/plaster finishes and door reveals follow their source wall and opening geometry. This demonstrates limited, useful data-driven reuse; bespoke intersections, ceiling ties and rugs remain explicitly authored. See [authoring notes](docs/first-court-visual-spec.md#offline-finish-preset) and the [changelog](CHANGELOG.md). Earlier performance and streaming measurements are preserved in the referenced evidence; they should not be generalized to untested future expansions.
 
-**Scope:** Build First Court as a fourth school with a gatehouse and porter’s lodge, a covered cloister and an East Range classroom and stair lookout. The normal entry starts the Mathematics trial. Its public destination is Room 25. An explicit **developer-only** entry supports untimed inspection; it is not the default gameplay or a commitment to player-facing free roam. Early classes emphasize quick orientation and recoverable wrong turns; later milestones can add longer, clue-driven timed investigations. Prototype loading and releasing an adjacent area on demand, preserving cached reusable assets and required session state. Test seamless physical routes first; leave impossible or non-aligned transitions to a later milestone. Introduce measured visibility/culling strategies only as needed. Protect scheduled-room reachability and preserve clock behavior through transitions.
+**Acceptance decision needed to close:** Product owner confirms First Court as a **development-quality foundation**, not a production-quality finished environment. Record any still-open legacy startup-byte exception explicitly, and either perform the required first-time timed navigation playtest with an unfamiliar person or record it as a deferred validation gate with an owner and future checkpoint. Do not claim that first-time fairness has been measured when it has not. Close milestone 20 in the roadmap only following that approval.
 
-**Dependencies:** Milestones 17–19, current Game/Level/GameSession architecture.
+**Recorded visual debt (deferred, not grounds to block school growth):** Scholars’ Passage still wants believable freestanding furniture, wall displays/portraits, notices and small signs of school life; other interior and exterior art will benefit from additional polish. Improve such dressing in a later bounded art pass, preferably when returning to that wing for new gameplay. Do not reopen V1–V4 or demand a production-ready finish before building more school. Resolve any *new actual geometry, collision, streaming or legibility defect* when discovered.
 
-**Acceptance criteria:** The default first-time experience creates an immediate, fair sense of urgency: a timed start, a legible but not prescriptive route choice, room plaques, a recoverable wrong turn, and intriguing optional spaces the player may wish to revisit. Test with at least one unfamiliar player in timed mode before showing them the map or explore mode. The player traverses at least three linked areas without losing clock, controls, room identity or objective. Returning to a previously visited area behaves consistently; streaming avoids duplicate resources and leaks; an unreachable-target validation test exists. Performance and loading behavior are reported for desktop browsers.
+**Authoring follow-up:** Keep the offline finish preset and named manifest references. During the first new-wing build, check whether repeated use justifies moving the shared functions from `build_scholars_passage.py` into a neutral module; do not refactor solely for tidiness, introduce a general-purpose procedural school generator or turn deliberate historical irregularity into monotonous repetition.
 
-**Stage decision and remaining work:** Stage V1 is provisionally accepted, the product owner accepted Stage V2 and marked Stage V3 complete, and Stage V4 and the finish pass are ready for visual approval. First Court meets its measured performance targets. Unfamiliar-player validation, the legacy prototype’s startup byte exception and final milestone approval remain open. [Finish gallery and results](docs/first-court-visual-spec.md#12-architectural-finish-consistency-pass)
+### 21. Expand the connected school — second navigable district
 
-The product owner approved the offline finish preset pilot in Scholars’ Passage and the East Range vestibule as the foundation for future school expansion. Both exports match the finish-pass assets byte for byte. [Authoring notes and verification](docs/first-court-visual-spec.md#offline-finish-preset)
+**Status:** Proposed — **design approval first; no implementation is authorized by this roadmap update**.
 
-**Constraints:** Do not populate the full campus or introduce non-Euclidean portals, persistent story progression or NPCs yet.
+**Complexity:** Large, delivered in short reviewable stages.
 
-### 21. Beyond classrooms: service routes and playable exterior
+**Objective:** Prove that First Court can grow into an **apparently much larger, learnable school** whose geography makes an unfamiliar *timed* class journey interesting. This is the next highest-priority product risk, ahead of adding obscure puzzles, collectible keys, non-player characters or more surface decoration.
 
-**Status:** Proposed
+**Design direction (not fixed geography):** Add a historically distinct adjoining district, provisionally an **older library / north teaching range and associated small court**, connected physically to First Court. The final choice of connections, areas, room count, campus scale, floor levels and any playable exterior is a product-owner design decision. The resulting school should have an additional convincing junction, a non-obvious but fair alternative route or loop, multiple plausibly numbered destinations, and side spaces with institutional purposes. It must not become a single longer hallway. Reserve more than one believable path for later expansion. New places should look like parts of one institution built at different times.
 
-**Complexity:** Large
+**Bounded implementation target, subject to layout approval:** Roughly **2–3 new independently manageable areas** and **6–10 additional room identities**, of which at least **two are enterable/schedulable classrooms** and one is a non-teaching destination. These are design targets, not permission to manufacture arbitrary rooms. Reuse approved stone, plaster, oak, signs, furniture, lighting and offline authoring patterns; give the new district its own restrained architectural identity. Keep most new spaces at development-quality finish; concentrate art on landmarks and decision points. Existing First Court geometry, identities, streaming, and timed trial remain intact unless a specific shared doorway/connection has been approved.
 
-**Objective:** Make the school feel like a functioning institution with discoverable, purpose-built routes beyond academic corridors.
+**Gameplay trial:** Provide a distinct timed destination in the extension, with a data-configured deadline based on *first-time route discovery*, including at least one recoverable wrong turn. The current 45-second Mathematics opening remains available. The player must have the freedom to take irrelevant, plausible paths and run out of time rather than hit arbitrary blockers; the milestone does **not** promise an infinite world or access to unfinished future areas. The expansion should visibly suggest additional wings beyond the playable boundary without creating deceptive accessible-looking dead ends.
 
-**Scope:** Add a connected set of distinctive locations, chosen and approved individually from a maintenance room/passage, cafeteria kitchen, changing room/showers, courtyard, and football-field path. Start with one indoor service shortcut and one traversable exterior route; use the approved architectural assets and lighting styles. Give each route visual clues and navigational purpose rather than treating it as decoration. Preserve room numbering, scheduling and fair deadlines.
+**Approval and implementation gates:**
 
-**Dependencies:** Milestones 18–20, plus approved route layout and individual environment choices.
+1. **Planning only:** Provide a top-down adjacency sketch, room schedule and public numbering rationale, approximate scale, area/threshold ownership, proposed timed route(s), future expansion seams, landmark composition and rough performance budget. Explain which paths the player could choose and how wrong turns are recoverable. **Stop for approval.**
+2. **Walkable blockout:** Build only the approved topology and minimal readable signs, doorways and collision. Test the timed opening plus the new destination and reverse routes. Let the product owner walk it before committing to streaming thresholds or decoration. **Stop for approval.**
+3. **Streaming and integration:** Extend current world/residency behavior to the new adjacency graph. Check crossing, rapid reversals, sightlines, light ownership, door-state retention, retry/failure handling and cumulative model-cache costs. **Stop for review.**
+4. **Selective dressing:** Apply the shared finishing approach to complete architectural runs, choose distinct local details and signs, correct exposed seams, and capture matched views. Do **not** open-endedly polish every room. **Stop for milestone acceptance.**
 
-**Technical follow-up for the next expansion.** While implementing another area, assess whether moving the reusable finish functions and presets from `build_scholars_passage.py` into a neutral architectural finishing module would make them easier to reuse. Extract them only when that area demonstrates a concrete reuse benefit. Keep bespoke junctions, runner lengths and intentional architectural variations explicitly authored where appropriate.
+**Acceptance criteria:** The original and extended timed classes remain independently selectable without hardcoded destination coordinates. A new player can infer the new destination using in-world information and recover from a wrong choice. There are genuine route decisions, not merely two named signs at a fork; at least one previously encountered landmark helps reorientation. Area loading is not evident during ordinary traversal; no visible missing chunks, collision gaps, broken lighting or session resets. Node and Chrome regressions pass for old and new routes; startup/download, decoded assets, frame intervals and repeated-loop resource retention are measured, and deviations are called out. At least one unfamiliar person attempts the new class **timed first**, before viewing plans or explore mode; report observations rather than only automated completion times.
 
-**Acceptance criteria:** One challenge has at least two meaningful routes, including an optional service or outdoor passage. The player can infer and traverse them using in-world clues; doors, floors, exits, collision, lighting and level transitions function. The route is tested for fairness and browser performance.
+**Constraints:** Do not implement full timetable progression, saving, arbitrary route changes, character crowds, inventory/keys or non-Euclidean space. Do not independently redesign First Court. The detailed architecture and exact area count must be approved before coding. One shared campus, not another disconnected selectable school.
 
-**Constraints:** Do not construct every desired location at once; grow the world through separately reviewable pieces.
+### 22. Repeated timed journeys — route knowledge as progression
 
-### 22. Persistent discovery and subtle school changes
+**Status:** Proposed; depends on the approved, functioning milestone 21 expansion.
 
-**Status:** Proposed
+**Complexity:** Medium.
 
-**Complexity:** Large
+**Objective:** Establish whether the game becomes more compelling when the player revisits the **same persistent geography** for a second or third scheduled destination, rather than repeatedly running a single isolated class challenge.
+
+**Scope:** Prototype a sequence of **two or three timed classes** using the same connected campus, with different start and destination rooms, different appropriate deadlines and a reason to reuse a shortcut or previously learned landmark. First test this with separate data-defined challenge configurations or an explicit minimal selector, *without* implementing saved days, automatic timetable progression, score, inventory, persistent NPC behavior or story state. If automatic chaining proves necessary, propose its state semantics separately before implementation.
+
+**Acceptance criteria:** A player who learned the first route can apply that knowledge later; the second challenge still offers a meaningful choice and fair time pressure. World geography, room IDs, streaming and clock behavior remain consistent, with regression coverage. Observations distinguish genuine route learning from merely memorizing a scripted sequence.
+
+**Approval gate:** Agree exact class sequence, starts, destinations, time allowances and whether they are chosen separately or chained; then implement only the approved trial.
+
+### 23. Service shortcuts and playable school grounds
+
+**Status:** Proposed.
+
+**Complexity:** Large.
+
+**Objective:** Add purpose-built routes that make the school feel inhabited and sometimes reward counterintuitive movement.
+
+**Scope:** Select an institutionally plausible service connection (e.g. maintenance corridor, kitchen/delivery access or staff passage) **and** one bounded playable outdoor route (e.g. a connected courtyard or garden walk). Connect them naturally to existing buildings and scheduled destinations; do not create arbitrary locked-key puzzles. Realistic staff-only doors may exist, but necessary class routes must remain fairly solvable. Use the established art kits and streaming design.
+
+**Acceptance criteria:** At least one timed journey has a normal academic route and a learnable alternative through a service or exterior space. Both are physically connected, visually understandable and measurable for fairness, collision, streaming and performance. Side locations have plausible daily functions, not just decorative room names.
+
+**Constraints:** No obligation to build all kitchens, showers, cafeterias or sports grounds in one milestone. Defer keys/inventory until an actual navigation challenge justifies them.
+
+### 24. Investigative class challenge — older names, numbers and clues
+
+**Status:** Proposed.
+
+**Complexity:** Medium–Large.
+
+**Objective:** Prototype the first **intellectual** class-finding problem without abandoning urgency: the schedule may use a historic room or hall name, an incomplete direction or an old numbering system.
+
+**Scope:** Build one fair, learnable puzzle using existing campus locations and readable environmental evidence (e.g. an old plan, portrait inscription, renamed range or contradictory but dateable notice). Allow a substantially longer **data-defined** deadline for deduction. The player must connect clues and travel to a real classroom; no hidden interaction pixel or arbitrary guessing. Avoid requiring a new wing solely to host the puzzle.
+
+**Acceptance criteria:** An unfamiliar player can solve it using clues available during the timed attempt; playtest notes identify what was understood and where reasoning failed. The short opening navigation challenge remains available and unaffected.
+
+### 25. Persistent discovery and subtle school changes
+
+**Status:** Proposed.
+
+**Complexity:** Large.
 
 **Objective:** Make learned knowledge valuable while occasionally changing familiar routes in intentional, surprising, fair ways.
 
-**Scope:** Separate fixed area/connection definitions from active school state and the player's discovery history. Prototype one recognizable shortcut that is learned, later changes while the player is elsewhere or between classes, and presents a clue plus a viable alternative. Preserve change state across the relevant game sessions; specify exact persistence and reset behavior before coding. Verify changes cannot make a scheduled destination unreachable or produce unfair automatic timeout.
+**Scope:** Design persistence semantics before implementation: what survives between class challenges, retries, days and restarts, including observed clues, route changes and discovered shortcuts. Prototype one familiar connection that changes between visits or out of sight, leaving a clue and viable alternative. Keep most geography stable. Verify a scheduled target cannot become unreachably or unfairly inaccessible.
 
-**Dependencies:** Milestones 20–21 and separately approved persistence/progression semantics.
+**Dependencies:** Repeated timed journeys and at least one investigated historical clue challenge.
 
-**Acceptance criteria:** A scripted multi-visit scenario shows the same familiar area before and after one controlled change; the player can discover what happened and adapt without guessing randomly. Time, navigation, transitions and saved state remain consistent, with automated connectivity checks and browser walkthroughs.
+**Acceptance criteria:** A multi-visit scenario demonstrates recognition, surprise, clue-based adaptation, reliable save/reset behavior and guaranteed viable routes. No random mid-run reshuffling.
 
-**Constraints:** No random mid-run maze reshuffling; no seamless impossible portals yet.
+### 26. Strange wings and impossible connections
 
-### 23. Strange wings and impossible connections
+**Status:** Proposed.
 
-**Status:** Proposed
+**Complexity:** Large.
 
-**Complexity:** Large
+**Objective:** Introduce one internally understandable but spatially improbable wing only after ordinary campus navigation and learnable mysteries are compelling.
 
-**Objective:** Begin the gradual transition from a believable historic school to an internally understandable but architecturally absurd institution.
+**Scope:** Seek approval for one unusual rule and use the existing area transition infrastructure; prototype a doorway or staircase that cannot fit ordinary geometry while preserving reliable return, player orientation, loading, timing and reachable destinations. Keep the familiar school as the anchor; avoid turning the entire campus into a maze.
 
-**Scope:** Design and seek approval for one unusual wing with a distinct, learnable rule. Prototype a doorway or staircase transition to an area whose spatial relationship cannot fit the ordinary world layout. Preserve continuity of player controls, scheduled objective, discoverability, loading and timing. Use the familiar school as an anchor and introduce the absurdity sparingly.
+**Acceptance criteria:** A new player can infer the rule and reach the scheduled room in time with fair clues; no soft-locks or impossible deadlines. Preserve old-world routes and regressions.
 
-**Dependencies:** Milestones 20 and 22; approved unusual-wing design.
+### 27. Ambient school life and character feasibility trial
 
-**Acceptance criteria:** The strange area has an understandable navigational rule, at least one reliable return route, and a playable scheduled-room challenge. No soft-locks or impossible deadline states occur. A first-time playtest demonstrates that the surprise is interesting rather than arbitrary.
+**Status:** Proposed; can be reprioritized independently once performance headroom and design purpose are established.
 
-**Constraints:** Basic area transitions are acceptable; seamless portals are an optional future project, not a requirement.
+**Complexity:** Medium–Large.
 
-### 24. Ambient school life and character feasibility trial
+**Objective:** Test whether characters and ambient sound make the school feel lived-in without compromising timed navigation.
 
-**Status:** Proposed
+**Scope:** Prototype a few approved rigged animated student/staff models, simple waypoint paths and discreet ambient audio in one defined area. Measure animation, lighting and loading costs. No crowds, conversation engine or autonomous personalities.
 
-**Complexity:** Medium–Large
-
-**Objective:** Evaluate whether animated students, staff and environmental audio improve the sense of a living school without compromising browser performance or navigation.
-
-**Scope:** Prototype a small number of approved rigged GLB characters using animation clips and simple waypoint navigation in one test area, alongside discreet ambient sound and footsteps. Keep collision, occlusion, and visibility policies simple. Measure animation, rendering, and asset-loading costs. Decide whether characters should remain decorative or later become interactive.
-
-**Dependencies:** Milestones 18–20; approved character assets and licenses.
-
-**Acceptance criteria:** A small group of characters walk believable routes without blocking essential navigation or materially disrupting the school clock. Assets load/reuse/cleanup correctly; the browser meets the agreed performance target; an observed playtest supports a decision to expand, revise or defer NPCs.
-
-**Constraints:** No large autonomous crowd, conversations, dialogue AI or complex behavior trees in this trial.
+**Acceptance criteria:** People and sound improve a user-observed playtest, maintain route legibility and don't obstruct the schedule. Performance and asset lifetimes remain within measured budgets or explicitly documented exceptions.
 
 ## Deferred milestones
 
